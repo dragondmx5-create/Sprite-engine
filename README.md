@@ -45,7 +45,21 @@ const bug = generateEnemy({ kind: 'insect', seed: 'e12', size: 20, alerted: true
 const gem = generateItem({ kind: 'crystal', seed: 'loot7', size: 20 });
 
 CREATURE_KINDS; // ['insect','worm','crawler']
-ITEM_KINDS;     // ['mushroom','crystal','dagger']
+ITEM_KINDS;     // ['mushroom','crystal','dagger','torch','potion','coin','rune']
+```
+
+Several items are **emissive** (ember/glass materials): the torch flame, the
+potion's liquid, and the rune's carved glyph all read as glowing light sources.
+
+### Hair & outfit assets
+
+The character takes a `hairStyle` (`short` | `long` | `spiky` | `bun` | `bald`)
+and the outfit gains a flowing `cape`. Pants/cape colors are separate palette
+slots; both default to existing colors so old sprites are unchanged.
+
+```ts
+generateSprite({ seed: 'hero', hairStyle: 'spiky',
+  outfit: { cape: true, armor: true }, palette: { cape: [150,40,40], pants: [40,40,60] } });
 ```
 
 ### Facing (top-down movement)

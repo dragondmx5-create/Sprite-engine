@@ -238,6 +238,24 @@ var SpriteEngine = (() => {
       roughness: 0.7,
       metallic: false,
       shadowCoolShift: 0
+    }),
+    // Gold: warm metal with a bright, color-tinted highlight — coins, trim.
+    gold: (base) => ({
+      name: "gold",
+      base,
+      specStrength: 0.8,
+      roughness: 0.22,
+      metallic: true,
+      shadowCoolShift: 0.5
+    }),
+    // Glass: bright, very tight pinpoint sheen, cool — potion vials, lenses.
+    glass: (base) => ({
+      name: "glass",
+      base,
+      specStrength: 0.95,
+      roughness: 0.08,
+      metallic: false,
+      shadowCoolShift: 0.7
     })
   };
 
@@ -494,6 +512,8 @@ var SpriteEngine = (() => {
     const limbLen = (body.limbLength ?? 1) * (1 + rng.jitter(0.05));
     const stanceBase = ipose.stance ?? 1;
     const facing = config.facing ?? "front";
+    const hairStyle = config.hairStyle ?? "short";
+    const hasCape = outfit.cape ?? false;
     const pal = config.palette ?? {};
     const col = {
       skin: pal.skin ?? defaultColor(rng, "skin"),
@@ -503,14 +523,17 @@ var SpriteEngine = (() => {
       metal: pal.metal ?? defaultColor(rng, "metal"),
       hat: pal.hat ?? defaultColor(rng, "hat")
     };
+    const capeCol = pal.cape ?? col.cloth;
+    const pantsCol = pal.pants ?? col.leather;
     const M = {
       skin: MATERIALS.skin(col.skin),
       hair: MATERIALS.hair(col.hair),
       torso: MATERIALS[torsoMat](torsoMat === "leather" ? col.leather : col.cloth),
-      legs: MATERIALS.cloth(col.leather),
+      legs: MATERIALS.cloth(pantsCol),
       leather: MATERIALS.leather(col.leather),
       metal: MATERIALS.metal(col.metal),
-      hat: MATERIALS[hat === "hat" ? "leather" : "cloth"](col.hat)
+      hat: MATERIALS[hat === "hat" ? "leather" : "cloth"](col.hat),
+      cape: MATERIALS.cloth(capeCol)
     };
     const cx = s * 0.5;
     const headHw = s * 0.205 * headScale;
@@ -560,8 +583,14 @@ var SpriteEngine = (() => {
       parts.push({ material: mat, roundness, sdf: f, bbox: [Math.floor(minx - 2), Math.floor(miny - 2), Math.ceil(maxx + 2), Math.ceil(maxy + 2)] });
     };
     const box = (mat, bx, by, hw, hh, r, roundness, xf) => place(mat, roundedBox(bx, by, hw, hh, r), bx - hw, by - hh, bx + hw, by + hh, roundness, xf);
-    if (hat === "none" || hat === "cap") {
-      box(M.hair, cx, headCy - headHh * 0.18, headHw * 1.06, headHh * 0.95, headCorner * 0.9, 0.45, xHead());
+    if (hasCape) {
+      const capeTop = shoulderY + s * 0.01;
+      const capeBot = legCy + legHh * 0.4;
+      box(M.cape, cx, (capeTop + capeBot) / 2, torsoHw * 1.45, (capeBot - capeTop) / 2, s * 0.03, 0.5, xUpper);
+    }
+    if (hairStyle !== "bald" && (hat === "none" || hat === "cap")) {
+      const back = hairStyle === "long" ? headHh * 1.35 : headHh * 0.95;
+      box(M.hair, cx, headCy - headHh * 0.18 + (hairStyle === "long" ? headHh * 0.2 : 0), headHw * 1.06, back, headCorner * 0.9, 0.45, xHead());
     }
     for (const dir of [-1, 1]) {
       const lx = cx + dir * legSpread;
@@ -594,9 +623,10 @@ var SpriteEngine = (() => {
       const eyeMat = { ...M.skin, name: "eye", base: [40, 34, 44], specStrength: 0.7, roughness: 0.3 };
       for (const dir of [-1, 1]) box(eyeMat, cx + shift + dir * eyeDx, eyeY, ew, eh, ew * 0.5, 0.4, xHead());
     }
-    if (facing === "back" && (hat === "none" || hat === "cap")) {
+    const showHair = hairStyle !== "bald" && (hat === "none" || hat === "cap");
+    if (showHair && facing === "back") {
       box(M.hair, cx, headCy + headHh * 0.04, headHw * 0.96, headHh * 0.9, headCorner * 0.85, 0.42, xHead());
-    } else if (hat === "none" || hat === "cap") {
+    } else if (showHair) {
       const fy = headCy - headHh * 0.52;
       const fr = union(
         roundedBox(cx, fy, headHw * 0.98, headHh * 0.34, headHw * 0.2),
@@ -606,6 +636,27 @@ var SpriteEngine = (() => {
         )
       );
       place(M.hair, fr, cx - headHw * 1.05, headCy - headHh * 1, cx + headHw * 1.05, headCy + headHh * 0.45, 0.4, xHead());
+      if (hairStyle === "spiky") {
+        for (let k = -2; k <= 2; k++) {
+          const sx = cx + k * headHw * 0.42;
+          place(
+            M.hair,
+            capsule(sx, headCy - headHh * 0.7, sx + k * headHw * 0.08, headCy - headHh * 1.25, headHw * 0.13),
+            sx - headHw * 0.3,
+            headCy - headHh * 1.4,
+            sx + headHw * 0.3,
+            headCy - headHh * 0.5,
+            0.5,
+            xHead()
+          );
+        }
+      } else if (hairStyle === "bun") {
+        box(M.hair, cx, headCy - headHh * 0.95, headHw * 0.42, headHh * 0.4, headHw * 0.4, 0.7, xHead());
+      } else if (hairStyle === "long") {
+        for (const dir of [-1, 1]) {
+          box(M.hair, cx + dir * headHw * 0.92, headCy + headHh * 0.55, headHw * 0.22, headHh * 0.95, headHw * 0.18, 0.45, xHead());
+        }
+      }
     }
     if (hat === "cap") {
       box(M.hat, cx, headCy - headHh * 0.62, headHw * 1.02, headHh * 0.5, headHw * 0.5, 0.5, xHead());
@@ -972,6 +1023,18 @@ var SpriteEngine = (() => {
       // cyan gem
       case "dagger":
         return j([122, 132, 150], 0.1);
+      // cold steel
+      case "torch":
+        return j([255, 150, 50], 0.1);
+      // flame
+      case "potion":
+        return j([90, 210, 130], 0.18);
+      // liquid
+      case "coin":
+        return j([220, 180, 70], 0.08);
+      // gold
+      case "rune":
+        return j([150, 110, 230], 0.16);
     }
   }
   function buildMushroom(rng, s, color) {
@@ -1025,6 +1088,58 @@ var SpriteEngine = (() => {
     pushCircle2(parts, pommel, cx, s * 0.87, s * 0.045, 0.85);
     return parts;
   }
+  function buildTorch(rng, s, color) {
+    const parts = [];
+    const cx = s * 0.5;
+    const grip = MATERIALS.leather([86, 58, 40]);
+    const head = MATERIALS.bone([60, 50, 46]);
+    const flame = MATERIALS.ember(color);
+    const flameHi = MATERIALS.ember([255, 235, 140]);
+    pushCapsule2(parts, grip, cx, s * 0.86, cx, s * 0.48, s * 0.04, 1);
+    pushCircle2(parts, head, cx, s * 0.46, s * 0.07, 0.9);
+    const fy = s * 0.3, flick = rng.jitter(s * 0.02);
+    pushEllipse2(parts, flame, cx + flick, fy, s * 0.1, s * 0.16, 1);
+    pushEllipse2(parts, flameHi, cx + flick * 0.5, fy + s * 0.02, s * 0.05, s * 0.1, 1);
+    return parts;
+  }
+  function buildPotion(rng, s, color) {
+    const parts = [];
+    const cx = s * 0.5;
+    const glass = MATERIALS.glass([200, 220, 230]);
+    const liquid = MATERIALS.ember(color);
+    const cork = MATERIALS.leather([150, 110, 70]);
+    pushEllipse2(parts, liquid, cx, s * 0.62, s * 0.18, s * 0.16, 1);
+    pushCircle2(parts, glass, cx, s * 0.6, s * 0.21, 1);
+    pushBox(parts, glass, cx, s * 0.36, s * 0.07, s * 0.1, s * 0.03, 0.8);
+    pushCircle2(parts, MATERIALS.glass([255, 255, 255]), cx - s * 0.08, s * 0.52, s * 0.03, 0.7);
+    pushBox(parts, cork, cx, s * 0.26, s * 0.06, s * 0.05, s * 0.02, 0.9);
+    return parts;
+  }
+  function buildCoin(rng, s, color) {
+    const parts = [];
+    const cx = s * 0.5, cy = s * 0.54;
+    const gold = MATERIALS.gold(color);
+    const goldDim = MATERIALS.gold([color[0] * 0.78, color[1] * 0.78, color[2] * 0.7]);
+    pushEllipse2(parts, goldDim, cx + s * 0.05, cy + s * 0.06, s * 0.2, s * 0.16, 1);
+    pushEllipse2(parts, gold, cx, cy, s * 0.21, s * 0.17, 1);
+    pushEllipse2(parts, goldDim, cx, cy, s * 0.13, s * 0.1, 1);
+    pushCircle2(parts, MATERIALS.gold([255, 240, 190]), cx - s * 0.07, cy - s * 0.05, s * 0.03, 0.7);
+    return parts;
+  }
+  function buildRune(rng, s, color) {
+    const parts = [];
+    const cx = s * 0.5, cy = s * 0.52;
+    const stone = MATERIALS.bone([70, 66, 74]);
+    const glow = MATERIALS.ember(color);
+    pushBox(parts, stone, cx, cy, s * 0.18, s * 0.24, s * 0.05, 0.85);
+    const strokes = 3 + Math.floor(rng.float() * 3);
+    for (let i = 0; i < strokes; i++) {
+      const ax = cx + rng.jitter(s * 0.09), ay = cy + rng.jitter(s * 0.14);
+      const bx = cx + rng.jitter(s * 0.09), by = cy + rng.jitter(s * 0.14);
+      pushCapsule2(parts, glow, ax, ay, bx, by, Math.max(1, s * 0.014), 0.7);
+    }
+    return parts;
+  }
   function buildItem(config, s) {
     const rng = new RNG(config.seed ?? 0);
     const kind = config.kind ?? "mushroom";
@@ -1034,12 +1149,20 @@ var SpriteEngine = (() => {
         return buildCrystal(rng, s, color);
       case "dagger":
         return buildDagger(rng, s, color);
+      case "torch":
+        return buildTorch(rng, s, color);
+      case "potion":
+        return buildPotion(rng, s, color);
+      case "coin":
+        return buildCoin(rng, s, color);
+      case "rune":
+        return buildRune(rng, s, color);
       case "mushroom":
       default:
         return buildMushroom(rng, s, color);
     }
   }
-  var ITEM_KINDS = ["mushroom", "crystal", "dagger"];
+  var ITEM_KINDS = ["mushroom", "crystal", "dagger", "torch", "potion", "coin", "rune"];
 
   // src/field.ts
   function edt1d(f, n, out) {

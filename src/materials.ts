@@ -73,4 +73,16 @@ export const MATERIALS: Record<string, MatFactory> = {
     name: 'ember', base,
     specStrength: 0.55, roughness: 0.7, metallic: false, shadowCoolShift: 0.0,
   }),
+
+  // Gold: warm metal with a bright, color-tinted highlight — coins, trim.
+  gold: (base) => ({
+    name: 'gold', base,
+    specStrength: 0.8, roughness: 0.22, metallic: true, shadowCoolShift: 0.5,
+  }),
+
+  // Glass: bright, very tight pinpoint sheen, cool — potion vials, lenses.
+  glass: (base) => ({
+    name: 'glass', base,
+    specStrength: 0.95, roughness: 0.08, metallic: false, shadowCoolShift: 0.7,
+  }),
 };

@@ -17,7 +17,7 @@ import { RNG } from './rng';
 import { MATERIALS } from './materials';
 import { Part, circle, ellipse, capsule, roundedBox, rotatedAround, transformedAABB, type SDF } from './shapes';
 
-export type ItemKind = 'mushroom' | 'crystal' | 'dagger';
+export type ItemKind = 'mushroom' | 'crystal' | 'dagger' | 'torch' | 'potion' | 'coin' | 'rune';
 
 export interface ItemConfig {
   seed?: number | string;
@@ -72,6 +72,10 @@ function defaultColor(rng: RNG, kind: ItemKind): RGB {
     case 'mushroom': return j([176, 58, 52], 0.16);  // red cap
     case 'crystal':  return j([96, 178, 214], 0.14);  // cyan gem
     case 'dagger':   return j([122, 132, 150], 0.10);  // cold steel
+    case 'torch':    return j([255, 150, 50], 0.10);  // flame
+    case 'potion':   return j([90, 210, 130], 0.18);  // liquid
+    case 'coin':     return j([220, 180, 70], 0.08);  // gold
+    case 'rune':     return j([150, 110, 230], 0.16);  // arcane glyph
   }
 }
 
@@ -144,6 +148,79 @@ function buildDagger(rng: RNG, s: number, color: RGB): Part[] {
   return parts;
 }
 
+/** TORCH — leather grip, charred head, and a glowing ember flame on top. */
+function buildTorch(rng: RNG, s: number, color: RGB): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5;
+  const grip = MATERIALS.leather([86, 58, 40]);
+  const head = MATERIALS.bone([60, 50, 46]);
+  const flame = MATERIALS.ember(color);
+  const flameHi = MATERIALS.ember([255, 235, 140]);
+
+  // handle
+  pushCapsule(parts, grip, cx, s * 0.86, cx, s * 0.48, s * 0.04, 1.0);
+  // charred head wrap
+  pushCircle(parts, head, cx, s * 0.46, s * 0.07, 0.9);
+  // flame — a teardrop: wide ember base + bright tongue, flickering by seed
+  const fy = s * 0.30, flick = rng.jitter(s * 0.02);
+  pushEllipse(parts, flame, cx + flick, fy, s * 0.10, s * 0.16, 1.0);
+  pushEllipse(parts, flameHi, cx + flick * 0.5, fy + s * 0.02, s * 0.05, s * 0.10, 1.0);
+  return parts;
+}
+
+/** POTION — round glass flask, glowing liquid inside, cork stopper. */
+function buildPotion(rng: RNG, s: number, color: RGB): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5;
+  const glass = MATERIALS.glass([200, 220, 230]);
+  const liquid = MATERIALS.ember(color);     // ember → the liquid reads as glowing
+  const cork = MATERIALS.leather([150, 110, 70]);
+
+  // glowing liquid (drawn first, glass over it)
+  pushEllipse(parts, liquid, cx, s * 0.62, s * 0.18, s * 0.16, 1.0);
+  // glass bulb + neck
+  pushCircle(parts, glass, cx, s * 0.60, s * 0.21, 1.0);
+  pushBox(parts, glass, cx, s * 0.36, s * 0.07, s * 0.10, s * 0.03, 0.8);
+  // bright surface glint
+  pushCircle(parts, MATERIALS.glass([255, 255, 255]), cx - s * 0.08, s * 0.52, s * 0.03, 0.7);
+  // cork
+  pushBox(parts, cork, cx, s * 0.26, s * 0.06, s * 0.05, s * 0.02, 0.9);
+  return parts;
+}
+
+/** COIN — a gold disc with a struck rim and a bright glint. */
+function buildCoin(rng: RNG, s: number, color: RGB): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5, cy = s * 0.54;
+  const gold = MATERIALS.gold(color);
+  const goldDim = MATERIALS.gold([color[0] * 0.78, color[1] * 0.78, color[2] * 0.7]);
+  // a second coin behind for a little stack
+  pushEllipse(parts, goldDim, cx + s * 0.05, cy + s * 0.06, s * 0.2, s * 0.16, 1.0);
+  pushEllipse(parts, gold, cx, cy, s * 0.21, s * 0.17, 1.0);
+  // inner struck ring + glint
+  pushEllipse(parts, goldDim, cx, cy, s * 0.13, s * 0.10, 1.0);
+  pushCircle(parts, MATERIALS.gold([255, 240, 190]), cx - s * 0.07, cy - s * 0.05, s * 0.03, 0.7);
+  return parts;
+}
+
+/** RUNE — a dark stone tablet carved with a glowing arcane glyph. */
+function buildRune(rng: RNG, s: number, color: RGB): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5, cy = s * 0.52;
+  const stone = MATERIALS.bone([70, 66, 74]);
+  const glow = MATERIALS.ember(color);
+  // tablet
+  pushBox(parts, stone, cx, cy, s * 0.18, s * 0.24, s * 0.05, 0.85);
+  // glowing glyph — a deterministic little constellation of strokes
+  const strokes = 3 + (Math.floor(rng.float() * 3));
+  for (let i = 0; i < strokes; i++) {
+    const ax = cx + rng.jitter(s * 0.09), ay = cy + rng.jitter(s * 0.14);
+    const bx = cx + rng.jitter(s * 0.09), by = cy + rng.jitter(s * 0.14);
+    pushCapsule(parts, glow, ax, ay, bx, by, Math.max(1, s * 0.014), 0.7);
+  }
+  return parts;
+}
+
 /** Build an item's part list. `s` = working px (size * supersample). */
 export function buildItem(config: ItemConfig, s: number): Part[] {
   const rng = new RNG(config.seed ?? 0);
@@ -152,10 +229,14 @@ export function buildItem(config: ItemConfig, s: number): Part[] {
   switch (kind) {
     case 'crystal': return buildCrystal(rng, s, color);
     case 'dagger':  return buildDagger(rng, s, color);
+    case 'torch':   return buildTorch(rng, s, color);
+    case 'potion':  return buildPotion(rng, s, color);
+    case 'coin':    return buildCoin(rng, s, color);
+    case 'rune':    return buildRune(rng, s, color);
     case 'mushroom':
     default:        return buildMushroom(rng, s, color);
   }
 }
 
 /** Names of the built-in item kinds. */
-export const ITEM_KINDS: ItemKind[] = ['mushroom', 'crystal', 'dagger'];
+export const ITEM_KINDS: ItemKind[] = ['mushroom', 'crystal', 'dagger', 'torch', 'potion', 'coin', 'rune'];

@@ -20,7 +20,7 @@
 import type { RGB, SpriteConfig } from './types';
 import { RNG } from './rng';
 import { MATERIALS } from './materials';
-import { Part, SDF, roundedBox, union, rotatedAround, translated } from './shapes';
+import { Part, SDF, roundedBox, capsule, union, rotatedAround, translated } from './shapes';
 import { Pose, NEUTRAL_POSE } from './pose';
 
 /** Pick a deterministic default color (HSV-ish) when the user didn't specify one. */
@@ -87,7 +87,13 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
   const stanceBase = ipose.stance ?? 1;
   const facing = config.facing ?? 'front';
 
+  const hairStyle = config.hairStyle ?? 'short';
+  const hasCape = outfit.cape ?? false;
+
   const pal = config.palette ?? {};
+  // Keep this defaultColor() call order unchanged — it fixes the seed→color
+  // mapping. `cape`/`pants` derive from existing colors (no extra RNG draws)
+  // so adding them doesn't shift any existing sprite.
   const col = {
     skin: pal.skin ?? defaultColor(rng, 'skin'),
     hair: pal.hair ?? defaultColor(rng, 'hair'),
@@ -96,14 +102,17 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
     metal: pal.metal ?? defaultColor(rng, 'metal'),
     hat: pal.hat ?? defaultColor(rng, 'hat'),
   };
+  const capeCol = pal.cape ?? col.cloth;
+  const pantsCol = pal.pants ?? col.leather; // default legs unchanged
   const M = {
     skin: MATERIALS.skin(col.skin),
     hair: MATERIALS.hair(col.hair),
     torso: MATERIALS[torsoMat](torsoMat === 'leather' ? col.leather : col.cloth),
-    legs: MATERIALS.cloth(col.leather),
+    legs: MATERIALS.cloth(pantsCol),
     leather: MATERIALS.leather(col.leather),
     metal: MATERIALS.metal(col.metal),
     hat: MATERIALS[hat === 'hat' ? 'leather' : 'cloth'](col.hat),
+    cape: MATERIALS.cloth(capeCol),
   };
 
   // --- Base layout (neutral pose), in working px. -------------------------
@@ -167,9 +176,18 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
   const box = (mat: Part['material'], bx: number, by: number, hw: number, hh: number, r: number, roundness: number, xf: Xform) =>
     place(mat, roundedBox(bx, by, hw, hh, r), bx - hw, by - hh, bx + hw, by + hh, roundness, xf);
 
+  // 0) CAPE — a flowing cloak behind the whole body. Drawn first so everything
+  // overlaps it; leans with the torso. Flares slightly toward the hem.
+  if (hasCape) {
+    const capeTop = shoulderY + s * 0.01;
+    const capeBot = legCy + legHh * 0.4;
+    box(M.cape, cx, (capeTop + capeBot) / 2, torsoHw * 1.45, (capeBot - capeTop) / 2, s * 0.03, 0.5, xUpper);
+  }
+
   // 1) HAIR BACK — crowns the head (behind it). Part of the head group.
-  if (hat === 'none' || hat === 'cap') {
-    box(M.hair, cx, headCy - headHh * 0.18, headHw * 1.06, headHh * 0.95, headCorner * 0.9, 0.45, xHead());
+  if (hairStyle !== 'bald' && (hat === 'none' || hat === 'cap')) {
+    const back = hairStyle === 'long' ? headHh * 1.35 : headHh * 0.95;
+    box(M.hair, cx, headCy - headHh * 0.18 + (hairStyle === 'long' ? headHh * 0.2 : 0), headHw * 1.06, back, headCorner * 0.9, 0.45, xHead());
   }
 
   // 2) LEGS / trousers + boots — swing about the hip.
@@ -221,9 +239,10 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
 
   // 9) HAIR FRONT — chunky fringe across the forehead. When facing away, the
   // back of the head reads as a full hair mass covering the (hidden) face.
-  if (facing === 'back' && (hat === 'none' || hat === 'cap')) {
+  const showHair = hairStyle !== 'bald' && (hat === 'none' || hat === 'cap');
+  if (showHair && facing === 'back') {
     box(M.hair, cx, headCy + headHh * 0.04, headHw * 0.96, headHh * 0.9, headCorner * 0.85, 0.42, xHead());
-  } else if (hat === 'none' || hat === 'cap') {
+  } else if (showHair) {
     const fy = headCy - headHh * 0.52;
     const fr: SDF = union(
       roundedBox(cx, fy, headHw * 0.98, headHh * 0.34, headHw * 0.2),
@@ -233,6 +252,24 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
       ),
     );
     place(M.hair, fr, cx - headHw * 1.05, headCy - headHh * 1.0, cx + headHw * 1.05, headCy + headHh * 0.45, 0.4, xHead());
+
+    // Style extras (layered over the fringe).
+    if (hairStyle === 'spiky') {
+      // a row of upward spikes along the crown
+      for (let k = -2; k <= 2; k++) {
+        const sx = cx + k * headHw * 0.42;
+        place(M.hair, capsule(sx, headCy - headHh * 0.7, sx + k * headHw * 0.08, headCy - headHh * 1.25, headHw * 0.13),
+          sx - headHw * 0.3, headCy - headHh * 1.4, sx + headHw * 0.3, headCy - headHh * 0.5, 0.5, xHead());
+      }
+    } else if (hairStyle === 'bun') {
+      // a tied bun on top
+      box(M.hair, cx, headCy - headHh * 0.95, headHw * 0.42, headHh * 0.4, headHw * 0.4, 0.7, xHead());
+    } else if (hairStyle === 'long') {
+      // two long locks falling past the cheeks
+      for (const dir of [-1, 1]) {
+        box(M.hair, cx + dir * headHw * 0.92, headCy + headHh * 0.55, headHw * 0.22, headHh * 0.95, headHw * 0.18, 0.45, xHead());
+      }
+    }
   }
 
   // 10) HATS (head group).

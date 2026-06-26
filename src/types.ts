@@ -84,6 +84,8 @@ export interface SpriteConfig {
     leather?: RGB;
     metal?: RGB;
     hat?: RGB;
+    cape?: RGB;
+    pants?: RGB;
   };
 
   /** Outfit composition. */
@@ -92,7 +94,11 @@ export interface SpriteConfig {
     armor?: boolean;             // metal chestplate + pauldrons. default false
     belt?: boolean;              // leather belt. default true
     hat?: 'none' | 'cap' | 'hat'; // headwear. default 'none'
+    cape?: boolean;              // flowing cloak behind the body. default false
   };
+
+  /** Hairstyle. Default 'short' (the original look). 'bald' draws no hair. */
+  hairStyle?: 'short' | 'long' | 'spiky' | 'bun' | 'bald';
 
   /** Draw simple eyes. Default true. */
   face?: boolean;

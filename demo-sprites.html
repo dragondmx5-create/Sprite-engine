@@ -70,6 +70,9 @@ var SpriteEngine = (() => {
     ATTACK: () => ATTACK,
     CLIPS: () => CLIPS,
     CREATURE_KINDS: () => CREATURE_KINDS,
+    DEATH: () => DEATH,
+    ENEMY_CLIPS: () => ENEMY_CLIPS,
+    HIT: () => HIT,
     IDLE: () => IDLE,
     ITEM_KINDS: () => ITEM_KINDS,
     MATERIALS: () => MATERIALS,
@@ -78,17 +81,27 @@ var SpriteEngine = (() => {
     animationToCanvases: () => animationToCanvases,
     buildCreature: () => buildCreature,
     buildItem: () => buildItem,
+    damp: () => damp,
+    fabrik: () => fabrik,
     generateAnimation: () => generateAnimation,
     generateEnemy: () => generateEnemy,
+    generateEnemyAnimation: () => generateEnemyAnimation,
     generateItem: () => generateItem,
     generateSprite: () => generateSprite,
     generateSpriteCanvas: () => generateSpriteCanvas,
     generateSpriteSheetCanvas: () => generateSpriteSheetCanvas,
+    lag: () => lag,
     listAnimations: () => listAnimations,
+    listEnemyAnimations: () => listEnemyAnimations,
     packSpriteSheet: () => packSpriteSheet,
+    pulse: () => pulse,
     samplePose: () => samplePose,
+    smooth: () => smooth,
+    solveTwoBone: () => solveTwoBone,
+    squash: () => squash,
     toCanvas: () => toCanvas,
-    toImageData: () => toImageData
+    toImageData: () => toImageData,
+    wave: () => wave
   });
 
   // src/rng.ts
@@ -228,6 +241,24 @@ var SpriteEngine = (() => {
       roughness: 0.7,
       metallic: false,
       shadowCoolShift: 0
+    }),
+    // Gold: warm metal with a bright, color-tinted highlight — coins, trim.
+    gold: (base) => ({
+      name: "gold",
+      base,
+      specStrength: 0.8,
+      roughness: 0.22,
+      metallic: true,
+      shadowCoolShift: 0.5
+    }),
+    // Glass: bright, very tight pinpoint sheen, cool — potion vials, lenses.
+    glass: (base) => ({
+      name: "glass",
+      base,
+      specStrength: 0.95,
+      roughness: 0.08,
+      metallic: false,
+      shadowCoolShift: 0.7
     })
   };
 
@@ -389,10 +420,39 @@ var SpriteEngine = (() => {
       // settle
     ]
   };
+  var HIT = {
+    name: "hit",
+    fps: 16,
+    loop: false,
+    frames: 5,
+    keyframes: [
+      { t: 0, pose: { rootX: 0, headTilt: 0, torsoLean: 0 }, ease: "easeOut" },
+      { t: 0.25, pose: { rootX: -2.2, headTilt: 9 * D, torsoLean: 7 * D }, ease: "easeIn" },
+      // knocked back
+      { t: 1, pose: { rootX: 0, headTilt: 0, torsoLean: 0 } }
+      // settle
+    ]
+  };
+  var DEATH = {
+    name: "death",
+    fps: 12,
+    loop: false,
+    frames: 7,
+    keyframes: [
+      { t: 0, pose: { torsoLean: 0, rootY: 0, headTilt: 0 }, ease: "easeIn" },
+      { t: 0.2, pose: { torsoLean: -10 * D, headTilt: -8 * D, rootY: -1 }, ease: "easeOut" },
+      // brief stagger up
+      { t: 0.6, pose: { torsoLean: 62 * D, headTilt: 40 * D, rootY: 3, legL: 22 * D, legR: -16 * D, armL: 30 * D, armR: -24 * D }, ease: "easeIn" },
+      { t: 1, pose: { torsoLean: 80 * D, headTilt: 55 * D, rootY: 5, legL: 26 * D, legR: -20 * D, armL: 38 * D, armR: -30 * D } }
+      // collapsed
+    ]
+  };
   var CLIPS = {
     idle: IDLE,
     walk: WALK,
-    attack: ATTACK
+    attack: ATTACK,
+    hit: HIT,
+    death: DEATH
   };
 
   // src/skeleton.ts
@@ -455,6 +515,8 @@ var SpriteEngine = (() => {
     const limbLen = (body.limbLength ?? 1) * (1 + rng.jitter(0.05));
     const stanceBase = ipose.stance ?? 1;
     const facing = config.facing ?? "front";
+    const hairStyle = config.hairStyle ?? "short";
+    const hasCape = outfit.cape ?? false;
     const pal = config.palette ?? {};
     const col = {
       skin: pal.skin ?? defaultColor(rng, "skin"),
@@ -464,14 +526,17 @@ var SpriteEngine = (() => {
       metal: pal.metal ?? defaultColor(rng, "metal"),
       hat: pal.hat ?? defaultColor(rng, "hat")
     };
+    const capeCol = pal.cape ?? col.cloth;
+    const pantsCol = pal.pants ?? col.leather;
     const M = {
       skin: MATERIALS.skin(col.skin),
       hair: MATERIALS.hair(col.hair),
       torso: MATERIALS[torsoMat](torsoMat === "leather" ? col.leather : col.cloth),
-      legs: MATERIALS.cloth(col.leather),
+      legs: MATERIALS.cloth(pantsCol),
       leather: MATERIALS.leather(col.leather),
       metal: MATERIALS.metal(col.metal),
-      hat: MATERIALS[hat === "hat" ? "leather" : "cloth"](col.hat)
+      hat: MATERIALS[hat === "hat" ? "leather" : "cloth"](col.hat),
+      cape: MATERIALS.cloth(capeCol)
     };
     const cx = s * 0.5;
     const headHw = s * 0.205 * headScale;
@@ -521,8 +586,14 @@ var SpriteEngine = (() => {
       parts.push({ material: mat, roundness, sdf: f, bbox: [Math.floor(minx - 2), Math.floor(miny - 2), Math.ceil(maxx + 2), Math.ceil(maxy + 2)] });
     };
     const box = (mat, bx, by, hw, hh, r, roundness, xf) => place(mat, roundedBox(bx, by, hw, hh, r), bx - hw, by - hh, bx + hw, by + hh, roundness, xf);
-    if (hat === "none" || hat === "cap") {
-      box(M.hair, cx, headCy - headHh * 0.18, headHw * 1.06, headHh * 0.95, headCorner * 0.9, 0.45, xHead());
+    if (hasCape) {
+      const capeTop = shoulderY + s * 0.01;
+      const capeBot = legCy + legHh * 0.4;
+      box(M.cape, cx, (capeTop + capeBot) / 2, torsoHw * 1.45, (capeBot - capeTop) / 2, s * 0.03, 0.5, xUpper);
+    }
+    if (hairStyle !== "bald" && (hat === "none" || hat === "cap")) {
+      const back = hairStyle === "long" ? headHh * 1.35 : headHh * 0.95;
+      box(M.hair, cx, headCy - headHh * 0.18 + (hairStyle === "long" ? headHh * 0.2 : 0), headHw * 1.06, back, headCorner * 0.9, 0.45, xHead());
     }
     for (const dir of [-1, 1]) {
       const lx = cx + dir * legSpread;
@@ -555,9 +626,10 @@ var SpriteEngine = (() => {
       const eyeMat = { ...M.skin, name: "eye", base: [40, 34, 44], specStrength: 0.7, roughness: 0.3 };
       for (const dir of [-1, 1]) box(eyeMat, cx + shift + dir * eyeDx, eyeY, ew, eh, ew * 0.5, 0.4, xHead());
     }
-    if (facing === "back" && (hat === "none" || hat === "cap")) {
+    const showHair = hairStyle !== "bald" && (hat === "none" || hat === "cap");
+    if (showHair && facing === "back") {
       box(M.hair, cx, headCy + headHh * 0.04, headHw * 0.96, headHh * 0.9, headCorner * 0.85, 0.42, xHead());
-    } else if (hat === "none" || hat === "cap") {
+    } else if (showHair) {
       const fy = headCy - headHh * 0.52;
       const fr = union(
         roundedBox(cx, fy, headHw * 0.98, headHh * 0.34, headHw * 0.2),
@@ -567,6 +639,27 @@ var SpriteEngine = (() => {
         )
       );
       place(M.hair, fr, cx - headHw * 1.05, headCy - headHh * 1, cx + headHw * 1.05, headCy + headHh * 0.45, 0.4, xHead());
+      if (hairStyle === "spiky") {
+        for (let k = -2; k <= 2; k++) {
+          const sx = cx + k * headHw * 0.42;
+          place(
+            M.hair,
+            capsule(sx, headCy - headHh * 0.7, sx + k * headHw * 0.08, headCy - headHh * 1.25, headHw * 0.13),
+            sx - headHw * 0.3,
+            headCy - headHh * 1.4,
+            sx + headHw * 0.3,
+            headCy - headHh * 0.5,
+            0.5,
+            xHead()
+          );
+        }
+      } else if (hairStyle === "bun") {
+        box(M.hair, cx, headCy - headHh * 0.95, headHw * 0.42, headHh * 0.4, headHw * 0.4, 0.7, xHead());
+      } else if (hairStyle === "long") {
+        for (const dir of [-1, 1]) {
+          box(M.hair, cx + dir * headHw * 0.92, headCy + headHh * 0.55, headHw * 0.22, headHh * 0.95, headHw * 0.18, 0.45, xHead());
+        }
+      }
     }
     if (hat === "cap") {
       box(M.hat, cx, headCy - headHh * 0.62, headHw * 1.02, headHh * 0.5, headHw * 0.5, 0.5, xHead());
@@ -576,6 +669,90 @@ var SpriteEngine = (() => {
       box(M.hat, cx, headCy - headHh * 0.42, headHw * 1.55, headHh * 0.16, headHh * 0.12, 0.4, xHead());
     }
     return parts;
+  }
+
+  // src/anim/ik.ts
+  var hyp = Math.hypot;
+  function solveTwoBone(base, target, l1, l2, bend) {
+    let dx = target.x - base.x;
+    let dy = target.y - base.y;
+    let dist = hyp(dx, dy) || 1e-6;
+    const maxReach = l1 + l2;
+    const minReach = Math.abs(l1 - l2);
+    const clamped = Math.max(minReach + 1e-4, Math.min(maxReach - 1e-4, dist));
+    const ux = dx / dist, uy = dy / dist;
+    const fx = base.x + ux * clamped;
+    const fy = base.y + uy * clamped;
+    const cosA = (l1 * l1 + clamped * clamped - l2 * l2) / (2 * l1 * clamped);
+    const a = Math.acos(Math.max(-1, Math.min(1, cosA)));
+    const baseAng = Math.atan2(fy - base.y, fx - base.x);
+    const kneeAng = baseAng + bend * a;
+    const knee = { x: base.x + Math.cos(kneeAng) * l1, y: base.y + Math.sin(kneeAng) * l1 };
+    return { knee, foot: { x: fx, y: fy } };
+  }
+  function fabrik(joints, target, iterations = 8, lengths) {
+    const n = joints.length;
+    if (n === 0) return [];
+    if (n === 1) return [{ ...joints[0] }];
+    const L = lengths ?? joints.slice(1).map((p2, i) => hyp(p2.x - joints[i].x, p2.y - joints[i].y) || 1e-6);
+    const total = L.reduce((s, v) => s + v, 0);
+    const root = { x: joints[0].x, y: joints[0].y };
+    const p = joints.map((j) => ({ x: j.x, y: j.y }));
+    const rootToTarget = hyp(target.x - root.x, target.y - root.y);
+    if (rootToTarget > total) {
+      const ux = (target.x - root.x) / (rootToTarget || 1e-6);
+      const uy = (target.y - root.y) / (rootToTarget || 1e-6);
+      p[0] = { ...root };
+      for (let i = 1; i < n; i++) p[i] = { x: p[i - 1].x + ux * L[i - 1], y: p[i - 1].y + uy * L[i - 1] };
+      return p;
+    }
+    for (let it = 0; it < iterations; it++) {
+      p[n - 1] = { x: target.x, y: target.y };
+      for (let i = n - 2; i >= 0; i--) {
+        const dx = p[i].x - p[i + 1].x, dy = p[i].y - p[i + 1].y;
+        const d = hyp(dx, dy) || 1e-6;
+        const r = L[i] / d;
+        p[i] = { x: p[i + 1].x + dx * r, y: p[i + 1].y + dy * r };
+      }
+      p[0] = { ...root };
+      for (let i = 1; i < n; i++) {
+        const dx = p[i].x - p[i - 1].x, dy = p[i].y - p[i - 1].y;
+        const d = hyp(dx, dy) || 1e-6;
+        const r = L[i - 1] / d;
+        p[i] = { x: p[i - 1].x + dx * r, y: p[i - 1].y + dy * r };
+      }
+      if (hyp(p[n - 1].x - target.x, p[n - 1].y - target.y) < 1e-3) break;
+    }
+    return p;
+  }
+
+  // src/anim/spring.ts
+  var TAU = Math.PI * 2;
+  function smooth(x) {
+    const t = x < 0 ? 0 : x > 1 ? 1 : x;
+    return t * t * (3 - 2 * t);
+  }
+  function damp(t, freq = 2, decay = 4) {
+    return Math.sin(t * TAU * freq) * Math.exp(-t * decay);
+  }
+  function lag(lead, phase, amount) {
+    let p = (phase - amount) % 1;
+    if (p < 0) p += 1;
+    return lead(p);
+  }
+  function squash(amount) {
+    const a = Math.max(-0.6, Math.min(0.6, amount));
+    const sy = 1 + a;
+    const sx = 1 / Math.sqrt(sy);
+    return { sx, sy };
+  }
+  function pulse(phase, center, w) {
+    const d = Math.abs(phase - center);
+    if (d > w) return 0;
+    return smooth(1 - d / w);
+  }
+  function wave(phase, cycles = 1, offset = 0) {
+    return Math.sin((phase * cycles + offset) * TAU);
   }
 
   // src/creatures.ts
@@ -604,6 +781,23 @@ var SpriteEngine = (() => {
       bbox: [Math.floor(Math.min(ax, bx) - r - 2), Math.floor(Math.min(ay, by) - r - 2), Math.ceil(Math.max(ax, bx) + r + 2), Math.ceil(Math.max(ay, by) + r + 2)]
     });
   }
+  function ikLeg(parts, mat, hip, restFoot, l1, l2, bend, legR, phase, stride, tuck) {
+    let gp = phase % 1;
+    if (gp < 0) gp += 1;
+    let fy, fx;
+    if (gp < 0.5) {
+      const u = gp / 0.5;
+      fy = restFoot.y + (0.5 - u) * stride;
+      fx = restFoot.x;
+    } else {
+      const u = (gp - 0.5) / 0.5;
+      fy = restFoot.y + (-0.5 + u) * stride;
+      fx = restFoot.x + Math.sin(u * PI) * tuck * Math.sign(restFoot.x - hip.x || 1) * -1;
+    }
+    const { knee, foot } = solveTwoBone(hip, { x: fx, y: fy }, l1, l2, bend);
+    pushCapsule(parts, mat, hip.x, hip.y, knee.x, knee.y, legR, 0.9);
+    pushCapsule(parts, mat, knee.x, knee.y, foot.x, foot.y, legR * 0.85, 0.9);
+  }
   function eyeMaterial(alerted) {
     return alerted ? MATERIALS.ember([255, 70, 40]) : { ...MATERIALS.gem([60, 12, 14]), name: "eye" };
   }
@@ -616,58 +810,57 @@ var SpriteEngine = (() => {
     switch (kind) {
       case "insect":
         return j([44, 50, 40], 0.18);
-      // greenish-black shell
       case "worm":
         return j([122, 138, 70], 0.16);
-      // sickly chartreuse flesh
       case "crawler":
         return j([138, 46, 44], 0.16);
     }
   }
-  function buildInsect(rng, s, color, alerted) {
+  function buildInsect(rng, s, color, alerted, phase, amp) {
     const parts = [];
     const cx = s * 0.5;
     const shell = MATERIALS.chitin(color);
     const eye = eyeMaterial(alerted);
     const bodyR = s * 0.17;
-    const abdomenCy = s * 0.62;
-    const thoraxCy = s * 0.44;
-    const headCy = s * 0.3;
+    const bob = wave(phase, 2) * s * 0.012 * amp;
+    const abdomenCy = s * 0.62 + bob;
+    const thoraxCy = s * 0.44 + bob;
+    const headCy = s * 0.3 + bob;
     const legR = Math.max(1, s * 0.022);
+    const l1 = s * 0.13, l2 = s * 0.13;
     for (const dir of [-1, 1]) {
       for (let i = 0; i < 3; i++) {
-        const ay = thoraxCy + (i - 1) * s * 0.1;
-        const jointX = cx + dir * bodyR * 0.7;
-        const kneeX = cx + dir * s * (0.3 + i * 0.02);
-        const kneeY = ay - s * 0.04 + i * s * 0.03;
-        const footX = cx + dir * s * (0.4 + i * 0.015);
-        const footY = ay + s * (0.1 + i * 0.03);
-        pushCapsule(parts, shell, jointX, ay, kneeX, kneeY, legR, 0.9);
-        pushCapsule(parts, shell, kneeX, kneeY, footX, footY, legR * 0.85, 0.9);
+        const hip = { x: cx + dir * bodyR * 0.7, y: thoraxCy + (i - 1) * s * 0.1 };
+        const restFoot = { x: cx + dir * s * (0.36 + i * 0.015), y: thoraxCy + (i - 1) * s * 0.12 + s * 0.06 };
+        const tripod = (i + (dir < 0 ? 0 : 1)) % 2 * 0.5;
+        ikLeg(parts, shell, hip, restFoot, l1, l2, dir < 0 ? 1 : -1, legR, phase + tripod, s * 0.07 * amp, s * 0.05 * amp);
       }
     }
+    const antLag = lag((p) => wave(p, 2), phase, 0.12) * amp;
     for (const dir of [-1, 1]) {
       pushCapsule(
         parts,
         shell,
         cx + dir * bodyR * 0.4,
         headCy - s * 0.02,
-        cx + dir * s * 0.16,
-        headCy - s * 0.18,
+        cx + dir * s * 0.16 + dir * antLag * s * 0.03,
+        headCy - s * 0.18 + antLag * s * 0.02,
         Math.max(1, s * 0.012),
         0.9
       );
     }
-    pushEllipse(parts, shell, cx, abdomenCy, bodyR * 1.18, bodyR * 1.4, 1);
-    pushEllipse(parts, shell, cx, thoraxCy, bodyR, bodyR * 0.95, 1);
+    const sq = squash(wave(phase, 2) * 0.05 * amp);
+    pushEllipse(parts, shell, cx, abdomenCy, bodyR * 1.18 * sq.sx, bodyR * 1.4 * sq.sy, 1);
+    pushEllipse(parts, shell, cx, thoraxCy, bodyR * sq.sx, bodyR * 0.95 * sq.sy, 1);
     pushCircle(parts, shell, cx, headCy, bodyR * 0.72, 1);
+    const mand = (0.5 + 0.5 * wave(phase, 4)) * bodyR * 0.18 * amp;
     for (const dir of [-1, 1]) {
       pushCapsule(
         parts,
         shell,
         cx + dir * bodyR * 0.4,
         headCy + bodyR * 0.4,
-        cx + dir * bodyR * 0.85,
+        cx + dir * (bodyR * 0.85 + mand),
         headCy + bodyR * 0.8,
         legR * 0.9,
         0.85
@@ -677,72 +870,77 @@ var SpriteEngine = (() => {
     for (const dir of [-1, 1]) pushCircle(parts, eye, cx + dir * eyeDx, headCy - bodyR * 0.05, eyeR, 0.7);
     return parts;
   }
-  function buildWorm(rng, s, color, alerted) {
+  function buildWorm(rng, s, color, alerted, phase, amp) {
     const parts = [];
     const cx = s * 0.5;
     const flesh = MATERIALS.flesh(color);
-    const segs = 5;
+    const segs = 6;
     const baseY = s * 0.86, topY = s * 0.22;
-    const sway = rng.range(0.04, 0.09) * s;
-    const phase = rng.range(0, PI * 2);
-    let topCx = cx, topR = 0;
+    const lateral = rng.range(0.05, 0.085) * s * amp;
+    const seedPhase = rng.range(0, PI * 2);
+    const travel = phase * PI * 2;
+    let topCx = cx, topR = 0, topCy = topY;
     for (let i = 0; i < segs; i++) {
       const t = i / (segs - 1);
-      const cy = baseY + (topY - baseY) * t;
-      const segCx = cx + Math.sin(phase + t * PI * 1.4) * sway * t;
+      const cy = baseY + (topY - baseY) * t - wave(phase, 1) * s * 0.02 * amp * t;
+      const segCx = cx + Math.sin(seedPhase + t * PI * 1.6 - travel) * lateral * (0.2 + t);
       const r = s * (0.16 - 0.085 * t);
       pushEllipse(parts, flesh, segCx, cy, r * 1.02, r * 1.18, 1);
       if (i === segs - 1) {
         topCx = segCx;
         topR = r;
+        topCy = cy;
       }
     }
+    const open = 0.5 + 0.5 * wave(phase, 2) * amp;
     const bone = MATERIALS.bone([200, 196, 176]);
     const maw = { ...MATERIALS.flesh([46, 30, 34]), name: "maw" };
-    pushCircle(parts, maw, topCx, topY, topR * 0.85, 1);
+    pushCircle(parts, maw, topCx, topCy, topR * (0.6 + 0.35 * open), 1);
     const teeth = 7;
     for (let k = 0; k < teeth; k++) {
-      const a = k / teeth * PI * 2 + phase;
-      const tx = topCx + Math.cos(a) * topR * 0.7;
-      const ty = topY + Math.sin(a) * topR * 0.7;
-      const ix = topCx + Math.cos(a) * topR * 0.3;
-      const iy = topY + Math.sin(a) * topR * 0.3;
+      const a = k / teeth * PI * 2 + seedPhase;
+      const ringR = topR * (0.55 + 0.25 * open);
+      const tx = topCx + Math.cos(a) * ringR;
+      const ty = topCy + Math.sin(a) * ringR;
+      const ix = topCx + Math.cos(a) * topR * 0.25;
+      const iy = topCy + Math.sin(a) * topR * 0.25;
       pushCapsule(parts, bone, tx, ty, ix, iy, Math.max(1, topR * 0.12), 0.85);
     }
     if (alerted) {
       const eye = eyeMaterial(true);
-      for (const dir of [-1, 1]) pushCircle(parts, eye, topCx + dir * topR * 0.5, topY + topR * 1.2, topR * 0.22, 0.7);
+      for (const dir of [-1, 1]) pushCircle(parts, eye, topCx + dir * topR * 0.5, topCy + topR * 1.2, topR * 0.22, 0.7);
     }
     return parts;
   }
-  function buildCrawler(rng, s, color, alerted) {
+  function buildCrawler(rng, s, color, alerted, phase, amp) {
     const parts = [];
     const cx = s * 0.5;
     const flesh = MATERIALS.flesh(color);
     const shell = MATERIALS.chitin([color[0] * 0.5, color[1] * 0.4, color[2] * 0.4]);
     const eye = eyeMaterial(alerted);
-    const bodyCy = s * 0.56;
+    const bob = wave(phase, 2) * s * 0.01 * amp;
+    const bodyCy = s * 0.56 + bob;
     const bodyHx = s * 0.3, bodyHy = s * 0.17;
     const legR = Math.max(1, s * 0.024);
+    const l1 = s * 0.12, l2 = s * 0.12;
     for (const dir of [-1, 1]) {
       for (let i = 0; i < 4; i++) {
-        const ax = cx + dir * bodyHx * 0.55;
-        const ay = bodyCy - bodyHy * 0.4 + (i - 1.5) * s * 0.055;
-        const footX = cx + dir * s * (0.4 + i % 2 * 0.04);
-        const footY = bodyCy + s * 0.16 + (i - 1.5) * s * 0.02;
-        const kneeX = (ax + footX) / 2 + dir * s * 0.04;
-        const kneeY = ay - s * 0.05;
-        pushCapsule(parts, shell, ax, ay, kneeX, kneeY, legR, 0.9);
-        pushCapsule(parts, shell, kneeX, kneeY, footX, footY, legR * 0.85, 0.9);
+        const hip = { x: cx + dir * bodyHx * 0.55, y: bodyCy - bodyHy * 0.4 + (i - 1.5) * s * 0.05 };
+        const restFoot = { x: cx + dir * s * (0.4 + i % 2 * 0.03), y: bodyCy + s * 0.14 + (i - 1.5) * s * 0.02 };
+        const off = (i + (dir < 0 ? 0 : 1)) % 2 * 0.5;
+        ikLeg(parts, shell, hip, restFoot, l1, l2, dir < 0 ? 1 : -1, legR, phase * 1.5 + off, s * 0.06 * amp, s * 0.045 * amp);
       }
     }
+    const snap = (alerted ? 1 : 0.5) * (0.5 + 0.5 * wave(phase, alerted ? 3 : 1.5)) * s * 0.03 * amp;
     for (const dir of [-1, 1]) {
       const baseX = cx + dir * bodyHx * 0.5;
       const baseY = bodyCy + bodyHy * 0.5;
-      pushCapsule(parts, shell, baseX, baseY, cx + dir * s * 0.2, bodyCy + s * 0.2, legR * 1.3, 0.9);
-      pushCapsule(parts, shell, cx + dir * s * 0.2, bodyCy + s * 0.2, cx + dir * s * 0.13, bodyCy + s * 0.28, legR, 0.85);
+      const tipX = cx + dir * s * 0.2, tipY = bodyCy + s * 0.2;
+      pushCapsule(parts, shell, baseX, baseY, tipX, tipY, legR * 1.3, 0.9);
+      pushCapsule(parts, shell, tipX, tipY, cx + dir * (s * 0.13 - snap), tipY + s * 0.08 + snap, legR, 0.85);
     }
-    pushEllipse(parts, flesh, cx, bodyCy, bodyHx, bodyHy, 1);
+    const sq = squash(wave(phase, 2) * 0.04 * amp);
+    pushEllipse(parts, flesh, cx, bodyCy, bodyHx * sq.sx, bodyHy * sq.sy, 1);
     pushEllipse(parts, shell, cx, bodyCy - bodyHy * 0.35, bodyHx * 0.7, bodyHy * 0.8, 1);
     const spikes = 3;
     for (let k = 0; k < spikes; k++) {
@@ -753,19 +951,19 @@ var SpriteEngine = (() => {
     for (const dir of [-1, 1]) pushCircle(parts, eye, cx + dir * eyeDx, eyeY, eyeR, 0.7);
     return parts;
   }
-  function buildCreature(config, s) {
+  function buildCreature(config, s, phase = 0, amp = 1) {
     const rng = new RNG(config.seed ?? 0);
     const kind = config.kind ?? "insect";
     const color = config.color ?? defaultColor2(rng, kind);
     const alerted = config.alerted ?? false;
     switch (kind) {
       case "worm":
-        return buildWorm(rng, s, color, alerted);
+        return buildWorm(rng, s, color, alerted, phase, amp);
       case "crawler":
-        return buildCrawler(rng, s, color, alerted);
+        return buildCrawler(rng, s, color, alerted, phase, amp);
       case "insect":
       default:
-        return buildInsect(rng, s, color, alerted);
+        return buildInsect(rng, s, color, alerted, phase, amp);
     }
   }
   var CREATURE_KINDS = ["insect", "worm", "crawler"];
@@ -828,6 +1026,18 @@ var SpriteEngine = (() => {
       // cyan gem
       case "dagger":
         return j([122, 132, 150], 0.1);
+      // cold steel
+      case "torch":
+        return j([255, 150, 50], 0.1);
+      // flame
+      case "potion":
+        return j([90, 210, 130], 0.18);
+      // liquid
+      case "coin":
+        return j([220, 180, 70], 0.08);
+      // gold
+      case "rune":
+        return j([150, 110, 230], 0.16);
     }
   }
   function buildMushroom(rng, s, color) {
@@ -881,6 +1091,58 @@ var SpriteEngine = (() => {
     pushCircle2(parts, pommel, cx, s * 0.87, s * 0.045, 0.85);
     return parts;
   }
+  function buildTorch(rng, s, color) {
+    const parts = [];
+    const cx = s * 0.5;
+    const grip = MATERIALS.leather([86, 58, 40]);
+    const head = MATERIALS.bone([60, 50, 46]);
+    const flame = MATERIALS.ember(color);
+    const flameHi = MATERIALS.ember([255, 235, 140]);
+    pushCapsule2(parts, grip, cx, s * 0.86, cx, s * 0.48, s * 0.04, 1);
+    pushCircle2(parts, head, cx, s * 0.46, s * 0.07, 0.9);
+    const fy = s * 0.3, flick = rng.jitter(s * 0.02);
+    pushEllipse2(parts, flame, cx + flick, fy, s * 0.1, s * 0.16, 1);
+    pushEllipse2(parts, flameHi, cx + flick * 0.5, fy + s * 0.02, s * 0.05, s * 0.1, 1);
+    return parts;
+  }
+  function buildPotion(rng, s, color) {
+    const parts = [];
+    const cx = s * 0.5;
+    const glass = MATERIALS.glass([200, 220, 230]);
+    const liquid = MATERIALS.ember(color);
+    const cork = MATERIALS.leather([150, 110, 70]);
+    pushEllipse2(parts, liquid, cx, s * 0.62, s * 0.18, s * 0.16, 1);
+    pushCircle2(parts, glass, cx, s * 0.6, s * 0.21, 1);
+    pushBox(parts, glass, cx, s * 0.36, s * 0.07, s * 0.1, s * 0.03, 0.8);
+    pushCircle2(parts, MATERIALS.glass([255, 255, 255]), cx - s * 0.08, s * 0.52, s * 0.03, 0.7);
+    pushBox(parts, cork, cx, s * 0.26, s * 0.06, s * 0.05, s * 0.02, 0.9);
+    return parts;
+  }
+  function buildCoin(rng, s, color) {
+    const parts = [];
+    const cx = s * 0.5, cy = s * 0.54;
+    const gold = MATERIALS.gold(color);
+    const goldDim = MATERIALS.gold([color[0] * 0.78, color[1] * 0.78, color[2] * 0.7]);
+    pushEllipse2(parts, goldDim, cx + s * 0.05, cy + s * 0.06, s * 0.2, s * 0.16, 1);
+    pushEllipse2(parts, gold, cx, cy, s * 0.21, s * 0.17, 1);
+    pushEllipse2(parts, goldDim, cx, cy, s * 0.13, s * 0.1, 1);
+    pushCircle2(parts, MATERIALS.gold([255, 240, 190]), cx - s * 0.07, cy - s * 0.05, s * 0.03, 0.7);
+    return parts;
+  }
+  function buildRune(rng, s, color) {
+    const parts = [];
+    const cx = s * 0.5, cy = s * 0.52;
+    const stone = MATERIALS.bone([70, 66, 74]);
+    const glow = MATERIALS.ember(color);
+    pushBox(parts, stone, cx, cy, s * 0.18, s * 0.24, s * 0.05, 0.85);
+    const strokes = 3 + Math.floor(rng.float() * 3);
+    for (let i = 0; i < strokes; i++) {
+      const ax = cx + rng.jitter(s * 0.09), ay = cy + rng.jitter(s * 0.14);
+      const bx = cx + rng.jitter(s * 0.09), by = cy + rng.jitter(s * 0.14);
+      pushCapsule2(parts, glow, ax, ay, bx, by, Math.max(1, s * 0.014), 0.7);
+    }
+    return parts;
+  }
   function buildItem(config, s) {
     const rng = new RNG(config.seed ?? 0);
     const kind = config.kind ?? "mushroom";
@@ -890,12 +1152,20 @@ var SpriteEngine = (() => {
         return buildCrystal(rng, s, color);
       case "dagger":
         return buildDagger(rng, s, color);
+      case "torch":
+        return buildTorch(rng, s, color);
+      case "potion":
+        return buildPotion(rng, s, color);
+      case "coin":
+        return buildCoin(rng, s, color);
+      case "rune":
+        return buildRune(rng, s, color);
       case "mushroom":
       default:
         return buildMushroom(rng, s, color);
     }
   }
-  var ITEM_KINDS = ["mushroom", "crystal", "dagger"];
+  var ITEM_KINDS = ["mushroom", "crystal", "dagger", "torch", "potion", "coin", "rune"];
 
   // src/field.ts
   function edt1d(f, n, out) {
@@ -1210,6 +1480,27 @@ var SpriteEngine = (() => {
   function listAnimations() {
     return Object.keys(CLIPS);
   }
+  var ENEMY_CLIPS = {
+    idle: { name: "idle", fps: 8, loop: true, frames: 8, amp: 0.4 },
+    move: { name: "move", fps: 12, loop: true, frames: 8, amp: 1 }
+  };
+  function generateEnemyAnimation(config, animationName) {
+    const clip = ENEMY_CLIPS[animationName];
+    if (!clip) {
+      throw new Error(`Unknown enemy animation "${animationName}". Available: ${Object.keys(ENEMY_CLIPS).join(", ")}`);
+    }
+    const opts = resolveRenderOpts(config);
+    const frames = [];
+    for (let i = 0; i < clip.frames; i++) {
+      const phase = i / clip.frames;
+      const parts = buildCreature(config, opts.W, phase, clip.amp);
+      frames.push(renderParts(parts, opts));
+    }
+    return { name: clip.name, frames, frameCount: clip.frames, fps: clip.fps, loop: clip.loop };
+  }
+  function listEnemyAnimations() {
+    return Object.keys(ENEMY_CLIPS);
+  }
   function packSpriteSheet(frames) {
     if (frames.length === 0) return { width: 0, height: 0, data: new Uint8ClampedArray(0) };
     const fw = frames[0].width, fh = frames[0].height, n = frames.length;
@@ -1335,6 +1626,17 @@ function render() {
     add('cap',      generateSprite(opts({ outfit: { hat: 'cap' } }))),
     add('wizard',   generateSprite(opts({ outfit: { hat: 'hat' }, palette: { cloth: [80,150,110] } }))),
     add('redshirt', generateSprite(opts({ palette: { cloth: [200,70,70] } }))),
+  ]));
+
+  // Hair styles + outfit assets
+  root.appendChild(section('مو و لباس — Hair & outfits', [
+    add('short',  generateSprite(opts({ hairStyle: 'short' }))),
+    add('long',   generateSprite(opts({ hairStyle: 'long' }))),
+    add('spiky',  generateSprite(opts({ hairStyle: 'spiky' }))),
+    add('bun',    generateSprite(opts({ hairStyle: 'bun' }))),
+    add('bald',   generateSprite(opts({ hairStyle: 'bald' }))),
+    add('cape',   generateSprite(opts({ outfit: { cape: true }, palette: { cape: [150,40,40] } }))),
+    add('caped knight', generateSprite(opts({ outfit: { cape: true, armor: true } }))),
   ]));
 
   // Facing (top-down movement directions)
