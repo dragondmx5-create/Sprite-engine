@@ -11,6 +11,7 @@ import {
   CREATURE_KINDS, ITEM_KINDS, TILE_KINDS, MINIMAP_ICONS,
   solveTwoBone, fabrik,
   generateShadow, generateSlashEffect, generateImpactEffect,
+  generateProjectile, generateSparkle,
   flashSprite, tintSprite, applyStatusEffect,
   generateMinimapIcon,
 } from '../src/index';
@@ -179,6 +180,26 @@ for (const name of ['hit', 'death']) {
     const result = applyStatusEffect(hero, fx);
     check(`status ${fx} changes sprite`, !same(hero, result));
   }
+}
+
+// --- 1e2) shield: changes sprite -------------------------------------------
+{
+  const base = generateSprite({ seed: 'hero', size: 40 });
+  const shielded = generateSprite({ seed: 'hero', size: 40, shield: true });
+  check('shield changes sprite', !same(base, shielded));
+  check('shield deterministic', same(shielded, generateSprite({ seed: 'hero', size: 40, shield: true })));
+  const combo = generateSprite({ seed: 'hero', size: 40, weapon: 'sword', shield: true, outfit: { armor: true } });
+  check('sword+shield+armor generates', combo.data.some((v, i) => i % 4 === 3 && v > 128));
+}
+
+// --- 1e3) projectiles + sparkle -------------------------------------------
+{
+  for (const kind of ['arrow', 'fireball', 'magic_bolt'] as const) {
+    const p = generateProjectile({ kind, size: 16 });
+    check(`projectile ${kind} generates`, p.width === 16 && p.data.some((v, i) => i % 4 === 3 && v > 128));
+  }
+  const sparkle = generateSparkle({ size: 16 });
+  check('sparkle generates', sparkle.width === 16 && sparkle.data.some((v, i) => i % 4 === 3 && v > 128));
 }
 
 // --- 1f) tiles: deterministic generation ------------------------------------

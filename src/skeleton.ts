@@ -320,5 +320,17 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
     }
   }
 
+  // 12) SHIELD — round buckler on the left arm; follows left arm rotation.
+  if (config.shield) {
+    const shX = cx - armX;
+    const shY = armCy;
+    const xf = xArm(pose.armL, shX, shoulderY);
+    const shR = s * 0.055;
+    place(M.metal, circle(shX - s * 0.012, shY, shR),
+      shX - shR - s * 0.02, shY - shR - 2, shX + shR + 2, shY + shR + 2, 0.55, xf);
+    place(MATERIALS.metal([188, 183, 168]), circle(shX - s * 0.012, shY, shR * 0.35),
+      shX - shR * 0.4 - s * 0.02, shY - shR * 0.4 - 2, shX + shR * 0.4 + 2, shY + shR * 0.4 + 2, 0.7, xf);
+  }
+
   return parts;
 }

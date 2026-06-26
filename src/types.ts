@@ -103,6 +103,9 @@ export interface SpriteConfig {
   /** Weapon held in the right hand. Follows arm rotation during animations. */
   weapon?: 'none' | 'dagger' | 'sword' | 'axe' | 'staff';
 
+  /** Round buckler shield on the left arm. */
+  shield?: boolean;
+
   /** Draw simple eyes. Default true. */
   face?: boolean;
 

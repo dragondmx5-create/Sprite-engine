@@ -34,9 +34,10 @@ export type { TileConfig, TileKind } from './tiles';
 // ---- Effects (combat / status) ---------------------------------------------
 export {
   generateShadow, generateSlashEffect, generateImpactEffect,
+  generateProjectile, generateSparkle,
   flashSprite, tintSprite, applyStatusEffect,
 } from './effects';
-export type { StatusEffect, VFXConfig } from './effects';
+export type { StatusEffect, VFXConfig, ProjectileKind, ProjectileConfig } from './effects';
 
 // ---- Minimap ---------------------------------------------------------------
 export { generateMinimapIcon, MINIMAP_ICONS } from './minimap';

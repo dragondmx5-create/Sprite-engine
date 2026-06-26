@@ -18,11 +18,19 @@ import { resolveRenderOpts, renderParts } from './engine';
 import { clamp255 } from './color';
 
 export type StatusEffect = 'poison' | 'frozen' | 'burning';
+export type ProjectileKind = 'arrow' | 'fireball' | 'magic_bolt';
 
 export interface VFXConfig {
   size?: number;
   color?: RGB;
   seed?: number | string;
+  supersample?: number;
+}
+
+export interface ProjectileConfig {
+  kind?: ProjectileKind;
+  size?: number;
+  color?: RGB;
   supersample?: number;
 }
 
@@ -121,6 +129,87 @@ export function generateImpactEffect(config: VFXConfig = {}): SpriteBuffer {
     material: MATERIALS.ember([255, 255, 230]), roundness: 1.0, sdf: circle(cx, cy, cr),
     bbox: [Math.floor(cx - cr - 2), Math.floor(cy - cr - 2), Math.ceil(cx + cr + 2), Math.ceil(cy + cr + 2)],
   });
+  return renderParts(parts, opts);
+}
+
+// =============================================================================
+// Projectiles — ranged combat sprites (arrow, fireball, magic bolt).
+// =============================================================================
+
+export function generateProjectile(config: ProjectileConfig = {}): SpriteBuffer {
+  const kind = config.kind ?? 'arrow';
+  const size = config.size ?? 16;
+  const ss = config.supersample ?? 2;
+  const opts = resolveRenderOpts({ size, supersample: ss, outline: false, quantize: false });
+  const s = opts.W;
+  const parts: Part[] = [];
+  const cx = s * 0.5, cy = s * 0.5;
+
+  switch (kind) {
+    case 'arrow': {
+      const color: RGB = config.color ?? [180, 160, 130];
+      const shaft = MATERIALS.leather(color);
+      const head = MATERIALS.metal([160, 165, 175]);
+      const fletch = MATERIALS.cloth([180, 60, 50]);
+      const r1 = Math.max(1.2, s * 0.025), r2 = Math.max(1.5, s * 0.04), rf = Math.max(1, s * 0.018);
+      parts.push({ material: shaft, roundness: 0.7, sdf: capsule(cx - s * 0.28, cy, cx + s * 0.18, cy, r1),
+        bbox: [Math.floor(cx - s * 0.3), Math.floor(cy - r1 - 2), Math.ceil(cx + s * 0.2), Math.ceil(cy + r1 + 2)] });
+      parts.push({ material: head, roundness: 0.5, sdf: capsule(cx + s * 0.18, cy, cx + s * 0.34, cy, r2),
+        bbox: [Math.floor(cx + s * 0.15), Math.floor(cy - r2 - 2), Math.ceil(cx + s * 0.37), Math.ceil(cy + r2 + 2)] });
+      parts.push({ material: fletch, roundness: 0.4, sdf: capsule(cx - s * 0.28, cy - s * 0.04, cx - s * 0.18, cy, rf),
+        bbox: [Math.floor(cx - s * 0.3), Math.floor(cy - s * 0.06), Math.ceil(cx - s * 0.16), Math.ceil(cy + rf + 2)] });
+      parts.push({ material: fletch, roundness: 0.4, sdf: capsule(cx - s * 0.28, cy + s * 0.04, cx - s * 0.18, cy, rf),
+        bbox: [Math.floor(cx - s * 0.3), Math.floor(cy - rf - 2), Math.ceil(cx - s * 0.16), Math.ceil(cy + s * 0.06)] });
+      break;
+    }
+    case 'fireball': {
+      const color: RGB = config.color ?? [255, 140, 40];
+      const r = s * 0.14, ri = s * 0.07;
+      parts.push({ material: MATERIALS.ember(color), roundness: 1.0, sdf: circle(cx, cy, r),
+        bbox: [Math.floor(cx - r - 2), Math.floor(cy - r - 2), Math.ceil(cx + r + 2), Math.ceil(cy + r + 2)] });
+      parts.push({ material: MATERIALS.ember([255, 240, 180]), roundness: 1.0, sdf: circle(cx, cy, ri),
+        bbox: [Math.floor(cx - ri - 2), Math.floor(cy - ri - 2), Math.ceil(cx + ri + 2), Math.ceil(cy + ri + 2)] });
+      break;
+    }
+    case 'magic_bolt': {
+      const color: RGB = config.color ?? [120, 80, 255];
+      const ro = Math.max(1.5, s * 0.05), ri = Math.max(1, s * 0.025);
+      parts.push({ material: MATERIALS.ember(color), roundness: 0.8, sdf: capsule(cx - s * 0.2, cy, cx + s * 0.2, cy, ro),
+        bbox: [Math.floor(cx - s * 0.24), Math.floor(cy - ro - 2), Math.ceil(cx + s * 0.24), Math.ceil(cy + ro + 2)] });
+      parts.push({ material: MATERIALS.ember([200, 180, 255]), roundness: 0.8, sdf: capsule(cx - s * 0.1, cy, cx + s * 0.1, cy, ri),
+        bbox: [Math.floor(cx - s * 0.12), Math.floor(cy - ri - 2), Math.ceil(cx + s * 0.12), Math.ceil(cy + ri + 2)] });
+      break;
+    }
+  }
+  return renderParts(parts, opts);
+}
+
+// =============================================================================
+// Sparkle — a 4-pointed star for loot pickup / level-up feedback.
+// =============================================================================
+
+export function generateSparkle(config: VFXConfig = {}): SpriteBuffer {
+  const size = config.size ?? 16;
+  const color: RGB = config.color ?? [255, 255, 200];
+  const ss = config.supersample ?? 2;
+  const opts = resolveRenderOpts({ size, supersample: ss, outline: false, quantize: false });
+  const s = opts.W;
+  const parts: Part[] = [];
+  const mat = MATERIALS.ember(color);
+  const cx = s * 0.5, cy = s * 0.5;
+  const r = s * 0.025;
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI + Math.PI / 8;
+    const len = s * (i % 2 === 0 ? 0.3 : 0.18);
+    const ax = cx + Math.cos(a) * len, ay = cy + Math.sin(a) * len;
+    const bx = cx - Math.cos(a) * len, by = cy - Math.sin(a) * len;
+    parts.push({ material: mat, roundness: 0.8, sdf: capsule(ax, ay, bx, by, r),
+      bbox: [Math.floor(Math.min(ax, bx) - r - 2), Math.floor(Math.min(ay, by) - r - 2),
+             Math.ceil(Math.max(ax, bx) + r + 2), Math.ceil(Math.max(ay, by) + r + 2)] });
+  }
+  const cr = s * 0.045;
+  parts.push({ material: MATERIALS.ember([255, 255, 255]), roundness: 1.0, sdf: circle(cx, cy, cr),
+    bbox: [Math.floor(cx - cr - 2), Math.floor(cy - cr - 2), Math.ceil(cx + cr + 2), Math.ceil(cy + cr + 2)] });
   return renderParts(parts, opts);
 }
 

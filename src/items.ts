@@ -17,7 +17,7 @@ import { RNG } from './rng';
 import { MATERIALS } from './materials';
 import { Part, circle, ellipse, capsule, roundedBox, rotatedAround, transformedAABB, type SDF } from './shapes';
 
-export type ItemKind = 'mushroom' | 'crystal' | 'dagger' | 'torch' | 'potion' | 'coin' | 'rune';
+export type ItemKind = 'mushroom' | 'crystal' | 'dagger' | 'torch' | 'potion' | 'coin' | 'rune' | 'chest' | 'key' | 'scroll';
 
 export interface ItemConfig {
   seed?: number | string;
@@ -76,6 +76,9 @@ function defaultColor(rng: RNG, kind: ItemKind): RGB {
     case 'potion':   return j([90, 210, 130], 0.18);  // liquid
     case 'coin':     return j([220, 180, 70], 0.08);  // gold
     case 'rune':     return j([150, 110, 230], 0.16);  // arcane glyph
+    case 'chest':    return j([140, 95, 55], 0.12);   // wood
+    case 'key':      return j([220, 190, 80], 0.08);  // gold
+    case 'scroll':   return j([230, 215, 180], 0.06); // parchment
   }
 }
 
@@ -221,6 +224,47 @@ function buildRune(rng: RNG, s: number, color: RGB): Part[] {
   return parts;
 }
 
+/** CHEST — wooden loot box with metal bands and a gold clasp. */
+function buildChest(rng: RNG, s: number, color: RGB): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5;
+  const wood = MATERIALS.leather(color);
+  const band = MATERIALS.metal([115, 105, 88]);
+  const clasp = MATERIALS.gold([220, 190, 80]);
+  pushBox(parts, wood, cx, s * 0.58, s * 0.24, s * 0.18, s * 0.03, 0.3);
+  pushBox(parts, wood, cx, s * 0.38, s * 0.24, s * 0.08, s * 0.04, 0.4);
+  pushBox(parts, band, cx, s * 0.45, s * 0.26, s * 0.014, s * 0.007, 0.35);
+  pushBox(parts, band, cx, s * 0.68, s * 0.26, s * 0.014, s * 0.007, 0.35);
+  pushCircle(parts, clasp, cx, s * 0.52, s * 0.024, 0.6);
+  return parts;
+}
+
+/** KEY — gold skeleton key with a ring bow and cut teeth. */
+function buildKey(rng: RNG, s: number, color: RGB): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5;
+  const gold = MATERIALS.gold(color);
+  pushCircle(parts, gold, cx, s * 0.30, s * 0.08, 0.7);
+  pushCircle(parts, MATERIALS.bone([30, 28, 26]), cx, s * 0.30, s * 0.04, 0.5);
+  pushCapsule(parts, gold, cx, s * 0.38, cx, s * 0.72, s * 0.02, 0.6);
+  pushBox(parts, gold, cx + s * 0.04, s * 0.67, s * 0.035, s * 0.018, s * 0.006, 0.5);
+  pushBox(parts, gold, cx + s * 0.04, s * 0.74, s * 0.028, s * 0.018, s * 0.006, 0.5);
+  return parts;
+}
+
+/** SCROLL — rolled parchment with a wax seal. */
+function buildScroll(rng: RNG, s: number, color: RGB): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5;
+  const parch = MATERIALS.bone(color);
+  const seal = MATERIALS.ember([180, 50, 40]);
+  pushBox(parts, parch, cx, s * 0.52, s * 0.14, s * 0.22, s * 0.025, 0.35);
+  pushCapsule(parts, parch, cx - s * 0.15, s * 0.30, cx + s * 0.15, s * 0.30, s * 0.032, 0.7);
+  pushCapsule(parts, parch, cx - s * 0.15, s * 0.74, cx + s * 0.15, s * 0.74, s * 0.032, 0.7);
+  pushCircle(parts, seal, cx, s * 0.52, s * 0.028, 0.6);
+  return parts;
+}
+
 /** Build an item's part list. `s` = working px (size * supersample). */
 export function buildItem(config: ItemConfig, s: number): Part[] {
   const rng = new RNG(config.seed ?? 0);
@@ -233,10 +277,13 @@ export function buildItem(config: ItemConfig, s: number): Part[] {
     case 'potion':  return buildPotion(rng, s, color);
     case 'coin':    return buildCoin(rng, s, color);
     case 'rune':    return buildRune(rng, s, color);
+    case 'chest':   return buildChest(rng, s, color);
+    case 'key':     return buildKey(rng, s, color);
+    case 'scroll':  return buildScroll(rng, s, color);
     case 'mushroom':
     default:        return buildMushroom(rng, s, color);
   }
 }
 
 /** Names of the built-in item kinds. */
-export const ITEM_KINDS: ItemKind[] = ['mushroom', 'crystal', 'dagger', 'torch', 'potion', 'coin', 'rune'];
+export const ITEM_KINDS: ItemKind[] = ['mushroom', 'crystal', 'dagger', 'torch', 'potion', 'coin', 'rune', 'chest', 'key', 'scroll'];

@@ -16,7 +16,7 @@ import { RNG } from './rng';
 import { MATERIALS } from './materials';
 import { Part, roundedBox, circle, capsule } from './shapes';
 
-export type TileKind = 'stone_floor' | 'dirt_floor' | 'stone_wall' | 'crystal_floor' | 'wood_door';
+export type TileKind = 'stone_floor' | 'dirt_floor' | 'stone_wall' | 'crystal_floor' | 'wood_door' | 'lava_floor' | 'ice_floor' | 'moss_floor';
 
 export interface TileConfig {
   kind?: TileKind;
@@ -131,6 +131,46 @@ function buildWoodDoor(rng: RNG, s: number): Part[] {
   return parts;
 }
 
+function buildLavaFloor(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const base: RGB = [38 + rng.jitter(5), 26 + rng.jitter(4), 22 + rng.jitter(4)];
+  pushBox(parts, MATERIALS.bone(base), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.1);
+  const veins = 2 + Math.floor(rng.float() * 2);
+  for (let i = 0; i < veins; i++) {
+    const ax = s * (0.1 + rng.float() * 0.8), ay = s * (0.1 + rng.float() * 0.8);
+    const bx = s * (0.1 + rng.float() * 0.8), by = s * (0.1 + rng.float() * 0.8);
+    const r = Math.max(1, s * 0.016);
+    const color: RGB = [255, 100 + rng.jitter(40), 30 + rng.jitter(20)];
+    pushCapsule(parts, MATERIALS.ember(color), ax, ay, bx, by, r, 0.4);
+  }
+  return parts;
+}
+
+function buildIceFloor(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const base: RGB = [168 + rng.jitter(10), 198 + rng.jitter(8), 218 + rng.jitter(6)];
+  pushBox(parts, MATERIALS.glass(base), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.15);
+  for (let i = 0; i < 2; i++) {
+    const ax = s * (0.15 + rng.float() * 0.7), ay = s * (0.15 + rng.float() * 0.7);
+    const bx = s * (0.15 + rng.float() * 0.7), by = s * (0.15 + rng.float() * 0.7);
+    pushCapsule(parts, MATERIALS.glass([220, 235, 250]), ax, ay, bx, by, Math.max(1, s * 0.008), 0.2);
+  }
+  return parts;
+}
+
+function buildMossFloor(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const base: RGB = [62 + rng.jitter(8), 76 + rng.jitter(8), 52 + rng.jitter(6)];
+  pushBox(parts, MATERIALS.flesh(base), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.08);
+  for (let i = 0; i < 3; i++) {
+    const px = s * (0.15 + rng.float() * 0.7), py = s * (0.15 + rng.float() * 0.7);
+    const pr = s * (0.035 + rng.float() * 0.025);
+    const color: RGB = [48 + rng.jitter(15), 95 + rng.jitter(20), 38 + rng.jitter(10)];
+    pushCircle(parts, MATERIALS.flesh(color), px, py, pr, 0.12);
+  }
+  return parts;
+}
+
 // ---- public API -------------------------------------------------------------
 
 export function buildTile(config: TileConfig, s: number): Part[] {
@@ -140,9 +180,12 @@ export function buildTile(config: TileConfig, s: number): Part[] {
     case 'stone_wall':    return buildStoneWall(rng, s);
     case 'crystal_floor': return buildCrystalFloor(rng, s);
     case 'wood_door':     return buildWoodDoor(rng, s);
+    case 'lava_floor':    return buildLavaFloor(rng, s);
+    case 'ice_floor':     return buildIceFloor(rng, s);
+    case 'moss_floor':    return buildMossFloor(rng, s);
     case 'stone_floor':
     default:              return buildStoneFloor(rng, s);
   }
 }
 
-export const TILE_KINDS: TileKind[] = ['stone_floor', 'dirt_floor', 'stone_wall', 'crystal_floor', 'wood_door'];
+export const TILE_KINDS: TileKind[] = ['stone_floor', 'dirt_floor', 'stone_wall', 'crystal_floor', 'wood_door', 'lava_floor', 'ice_floor', 'moss_floor'];

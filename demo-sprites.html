@@ -94,8 +94,10 @@ var SpriteEngine = (() => {
     generateImpactEffect: () => generateImpactEffect,
     generateItem: () => generateItem,
     generateMinimapIcon: () => generateMinimapIcon,
+    generateProjectile: () => generateProjectile,
     generateShadow: () => generateShadow,
     generateSlashEffect: () => generateSlashEffect,
+    generateSparkle: () => generateSparkle,
     generateSprite: () => generateSprite,
     generateSpriteCanvas: () => generateSpriteCanvas,
     generateSpriteSheetCanvas: () => generateSpriteSheetCanvas,
@@ -760,6 +762,32 @@ var SpriteEngine = (() => {
         );
       }
     }
+    if (config.shield) {
+      const shX = cx - armX;
+      const shY = armCy;
+      const xf = xArm(pose.armL, shX, shoulderY);
+      const shR = s * 0.055;
+      place(
+        M.metal,
+        circle(shX - s * 0.012, shY, shR),
+        shX - shR - s * 0.02,
+        shY - shR - 2,
+        shX + shR + 2,
+        shY + shR + 2,
+        0.55,
+        xf
+      );
+      place(
+        MATERIALS.metal([188, 183, 168]),
+        circle(shX - s * 0.012, shY, shR * 0.35),
+        shX - shR * 0.4 - s * 0.02,
+        shY - shR * 0.4 - 2,
+        shX + shR * 0.4 + 2,
+        shY + shR * 0.4 + 2,
+        0.7,
+        xf
+      );
+    }
     return parts;
   }
 
@@ -1130,6 +1158,15 @@ var SpriteEngine = (() => {
       // gold
       case "rune":
         return j([150, 110, 230], 0.16);
+      // arcane glyph
+      case "chest":
+        return j([140, 95, 55], 0.12);
+      // wood
+      case "key":
+        return j([220, 190, 80], 0.08);
+      // gold
+      case "scroll":
+        return j([230, 215, 180], 0.06);
     }
   }
   function buildMushroom(rng, s, color) {
@@ -1235,6 +1272,41 @@ var SpriteEngine = (() => {
     }
     return parts;
   }
+  function buildChest(rng, s, color) {
+    const parts = [];
+    const cx = s * 0.5;
+    const wood = MATERIALS.leather(color);
+    const band = MATERIALS.metal([115, 105, 88]);
+    const clasp = MATERIALS.gold([220, 190, 80]);
+    pushBox(parts, wood, cx, s * 0.58, s * 0.24, s * 0.18, s * 0.03, 0.3);
+    pushBox(parts, wood, cx, s * 0.38, s * 0.24, s * 0.08, s * 0.04, 0.4);
+    pushBox(parts, band, cx, s * 0.45, s * 0.26, s * 0.014, s * 7e-3, 0.35);
+    pushBox(parts, band, cx, s * 0.68, s * 0.26, s * 0.014, s * 7e-3, 0.35);
+    pushCircle2(parts, clasp, cx, s * 0.52, s * 0.024, 0.6);
+    return parts;
+  }
+  function buildKey(rng, s, color) {
+    const parts = [];
+    const cx = s * 0.5;
+    const gold = MATERIALS.gold(color);
+    pushCircle2(parts, gold, cx, s * 0.3, s * 0.08, 0.7);
+    pushCircle2(parts, MATERIALS.bone([30, 28, 26]), cx, s * 0.3, s * 0.04, 0.5);
+    pushCapsule2(parts, gold, cx, s * 0.38, cx, s * 0.72, s * 0.02, 0.6);
+    pushBox(parts, gold, cx + s * 0.04, s * 0.67, s * 0.035, s * 0.018, s * 6e-3, 0.5);
+    pushBox(parts, gold, cx + s * 0.04, s * 0.74, s * 0.028, s * 0.018, s * 6e-3, 0.5);
+    return parts;
+  }
+  function buildScroll(rng, s, color) {
+    const parts = [];
+    const cx = s * 0.5;
+    const parch = MATERIALS.bone(color);
+    const seal = MATERIALS.ember([180, 50, 40]);
+    pushBox(parts, parch, cx, s * 0.52, s * 0.14, s * 0.22, s * 0.025, 0.35);
+    pushCapsule2(parts, parch, cx - s * 0.15, s * 0.3, cx + s * 0.15, s * 0.3, s * 0.032, 0.7);
+    pushCapsule2(parts, parch, cx - s * 0.15, s * 0.74, cx + s * 0.15, s * 0.74, s * 0.032, 0.7);
+    pushCircle2(parts, seal, cx, s * 0.52, s * 0.028, 0.6);
+    return parts;
+  }
   function buildItem(config, s) {
     const rng = new RNG(config.seed ?? 0);
     const kind = config.kind ?? "mushroom";
@@ -1252,12 +1324,18 @@ var SpriteEngine = (() => {
         return buildCoin(rng, s, color);
       case "rune":
         return buildRune(rng, s, color);
+      case "chest":
+        return buildChest(rng, s, color);
+      case "key":
+        return buildKey(rng, s, color);
+      case "scroll":
+        return buildScroll(rng, s, color);
       case "mushroom":
       default:
         return buildMushroom(rng, s, color);
     }
   }
-  var ITEM_KINDS = ["mushroom", "crystal", "dagger", "torch", "potion", "coin", "rune"];
+  var ITEM_KINDS = ["mushroom", "crystal", "dagger", "torch", "potion", "coin", "rune", "chest", "key", "scroll"];
 
   // src/tiles.ts
   function pushBox2(parts, mat, cx, cy, hx, hy, corner, roundness) {
@@ -1362,6 +1440,43 @@ var SpriteEngine = (() => {
     pushCircle3(parts, MATERIALS.metal([148, 138, 96]), s * 0.63, s * 0.52, s * 0.028, 0.55);
     return parts;
   }
+  function buildLavaFloor(rng, s) {
+    const parts = [];
+    const base = [38 + rng.jitter(5), 26 + rng.jitter(4), 22 + rng.jitter(4)];
+    pushBox2(parts, MATERIALS.bone(base), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.1);
+    const veins = 2 + Math.floor(rng.float() * 2);
+    for (let i = 0; i < veins; i++) {
+      const ax = s * (0.1 + rng.float() * 0.8), ay = s * (0.1 + rng.float() * 0.8);
+      const bx = s * (0.1 + rng.float() * 0.8), by = s * (0.1 + rng.float() * 0.8);
+      const r = Math.max(1, s * 0.016);
+      const color = [255, 100 + rng.jitter(40), 30 + rng.jitter(20)];
+      pushCapsule3(parts, MATERIALS.ember(color), ax, ay, bx, by, r, 0.4);
+    }
+    return parts;
+  }
+  function buildIceFloor(rng, s) {
+    const parts = [];
+    const base = [168 + rng.jitter(10), 198 + rng.jitter(8), 218 + rng.jitter(6)];
+    pushBox2(parts, MATERIALS.glass(base), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.15);
+    for (let i = 0; i < 2; i++) {
+      const ax = s * (0.15 + rng.float() * 0.7), ay = s * (0.15 + rng.float() * 0.7);
+      const bx = s * (0.15 + rng.float() * 0.7), by = s * (0.15 + rng.float() * 0.7);
+      pushCapsule3(parts, MATERIALS.glass([220, 235, 250]), ax, ay, bx, by, Math.max(1, s * 8e-3), 0.2);
+    }
+    return parts;
+  }
+  function buildMossFloor(rng, s) {
+    const parts = [];
+    const base = [62 + rng.jitter(8), 76 + rng.jitter(8), 52 + rng.jitter(6)];
+    pushBox2(parts, MATERIALS.flesh(base), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.08);
+    for (let i = 0; i < 3; i++) {
+      const px = s * (0.15 + rng.float() * 0.7), py = s * (0.15 + rng.float() * 0.7);
+      const pr = s * (0.035 + rng.float() * 0.025);
+      const color = [48 + rng.jitter(15), 95 + rng.jitter(20), 38 + rng.jitter(10)];
+      pushCircle3(parts, MATERIALS.flesh(color), px, py, pr, 0.12);
+    }
+    return parts;
+  }
   function buildTile(config, s) {
     const rng = new RNG(config.seed ?? 0);
     switch (config.kind ?? "stone_floor") {
@@ -1373,12 +1488,18 @@ var SpriteEngine = (() => {
         return buildCrystalFloor(rng, s);
       case "wood_door":
         return buildWoodDoor(rng, s);
+      case "lava_floor":
+        return buildLavaFloor(rng, s);
+      case "ice_floor":
+        return buildIceFloor(rng, s);
+      case "moss_floor":
+        return buildMossFloor(rng, s);
       case "stone_floor":
       default:
         return buildStoneFloor(rng, s);
     }
   }
-  var TILE_KINDS = ["stone_floor", "dirt_floor", "stone_wall", "crystal_floor", "wood_door"];
+  var TILE_KINDS = ["stone_floor", "dirt_floor", "stone_wall", "crystal_floor", "wood_door", "lava_floor", "ice_floor", "moss_floor"];
 
   // src/field.ts
   function edt1d(f, n, out) {
@@ -1836,6 +1957,120 @@ var SpriteEngine = (() => {
     });
     return renderParts(parts, opts);
   }
+  function generateProjectile(config = {}) {
+    const kind = config.kind ?? "arrow";
+    const size = config.size ?? 16;
+    const ss = config.supersample ?? 2;
+    const opts = resolveRenderOpts({ size, supersample: ss, outline: false, quantize: false });
+    const s = opts.W;
+    const parts = [];
+    const cx = s * 0.5, cy = s * 0.5;
+    switch (kind) {
+      case "arrow": {
+        const color = config.color ?? [180, 160, 130];
+        const shaft = MATERIALS.leather(color);
+        const head = MATERIALS.metal([160, 165, 175]);
+        const fletch = MATERIALS.cloth([180, 60, 50]);
+        const r1 = Math.max(1.2, s * 0.025), r2 = Math.max(1.5, s * 0.04), rf = Math.max(1, s * 0.018);
+        parts.push({
+          material: shaft,
+          roundness: 0.7,
+          sdf: capsule(cx - s * 0.28, cy, cx + s * 0.18, cy, r1),
+          bbox: [Math.floor(cx - s * 0.3), Math.floor(cy - r1 - 2), Math.ceil(cx + s * 0.2), Math.ceil(cy + r1 + 2)]
+        });
+        parts.push({
+          material: head,
+          roundness: 0.5,
+          sdf: capsule(cx + s * 0.18, cy, cx + s * 0.34, cy, r2),
+          bbox: [Math.floor(cx + s * 0.15), Math.floor(cy - r2 - 2), Math.ceil(cx + s * 0.37), Math.ceil(cy + r2 + 2)]
+        });
+        parts.push({
+          material: fletch,
+          roundness: 0.4,
+          sdf: capsule(cx - s * 0.28, cy - s * 0.04, cx - s * 0.18, cy, rf),
+          bbox: [Math.floor(cx - s * 0.3), Math.floor(cy - s * 0.06), Math.ceil(cx - s * 0.16), Math.ceil(cy + rf + 2)]
+        });
+        parts.push({
+          material: fletch,
+          roundness: 0.4,
+          sdf: capsule(cx - s * 0.28, cy + s * 0.04, cx - s * 0.18, cy, rf),
+          bbox: [Math.floor(cx - s * 0.3), Math.floor(cy - rf - 2), Math.ceil(cx - s * 0.16), Math.ceil(cy + s * 0.06)]
+        });
+        break;
+      }
+      case "fireball": {
+        const color = config.color ?? [255, 140, 40];
+        const r = s * 0.14, ri = s * 0.07;
+        parts.push({
+          material: MATERIALS.ember(color),
+          roundness: 1,
+          sdf: circle(cx, cy, r),
+          bbox: [Math.floor(cx - r - 2), Math.floor(cy - r - 2), Math.ceil(cx + r + 2), Math.ceil(cy + r + 2)]
+        });
+        parts.push({
+          material: MATERIALS.ember([255, 240, 180]),
+          roundness: 1,
+          sdf: circle(cx, cy, ri),
+          bbox: [Math.floor(cx - ri - 2), Math.floor(cy - ri - 2), Math.ceil(cx + ri + 2), Math.ceil(cy + ri + 2)]
+        });
+        break;
+      }
+      case "magic_bolt": {
+        const color = config.color ?? [120, 80, 255];
+        const ro = Math.max(1.5, s * 0.05), ri = Math.max(1, s * 0.025);
+        parts.push({
+          material: MATERIALS.ember(color),
+          roundness: 0.8,
+          sdf: capsule(cx - s * 0.2, cy, cx + s * 0.2, cy, ro),
+          bbox: [Math.floor(cx - s * 0.24), Math.floor(cy - ro - 2), Math.ceil(cx + s * 0.24), Math.ceil(cy + ro + 2)]
+        });
+        parts.push({
+          material: MATERIALS.ember([200, 180, 255]),
+          roundness: 0.8,
+          sdf: capsule(cx - s * 0.1, cy, cx + s * 0.1, cy, ri),
+          bbox: [Math.floor(cx - s * 0.12), Math.floor(cy - ri - 2), Math.ceil(cx + s * 0.12), Math.ceil(cy + ri + 2)]
+        });
+        break;
+      }
+    }
+    return renderParts(parts, opts);
+  }
+  function generateSparkle(config = {}) {
+    const size = config.size ?? 16;
+    const color = config.color ?? [255, 255, 200];
+    const ss = config.supersample ?? 2;
+    const opts = resolveRenderOpts({ size, supersample: ss, outline: false, quantize: false });
+    const s = opts.W;
+    const parts = [];
+    const mat = MATERIALS.ember(color);
+    const cx = s * 0.5, cy = s * 0.5;
+    const r = s * 0.025;
+    for (let i = 0; i < 4; i++) {
+      const a = i / 4 * Math.PI + Math.PI / 8;
+      const len = s * (i % 2 === 0 ? 0.3 : 0.18);
+      const ax = cx + Math.cos(a) * len, ay = cy + Math.sin(a) * len;
+      const bx = cx - Math.cos(a) * len, by = cy - Math.sin(a) * len;
+      parts.push({
+        material: mat,
+        roundness: 0.8,
+        sdf: capsule(ax, ay, bx, by, r),
+        bbox: [
+          Math.floor(Math.min(ax, bx) - r - 2),
+          Math.floor(Math.min(ay, by) - r - 2),
+          Math.ceil(Math.max(ax, bx) + r + 2),
+          Math.ceil(Math.max(ay, by) + r + 2)
+        ]
+      });
+    }
+    const cr = s * 0.045;
+    parts.push({
+      material: MATERIALS.ember([255, 255, 255]),
+      roundness: 1,
+      sdf: circle(cx, cy, cr),
+      bbox: [Math.floor(cx - cr - 2), Math.floor(cy - cr - 2), Math.ceil(cx + cr + 2), Math.ceil(cy + cr + 2)]
+    });
+    return renderParts(parts, opts);
+  }
   function flashSprite(sprite) {
     const data = new Uint8ClampedArray(sprite.data);
     for (let i = 0; i < data.length; i += 4) {
@@ -1969,6 +2204,7 @@ var SpriteEngine = (() => {
 <script>
 const { generateSprite, generateEnemy, generateItem, generateTile, generateAnimation,
         generateShadow, generateSlashEffect, generateImpactEffect,
+        generateProjectile, generateSparkle,
         flashSprite, tintSprite, applyStatusEffect, generateMinimapIcon,
         CREATURE_KINDS, ITEM_KINDS, TILE_KINDS, MINIMAP_ICONS } = SpriteEngine;
 
@@ -2033,14 +2269,15 @@ function render() {
     add('redshirt', generateSprite(opts({ palette: { cloth: [200,70,70] } }))),
   ]));
 
-  // Weapons
-  root.appendChild(section('سلاح‌ها — Weapons', [
+  // Weapons + shield
+  root.appendChild(section('سلاح و سپر — Weapons & shield', [
     add('unarmed',  generateSprite(opts())),
     add('dagger',   generateSprite(opts({ weapon: 'dagger' }))),
     add('sword',    generateSprite(opts({ weapon: 'sword' }))),
     add('axe',      generateSprite(opts({ weapon: 'axe' }))),
     add('staff',    generateSprite(opts({ weapon: 'staff' }))),
-    add('sword knight', generateSprite(opts({ weapon: 'sword', outfit: { armor: true } }))),
+    add('shield',   generateSprite(opts({ shield: true }))),
+    add('sword+shield', generateSprite(opts({ weapon: 'sword', shield: true, outfit: { armor: true } }))),
   ]));
 
   // Hair styles + outfit assets
@@ -2079,11 +2316,15 @@ function render() {
   const tl = TILE_KINDS.map((kind) => add(kind, generateTile({ kind, seed: SEED, size: tileSize, supersample: SS, outline: false, quantize: false })));
   root.appendChild(section('کاشی‌ها — Dungeon tiles', tl));
 
-  // Effects
-  root.appendChild(section('افکت‌ها — Combat VFX', [
-    add('slash',   generateSlashEffect({ size: SIZE, supersample: SS })),
-    add('impact',  generateImpactEffect({ size: SIZE, supersample: SS })),
-    add('shadow',  generateShadow(SIZE)),
+  // Effects + projectiles
+  root.appendChild(section('افکت و پرتابه — VFX & projectiles', [
+    add('slash',       generateSlashEffect({ size: SIZE, supersample: SS })),
+    add('impact',      generateImpactEffect({ size: SIZE, supersample: SS })),
+    add('sparkle',     generateSparkle({ size: SIZE, supersample: SS })),
+    add('shadow',      generateShadow(SIZE)),
+    add('arrow',       generateProjectile({ kind: 'arrow', size: SIZE, supersample: SS })),
+    add('fireball',    generateProjectile({ kind: 'fireball', size: SIZE, supersample: SS })),
+    add('magic bolt',  generateProjectile({ kind: 'magic_bolt', size: SIZE, supersample: SS })),
   ]));
 
   // Status effects
