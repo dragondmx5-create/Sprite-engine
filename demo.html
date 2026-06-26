@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Procedural Chibi Sprite Engine — Demo</title>
+<style>
+ :root{--bg:#16161d;--panel:#20212b;--ink:#e7e7ef;--muted:#9aa;--acc:#6ad0a8;}
+ *{box-sizing:border-box}
+ body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 ui-sans-serif,system-ui,sans-serif}
+ header{padding:18px 22px;border-bottom:1px solid #2c2d3a}
+ h1{margin:0;font-size:18px}header p{margin:4px 0 0;color:var(--muted)}
+ .wrap{display:flex;gap:20px;padding:22px;flex-wrap:wrap}
+ .panel{background:var(--panel);border:1px solid #2c2d3a;border-radius:12px;padding:16px}
+ .controls{width:280px}
+ .controls label{display:block;margin:12px 0 4px;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+ .controls input[type=range],.controls select{width:100%}
+ select{background:#15151c;border:1px solid #33344a;color:var(--ink);border-radius:8px;padding:7px}
+ .row{display:flex;gap:8px;align-items:center}
+ .row input[type=text]{flex:1;background:#15151c;border:1px solid #33344a;color:var(--ink);border-radius:8px;padding:8px}
+ button{background:var(--acc);color:#06281d;border:0;border-radius:8px;padding:9px 12px;font-weight:600;cursor:pointer}
+ button.ghost{background:#2a2b38;color:var(--ink)}
+ .chk{display:flex;gap:8px;align-items:center;margin:6px 0;font-size:13px}
+ canvas{image-rendering:pixelated;background:repeating-conic-gradient(#2a2a33 0% 25%,#23232b 0% 50%) 50%/24px 24px;border-radius:10px}
+ .stage{flex:1;min-width:360px;display:flex;flex-direction:column;gap:14px}
+ .grid{display:flex;flex-wrap:wrap;gap:14px}
+ .tile{display:flex;flex-direction:column;align-items:center;gap:6px}.tile span{font-size:11px;color:var(--muted)}
+ .stat{color:var(--muted);font-size:12px}.big{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap}
+</style></head><body>
+<header><h1>Procedural Chibi Sprite Engine</h1>
+<p>Distance-field → fake-normal lighting · one material system · deterministic by seed · blocky pixel-art by default.</p></header>
+<div class="wrap">
+ <div class="panel controls">
+  <div class="row"><input type="text" id="seed" value="ember"/><button id="rand" class="ghost">🎲</button></div>
+  <label>Hat</label>
+  <select id="hat"><option value="none">none</option><option value="cap">cap</option><option value="hat">wide-brim</option></select>
+  <label>Torso</label>
+  <select id="torso"><option value="cloth">cloth</option><option value="leather">leather</option></select>
+  <label>Light angle</label><input type="range" id="angle" min="0" max="360" value="235"/>
+  <label>Roundness (low = blocky, high = round)</label><input type="range" id="round" min="15" max="100" value="45"/>
+  <label>Quantize levels (0 = smooth)</label><input type="range" id="quant" min="0" max="12" value="5"/>
+  <label>Ambient</label><input type="range" id="amb" min="0" max="60" value="22"/>
+  <label>Size (px)</label><input type="range" id="size" min="32" max="96" value="44"/>
+  <div class="chk"><input type="checkbox" id="armor"/><span>Metal armor</span></div>
+  <div class="chk"><input type="checkbox" id="belt" checked/><span>Belt</span></div>
+  <div class="chk"><input type="checkbox" id="outline" checked/><span>Outline</span></div>
+  <div class="chk"><input type="checkbox" id="smooth"/><span>Smooth / painterly (supersample 2)</span></div>
+  <div style="margin-top:14px" class="stat" id="stat"></div>
+ </div>
+ <div class="stage"><div class="panel big">
+  <div class="tile"><canvas id="hero" width="420" height="420"></canvas><span id="herolabel"></span></div>
+  <div><div class="stat" style="margin-bottom:8px">Same seed + config ⇒ byte-identical. Different seeds ⇒ different characters:</div>
+  <div class="grid" id="grid"></div></div>
+ </div></div>
+</div>
+<script>"use strict";
+var SpriteEngine = (() => {
+  var __defProp = Object.defineProperty;
+  var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+  var __getOwnPropNames = Object.getOwnPropertyNames;
+  var __hasOwnProp = Object.prototype.hasOwnProperty;
+  var __export = (target, all) => {
+    for (var name in all)
+      __defProp(target, name, { get: all[name], enumerable: true });
+  };
+  var __copyProps = (to, from, except, desc) => {
+    if (from && typeof from === "object" || typeof from === "function") {
+      for (let key of __getOwnPropNames(from))
+        if (!__hasOwnProp.call(to, key) && key !== except)
+          __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+    }
+    return to;
+  };
+  var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+  // src/index.ts
+  var index_exports = {};
+  __export(index_exports, {
+    MATERIALS: () => MATERIALS,
+    generateSprite: () => generateSprite,
+    generateSpriteCanvas: () => generateSpriteCanvas,
+    toCanvas: () => toCanvas,
+    toImageData: () => toImageData
+  });
+
+  // src/rng.ts
+  function hashSeed(seed) {
+    const s = typeof seed === "number" ? seed.toString() : seed;
+    let h = 2166136261;
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+  function mulberry32(a) {
+    return function() {
+      a |= 0;
+      a = a + 1831565813 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  var RNG = class {
+    constructor(seed) {
+      this.next = mulberry32(hashSeed(seed));
+    }
+    /** Uniform float in [0,1). */
+    float() {
+      return this.next();
+    }
+    /** Uniform float in [min,max). */
+    range(min2, max2) {
+      return min2 + (max2 - min2) * this.next();
+    }
+    /** Symmetric jitter in [-amt, +amt]. */
+    jitter(amt) {
+      return (this.next() * 2 - 1) * amt;
+    }
+    /** Pick one element. */
+    pick(arr) {
+      return arr[Math.floor(this.next() * arr.length)];
+    }
+  };
+
+  // src/materials.ts
+  var MATERIALS = {
+    // Soft, broad sheen. Mostly matte with a faint living gloss.
+    skin: (base) => ({
+      name: "skin",
+      base,
+      specStrength: 0.18,
+      roughness: 0.78,
+      metallic: false,
+      shadowCoolShift: 0.5
+    }),
+    // Matte. Almost no specular — light is all diffuse form.
+    cloth: (base) => ({
+      name: "cloth",
+      base,
+      specStrength: 0.05,
+      roughness: 0.96,
+      metallic: false,
+      shadowCoolShift: 0.7
+    }),
+    // Semi-gloss. A defined but soft highlight band — catches light on one edge.
+    leather: (base) => ({
+      name: "leather",
+      base,
+      specStrength: 0.45,
+      roughness: 0.55,
+      metallic: false,
+      shadowCoolShift: 0.6
+    }),
+    // Tight, bright, COLOR-TINTED highlight. Reads unmistakably shiny.
+    metal: (base) => ({
+      name: "metal",
+      base,
+      specStrength: 0.7,
+      roughness: 0.26,
+      metallic: true,
+      shadowCoolShift: 0.8
+    }),
+    // Glossy strands — strong but slightly broad sheen, deep cool shadows.
+    hair: (base) => ({
+      name: "hair",
+      base,
+      specStrength: 0.4,
+      roughness: 0.45,
+      metallic: false,
+      shadowCoolShift: 0.9
+    })
+  };
+
+  // src/shapes.ts
+  var min = Math.min;
+  var max = Math.max;
+  var hypot = Math.hypot;
+  function roundedBox(cx, cy, hx, hy, r) {
+    return (x, y) => {
+      const dx = Math.abs(x - cx) - hx + r;
+      const dy = Math.abs(y - cy) - hy + r;
+      const outside = hypot(max(dx, 0), max(dy, 0));
+      const inside = min(max(dx, dy), 0);
+      return outside + inside - r;
+    };
+  }
+  function union(a, b) {
+    return (x, y) => min(a(x, y), b(x, y));
+  }
+
+  // src/skeleton.ts
+  function defaultColor(rng, kind) {
+    const hsv = (h, s, v) => {
+      const c = v * s, hp = h % 1 * 6, xx = c * (1 - Math.abs(hp % 2 - 1));
+      let r = 0, g = 0, b = 0;
+      if (hp < 1) [r, g, b] = [c, xx, 0];
+      else if (hp < 2) [r, g, b] = [xx, c, 0];
+      else if (hp < 3) [r, g, b] = [0, c, xx];
+      else if (hp < 4) [r, g, b] = [0, xx, c];
+      else if (hp < 5) [r, g, b] = [xx, 0, c];
+      else [r, g, b] = [c, 0, xx];
+      const m = v - c;
+      return [(r + m) * 255, (g + m) * 255, (b + m) * 255];
+    };
+    switch (kind) {
+      case "skin":
+        return hsv(rng.range(0.03, 0.09), rng.range(0.35, 0.52), rng.range(0.8, 0.93));
+      case "hair":
+        return hsv(rng.range(0, 1), rng.range(0.45, 0.85), rng.range(0.28, 0.7));
+      case "cloth":
+        return hsv(rng.range(0, 1), rng.range(0.5, 0.85), rng.range(0.5, 0.82));
+      case "leather":
+        return hsv(rng.range(0.05, 0.1), rng.range(0.5, 0.7), rng.range(0.3, 0.5));
+      case "metal":
+        return hsv(rng.range(0.55, 0.62), rng.range(0.06, 0.14), rng.range(0.52, 0.64));
+      case "hat":
+        return hsv(rng.range(0, 1), rng.range(0.45, 0.8), rng.range(0.4, 0.7));
+      default:
+        return [200, 200, 200];
+    }
+  }
+  function buildSkeleton(config, s) {
+    const rng = new RNG(config.seed ?? 0);
+    const body = config.body ?? {};
+    const pose = body.pose ?? {};
+    const outfit = config.outfit ?? {};
+    const torsoMat = outfit.torso ?? "cloth";
+    const hasArmor = outfit.armor ?? false;
+    const hasBelt = outfit.belt ?? true;
+    const hat = outfit.hat ?? "none";
+    const headScale = (body.headScale ?? 1) * (1 + rng.jitter(0.04));
+    const bodyWidth = (body.bodyWidth ?? 1) * (1 + rng.jitter(0.05));
+    const limbLen = (body.limbLength ?? 1) * (1 + rng.jitter(0.05));
+    const stance = pose.stance ?? 1;
+    const pal = config.palette ?? {};
+    const col = {
+      skin: pal.skin ?? defaultColor(rng, "skin"),
+      hair: pal.hair ?? defaultColor(rng, "hair"),
+      cloth: pal.cloth ?? defaultColor(rng, "cloth"),
+      leather: pal.leather ?? defaultColor(rng, "leather"),
+      metal: pal.metal ?? defaultColor(rng, "metal"),
+      hat: pal.hat ?? defaultColor(rng, "hat")
+    };
+    const M = {
+      skin: MATERIALS.skin(col.skin),
+      hair: MATERIALS.hair(col.hair),
+      torso: MATERIALS[torsoMat](torsoMat === "leather" ? col.leather : col.cloth),
+      legs: MATERIALS.cloth(col.leather),
+      // trousers
+      leather: MATERIALS.leather(col.leather),
+      metal: MATERIALS.metal(col.metal),
+      hat: MATERIALS[hat === "hat" ? "leather" : "cloth"](col.hat)
+    };
+    const cx = s * 0.5;
+    const headHw = s * 0.205 * headScale;
+    const headHh = s * 0.185 * headScale;
+    const headCy = s * 0.275;
+    const headCorner = headHw * 0.55;
+    const torsoTop = headCy + headHh * 0.86;
+    const torsoBot = s * 0.66;
+    const torsoCy = (torsoTop + torsoBot) / 2;
+    const torsoHw = s * 0.125 * bodyWidth;
+    const torsoHh = (torsoBot - torsoTop) / 2;
+    const shoulderY = torsoTop + s * 0.01;
+    const armHw = s * 0.036 * bodyWidth;
+    const armHh = torsoHh * 0.7 * limbLen;
+    const armCy = shoulderY + armHh;
+    const armX = torsoHw + armHw * 0.55;
+    const legHw = s * 0.05 * bodyWidth;
+    const legHh = s * 0.06 * limbLen;
+    const legCy = torsoBot + legHh - s * 5e-3;
+    const legSpread = s * 0.058 * stance;
+    const parts = [];
+    const bb = (x0, y0, x1, y1) => [Math.floor(x0 - 2), Math.floor(y0 - 2), Math.ceil(x1 + 2), Math.ceil(y1 + 2)];
+    const pushBox = (mat, cxx, cyy, hw, hh, r, roundness) => {
+      parts.push({
+        material: mat,
+        roundness,
+        sdf: roundedBox(cxx, cyy, hw, hh, r),
+        bbox: bb(cxx - hw, cyy - hh, cxx + hw, cyy + hh)
+      });
+    };
+    if (hat === "none" || hat === "cap") {
+      pushBox(M.hair, cx, headCy - headHh * 0.18, headHw * 1.06, headHh * 0.95, headCorner * 0.9, 0.45);
+    }
+    for (const dir of [-1, 1]) {
+      const lx = cx + dir * legSpread;
+      pushBox(M.legs, lx, legCy, legHw, legHh, legHw * 0.45, 0.4);
+      pushBox(M.leather, lx + dir * legHw * 0.15, legCy + legHh + s * 0.012, legHw * 1.05, s * 0.022, s * 0.012, 0.45);
+    }
+    for (const dir of [-1, 1]) {
+      const ax = cx + dir * armX;
+      pushBox(M.torso, ax, armCy, armHw, armHh, armHw * 0.5, 0.4);
+      pushBox(M.skin, ax, armCy + armHh + armHw * 0.2, armHw * 0.95, armHw * 0.9, armHw * 0.6, 0.5);
+    }
+    pushBox(M.torso, cx, torsoCy, torsoHw, torsoHh, s * 0.028, 0.4);
+    if (hasBelt) {
+      const by = torsoBot - s * 0.03;
+      pushBox(M.leather, cx, by, torsoHw * 1.02, s * 0.02, s * 0.01, 0.4);
+    }
+    if (hasArmor) {
+      pushBox(M.metal, cx, torsoTop + torsoHh * 0.62, torsoHw * 0.95, torsoHh * 0.6, s * 0.03, 0.55);
+      for (const dir of [-1, 1]) {
+        const ax = cx + dir * armX;
+        pushBox(M.metal, ax, shoulderY + armHw * 0.4, armHw * 1.25, armHw * 0.95, armHw * 0.7, 0.55);
+      }
+    }
+    pushBox(M.skin, cx, headCy, headHw, headHh, headCorner, 0.36);
+    if (config.face !== false) {
+      const eyeY = headCy + headHh * 0.2;
+      const eyeDx = headHw * 0.42;
+      const ew = headHw * 0.13, eh = headHh * 0.2;
+      const eyeMat = { ...M.skin, name: "eye", base: [40, 34, 44], specStrength: 0.7, roughness: 0.3 };
+      for (const dir of [-1, 1]) {
+        pushBox(eyeMat, cx + dir * eyeDx, eyeY, ew, eh, ew * 0.5, 0.4);
+      }
+    }
+    if (hat === "none" || hat === "cap") {
+      const fy = headCy - headHh * 0.52;
+      parts.push({
+        material: M.hair,
+        roundness: 0.4,
+        sdf: union(
+          roundedBox(cx, fy, headHw * 0.98, headHh * 0.34, headHw * 0.2),
+          union(
+            roundedBox(cx - headHw * 0.74, headCy - headHh * 0.12, headHw * 0.28, headHh * 0.5, headHw * 0.18),
+            roundedBox(cx + headHw * 0.74, headCy - headHh * 0.12, headHw * 0.28, headHh * 0.5, headHw * 0.18)
+          )
+        ),
+        bbox: bb(cx - headHw * 1.1, headCy - headHh * 1.1, cx + headHw * 1.1, headCy + headHh * 0.5)
+      });
+    }
+    if (hat === "cap") {
+      pushBox(M.hat, cx, headCy - headHh * 0.62, headHw * 1.02, headHh * 0.5, headHw * 0.5, 0.5);
+      pushBox(M.hat, cx, headCy - headHh * 0.32, headHw * 1.18, headHh * 0.12, s * 0.01, 0.4);
+    } else if (hat === "hat") {
+      pushBox(M.hat, cx, headCy - headHh * 0.78, headHw * 0.72, headHh * 0.5, headHw * 0.3, 0.45);
+      pushBox(M.hat, cx, headCy - headHh * 0.42, headHw * 1.55, headHh * 0.16, headHh * 0.12, 0.4);
+    }
+    return parts;
+  }
+
+  // src/field.ts
+  function edt1d(f, n, out) {
+    const v = new Int32Array(n);
+    const z = new Float64Array(n + 1);
+    let k = 0;
+    v[0] = 0;
+    z[0] = -Infinity;
+    z[1] = Infinity;
+    for (let q = 1; q < n; q++) {
+      let s = (f[q] + q * q - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+      while (s <= z[k]) {
+        k--;
+        s = (f[q] + q * q - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+      }
+      k++;
+      v[k] = q;
+      z[k] = s;
+      z[k + 1] = Infinity;
+    }
+    k = 0;
+    for (let q = 0; q < n; q++) {
+      while (z[k + 1] < q) k++;
+      const d = q - v[k];
+      out[q] = d * d + f[v[k]];
+    }
+  }
+  function distanceField(mask, w, h) {
+    const INF = 1e12;
+    const g = new Float64Array(w * h);
+    for (let i = 0; i < w * h; i++) g[i] = mask[i] ? INF : 0;
+    const colIn = new Float64Array(h);
+    const colOut = new Float64Array(h);
+    for (let x = 0; x < w; x++) {
+      for (let y = 0; y < h; y++) colIn[y] = g[y * w + x];
+      edt1d(colIn, h, colOut);
+      for (let y = 0; y < h; y++) g[y * w + x] = colOut[y];
+    }
+    const rowIn = new Float64Array(w);
+    const rowOut = new Float64Array(w);
+    for (let y = 0; y < h; y++) {
+      const base = y * w;
+      for (let x = 0; x < w; x++) rowIn[x] = g[base + x];
+      edt1d(rowIn, w, rowOut);
+      for (let x = 0; x < w; x++) g[base + x] = rowOut[x];
+    }
+    const dist = new Float32Array(w * h);
+    let maxDist = 0;
+    for (let i = 0; i < w * h; i++) {
+      const d = mask[i] ? Math.sqrt(g[i]) : 0;
+      dist[i] = d;
+      if (d > maxDist) maxDist = d;
+    }
+    return { dist, maxDist };
+  }
+  function fieldToNormals(dist, mask, w, h, bevel) {
+    const nx = new Float32Array(w * h);
+    const ny = new Float32Array(w * h);
+    const nz = new Float32Array(w * h);
+    const HALF_PI = Math.PI / 2;
+    const inv = bevel > 1e-3 ? 1 / bevel : 1;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = y * w + x;
+        if (!mask[i]) continue;
+        const xm = x > 0 ? dist[i - 1] : dist[i];
+        const xp = x < w - 1 ? dist[i + 1] : dist[i];
+        const ym = y > 0 ? dist[i - w] : dist[i];
+        const yp = y < h - 1 ? dist[i + w] : dist[i];
+        let gx = (xp - xm) * 0.5;
+        let gy = (yp - ym) * 0.5;
+        const glen = Math.hypot(gx, gy) || 1e-6;
+        gx /= glen;
+        gy /= glen;
+        const t = dist[i] * inv;
+        const tc = t < 0 ? 0 : t > 1 ? 1 : t;
+        const theta = HALF_PI * (1 - tc);
+        const s = Math.sin(theta);
+        nx[i] = -gx * s;
+        ny[i] = -gy * s;
+        nz[i] = Math.cos(theta);
+      }
+    }
+    return { nx, ny, nz };
+  }
+
+  // src/color.ts
+  var clamp = (v, lo = 0, hi = 1) => v < lo ? lo : v > hi ? hi : v;
+  var clamp255 = (v) => v < 0 ? 0 : v > 255 ? 255 : v;
+  function mix(a, b, t) {
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  }
+  function scale(c, k) {
+    return [c[0] * k, c[1] * k, c[2] * k];
+  }
+  function smoothstep(e0, e1, x) {
+    const t = clamp((x - e0) / (e1 - e0 || 1e-6));
+    return t * t * (3 - 2 * t);
+  }
+  var WHITE = [255, 255, 255];
+  function buildRamp(base, coolShift) {
+    const cool = (c, amt) => [
+      c[0] * (1 - 0.18 * amt),
+      c[1] * (1 - 0.06 * amt),
+      c[2] * (1 + 0.1 * amt)
+    ];
+    const warm = (c, amt) => [
+      c[0] + (255 - c[0]) * 0.1 * amt,
+      c[1] + (255 - c[1]) * 0.07 * amt,
+      c[2] + (255 - c[2]) * 0.02 * amt
+    ];
+    return {
+      core: cool(scale(base, 0.34), coolShift),
+      shadow: cool(scale(base, 0.62), coolShift),
+      mid: base,
+      light: warm(scale(base, 1.12), 1),
+      hi: warm(mix(scale(base, 1.18), WHITE, 0.25), 1)
+    };
+  }
+  function sampleRamp(r, x) {
+    if (x < 0.4) return mix(r.core, r.shadow, smoothstep(0, 0.4, x));
+    if (x < 0.55) return mix(r.shadow, r.mid, smoothstep(0.4, 0.55, x));
+    if (x < 0.78) return mix(r.mid, r.light, smoothstep(0.55, 0.78, x));
+    return mix(r.light, r.hi, smoothstep(0.78, 1, x));
+  }
+  function quantizeChannel(v, levels) {
+    if (levels <= 1) return v;
+    const step = 255 / (levels - 1);
+    return Math.round(v / step) * step;
+  }
+
+  // src/lighting.ts
+  function normalize(v) {
+    const l = Math.hypot(v.x, v.y, v.z) || 1e-6;
+    return { x: v.x / l, y: v.y / l, z: v.z / l };
+  }
+  var VIEW = { x: 0, y: 0, z: 1 };
+  function makeShadeContext(mat, light) {
+    const L = normalize(light.dir);
+    const H = normalize({ x: L.x + VIEW.x, y: L.y + VIEW.y, z: L.z + VIEW.z });
+    const shininess = 8 + (1 - mat.roughness) * (1 - mat.roughness) * 132;
+    const specColor = mat.metallic ? [
+      // tint white toward the base color for a metallic highlight
+      255 * 0.35 + mat.base[0] * 0.65,
+      255 * 0.35 + mat.base[1] * 0.65,
+      255 * 0.35 + mat.base[2] * 0.65
+    ] : [255, 255, 255];
+    return {
+      ramp: buildRamp(mat.base, mat.shadowCoolShift),
+      L,
+      H,
+      ambient: light.ambient,
+      shininess,
+      specStrength: mat.specStrength,
+      specColor
+    };
+  }
+  function shade(ctx, nx, ny, nz, out) {
+    const ndotl = nx * ctx.L.x + ny * ctx.L.y + nz * ctx.L.z;
+    const x = clamp(ctx.ambient + (1 - ctx.ambient) * (ndotl * 0.5 + 0.5));
+    const diff = sampleRamp(ctx.ramp, x);
+    const ndoth = nx * ctx.H.x + ny * ctx.H.y + nz * ctx.H.z;
+    let spec = 0;
+    if (ndoth > 0 && ctx.specStrength > 0) {
+      spec = Math.pow(ndoth, ctx.shininess) * ctx.specStrength;
+    }
+    out[0] = diff[0] + ctx.specColor[0] * spec;
+    out[1] = diff[1] + ctx.specColor[1] * spec;
+    out[2] = diff[2] + ctx.specColor[2] * spec;
+  }
+
+  // src/engine.ts
+  var DEFAULT_LIGHT = {
+    // toward upper-left-front (remember: +y is down, so -y is up)
+    dir: { x: -0.5, y: -0.78, z: 0.62 },
+    ambient: 0.22
+  };
+  function generateSprite(config = {}) {
+    const size = config.size ?? 48;
+    const ss = Math.max(1, Math.floor(config.supersample ?? 1));
+    const W = size * ss, H = size * ss;
+    const roundness = config.roundness ?? 0.45;
+    const light = {
+      dir: { ...DEFAULT_LIGHT.dir, ...config.light ?? {} },
+      ambient: config.ambient ?? DEFAULT_LIGHT.ambient
+    };
+    const acc = new Float32Array(W * H * 4);
+    const parts = buildSkeleton(config, W);
+    const out = [0, 0, 0];
+    for (const part of parts) {
+      const [bx0, by0, bx1, by1] = part.bbox;
+      const cx0 = Math.max(0, (bx0 | 0) - 1);
+      const cy0 = Math.max(0, (by0 | 0) - 1);
+      const cx1 = Math.min(W, (bx1 | 0) + 2);
+      const cy1 = Math.min(H, (by1 | 0) + 2);
+      const cw = cx1 - cx0, ch = cy1 - cy0;
+      if (cw <= 0 || ch <= 0) continue;
+      const mask = new Uint8Array(cw * ch);
+      for (let y = 0; y < ch; y++) {
+        for (let x = 0; x < cw; x++) {
+          if (part.sdf(cx0 + x + 0.5, cy0 + y + 0.5) < 0) mask[y * cw + x] = 1;
+        }
+      }
+      const { dist, maxDist } = distanceField(mask, cw, ch);
+      if (maxDist <= 0) continue;
+      const pr = part.roundness ?? roundness;
+      const bevel = Math.max(1.5, pr * maxDist);
+      const { nx, ny, nz } = fieldToNormals(dist, mask, cw, ch, bevel);
+      const ctx = makeShadeContext(part.material, light);
+      for (let y = 0; y < ch; y++) {
+        for (let x = 0; x < cw; x++) {
+          const li = y * cw + x;
+          if (!mask[li]) continue;
+          shade(ctx, nx[li], ny[li], nz[li], out);
+          const j = ((cy0 + y) * W + (cx0 + x)) * 4;
+          acc[j] = out[0];
+          acc[j + 1] = out[1];
+          acc[j + 2] = out[2];
+          acc[j + 3] = 255;
+        }
+      }
+    }
+    const data = new Uint8ClampedArray(size * size * 4);
+    const area = ss * ss;
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        let r = 0, g = 0, b = 0, a = 0;
+        for (let sy = 0; sy < ss; sy++) {
+          for (let sx = 0; sx < ss; sx++) {
+            const si = ((y * ss + sy) * W + (x * ss + sx)) * 4;
+            const sa = acc[si + 3];
+            const w = sa / 255;
+            r += acc[si] * w;
+            g += acc[si + 1] * w;
+            b += acc[si + 2] * w;
+            a += sa;
+          }
+        }
+        const di = (y * size + x) * 4;
+        const aw = a > 0 ? a / 255 : 1;
+        data[di] = clamp255(r / aw);
+        data[di + 1] = clamp255(g / aw);
+        data[di + 2] = clamp255(b / aw);
+        data[di + 3] = clamp255(a / area);
+      }
+    }
+    if (config.outline !== false) {
+      const oc = config.outline && config.outline.color || [22, 18, 28];
+      applyOutline(data, size, size, oc);
+    }
+    const quant = config.quantize === false ? 0 : config.quantize ?? 5;
+    if (quant > 1) {
+      const levels = quant;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] < 8) continue;
+        data[i] = quantizeChannel(data[i], levels);
+        data[i + 1] = quantizeChannel(data[i + 1], levels);
+        data[i + 2] = quantizeChannel(data[i + 2], levels);
+      }
+    }
+    return { width: size, height: size, data };
+  }
+  function applyOutline(data, w, h, color) {
+    const isSolid = (x, y) => x >= 0 && x < w && y >= 0 && y < h && data[(y * w + x) * 4 + 3] > 128;
+    const snapshotAlpha = new Uint8Array(w * h);
+    for (let i = 0; i < w * h; i++) snapshotAlpha[i] = data[i * 4 + 3] > 128 ? 1 : 0;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = y * w + x;
+        if (snapshotAlpha[i]) continue;
+        if (isSolid(x - 1, y) || isSolid(x + 1, y) || isSolid(x, y - 1) || isSolid(x, y + 1)) {
+          const j = i * 4;
+          data[j] = color[0];
+          data[j + 1] = color[1];
+          data[j + 2] = color[2];
+          data[j + 3] = 255;
+        }
+      }
+    }
+  }
+
+  // src/index.ts
+  function asImageDataArray(d) {
+    return d;
+  }
+  function toImageData(sprite) {
+    if (typeof ImageData === "undefined") {
+      throw new Error("ImageData is not available in this environment.");
+    }
+    return new ImageData(asImageDataArray(sprite.data), sprite.width, sprite.height);
+  }
+  function toCanvas(sprite) {
+    const { width, height } = sprite;
+    let canvas;
+    if (typeof OffscreenCanvas !== "undefined") {
+      canvas = new OffscreenCanvas(width, height);
+    } else if (typeof document !== "undefined") {
+      const c = document.createElement("canvas");
+      c.width = width;
+      c.height = height;
+      canvas = c;
+    } else {
+      throw new Error("No canvas available; use sprite.data or toImageData() in Node.");
+    }
+    const ctx = canvas.getContext("2d");
+    ctx.putImageData(toImageData(sprite), 0, 0);
+    return canvas;
+  }
+  function generateSpriteCanvas(config = {}) {
+    return toCanvas(generateSprite(config));
+  }
+  return __toCommonJS(index_exports);
+})();
+</script>
+<script>
+const { generateSprite, toCanvas } = SpriteEngine;
+const $ = (id)=>document.getElementById(id);
+function readConfig(seed){
+  const ang=(+$('angle').value)*Math.PI/180, smooth=$('smooth').checked;
+  return {
+    seed, size:+$('size').value,
+    supersample: smooth?2:1,
+    roundness: smooth?0.9:(+$('round').value)/100,
+    quantize: smooth?false:((+$('quant').value)>1?+$('quant').value:false),
+    ambient:(+$('amb').value)/100,
+    light:{x:Math.cos(ang),y:-Math.sin(ang),z:0.6},
+    outline:$('outline').checked?{}:false,
+    outfit:{torso:$('torso').value,armor:$('armor').checked,belt:$('belt').checked,hat:$('hat').value},
+  };
+}
+function blit(src,dst,scale){const c=dst.getContext('2d');c.imageSmoothingEnabled=false;c.clearRect(0,0,dst.width,dst.height);
+  const w=src.width*scale,h=src.height*scale;c.drawImage(src,(dst.width-w)/2,(dst.height-h)/2,w,h);}
+function renderHero(){
+  const seed=$('seed').value||'hero',cfg=readConfig(seed);
+  const t0=performance.now();const sprite=generateSprite(cfg);const ms=performance.now()-t0;
+  blit(toCanvas(sprite),$('hero'),Math.max(1,Math.floor(400/sprite.width)));
+  $('herolabel').textContent=seed+'  ·  '+sprite.width+'×'+sprite.height+'px';
+  $('stat').innerHTML='generateSprite(): <b>'+ms.toFixed(2)+' ms</b><br>output: '+sprite.width+'×'+sprite.height+' RGBA';
+}
+function renderGrid(){const g=$('grid');g.innerHTML='';
+  for(const s of ['willow','onyx-3','marigold','cobalt','rune','pip','ash','juno']){
+    const sprite=generateSprite(readConfig(s));const big=document.createElement('canvas');big.width=110;big.height=110;
+    blit(toCanvas(sprite),big,Math.max(1,Math.floor(100/sprite.width)));
+    const t=document.createElement('div');t.className='tile';const sp=document.createElement('span');sp.textContent=s;
+    t.appendChild(big);t.appendChild(sp);g.appendChild(t);}}
+function all(){renderHero();renderGrid();}
+['angle','round','quant','amb','size'].forEach(id=>$(id).addEventListener('input',all));
+['hat','torso','armor','belt','outline','smooth','seed'].forEach(id=>$(id).addEventListener('change',all));
+$('seed').addEventListener('input',all);
+$('rand').addEventListener('click',()=>{$('seed').value=Math.random().toString(36).slice(2,9);all();});
+all();
+</script></body></html>
