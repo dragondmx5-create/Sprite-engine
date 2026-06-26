@@ -192,6 +192,14 @@ for (const name of ['hit', 'death']) {
   check('sword+shield+armor generates', combo.data.some((v, i) => i % 4 === 3 && v > 128));
 }
 
+// --- 1e2b) cape z-order: back-facing caped character differs from front ----
+{
+  const capedFront = generateSprite({ seed: 'hero', size: 40, outfit: { cape: true }, facing: 'front' });
+  const capedBack = generateSprite({ seed: 'hero', size: 40, outfit: { cape: true }, facing: 'back' });
+  check('caped back differs from caped front', !same(capedFront, capedBack));
+  check('caped back deterministic', same(capedBack, generateSprite({ seed: 'hero', size: 40, outfit: { cape: true }, facing: 'back' })));
+}
+
 // --- 1e3) projectiles + sparkle -------------------------------------------
 {
   for (const kind of ['arrow', 'fireball', 'magic_bolt'] as const) {

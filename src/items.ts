@@ -79,6 +79,7 @@ function defaultColor(rng: RNG, kind: ItemKind): RGB {
     case 'chest':    return j([140, 95, 55], 0.12);   // wood
     case 'key':      return j([220, 190, 80], 0.08);  // gold
     case 'scroll':   return j([230, 215, 180], 0.06); // parchment
+    default:         return j([180, 180, 180], 0.10);
   }
 }
 

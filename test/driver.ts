@@ -92,6 +92,6 @@ const sheet: { name: string; cfg: Parameters<typeof generateSprite>[0] }[] = [
 for (const { name, cfg } of sheet) {
   const s = generateSprite(cfg);
   const k = 8;
-  writeFileSync(`/home/claude/sprite-engine/out_${name}.png`, encodePNG(s.width * k, s.height * k, upscaleOnBg(s, k)));
+  writeFileSync(`preview/out_${name}.png`, encodePNG(s.width * k, s.height * k, upscaleOnBg(s, k)));
 }
 console.log('wrote', sheet.length, 'preview PNGs');

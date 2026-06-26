@@ -62,8 +62,8 @@ for (const name of listAnimations()) {
   const a = generateAnimation({ seed: 'hero', size: 48, outfit: { hat: name === 'attack' ? 'cap' : 'none' } }, name);
   const sheet = packSpriteSheet(a.frames);                 // horizontal strip
   // raw spritesheet (1x) for actual use
-  writeFileSync(`/home/claude/sprite-engine/sheet_${name}.png`, encodePNG(sheet.width, sheet.height, sheet.data));
+  writeFileSync(`preview/sheet_${name}.png`, encodePNG(sheet.width, sheet.height, sheet.data));
   // upscaled preview strip
-  writeFileSync(`/home/claude/sprite-engine/anim_${name}.png`, encodePNG(sheet.width * K, sheet.height * K, upscaleOnBg(sheet, K)));
+  writeFileSync(`preview/anim_${name}.png`, encodePNG(sheet.width * K, sheet.height * K, upscaleOnBg(sheet, K)));
 }
 console.log('wrote anim_* preview strips and sheet_* raw spritesheets for:', listAnimations().join(', '));

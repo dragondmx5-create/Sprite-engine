@@ -178,11 +178,14 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
 
   // 0) CAPE — a flowing cloak behind the whole body. Drawn first so everything
   // overlaps it; leans with the torso. Flares slightly toward the hem.
-  if (hasCape) {
+  // Exception: facing='back' → the cape is nearest the viewer, drawn after the body.
+  const drawCapeEarly = hasCape && facing !== 'back';
+  const placeCape = () => {
     const capeTop = shoulderY + s * 0.01;
     const capeBot = legCy + legHh * 0.4;
     box(M.cape, cx, (capeTop + capeBot) / 2, torsoHw * 1.45, (capeBot - capeTop) / 2, s * 0.03, 0.5, xUpper);
-  }
+  };
+  if (drawCapeEarly) placeCape();
 
   // 1) HAIR BACK — crowns the head (behind it). Part of the head group.
   if (hairStyle !== 'bald' && (hat === 'none' || hat === 'cap')) {
@@ -280,6 +283,9 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
     box(M.hat, cx, headCy - headHh * 0.78, headHw * 0.72, headHh * 0.5, headHw * 0.3, 0.45, xHead());
     box(M.hat, cx, headCy - headHh * 0.42, headHw * 1.55, headHh * 0.16, headHh * 0.12, 0.4, xHead());
   }
+
+  // 10b) CAPE for back-facing — drawn after hair/hat so it covers the body.
+  if (hasCape && facing === 'back') placeCape();
 
   // 11) HELD WEAPON — drawn last (on top) so it stays visible during attack
   // swings. Uses the same shoulder rotation transform as the right arm, so the

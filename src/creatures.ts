@@ -102,6 +102,7 @@ function defaultColor(rng: RNG, kind: CreatureKind): RGB {
     case 'insect':  return j([44, 50, 40], 0.18);
     case 'worm':    return j([122, 138, 70], 0.16);
     case 'crawler': return j([138, 46, 44], 0.16);
+    default:        return j([80, 80, 80], 0.15);
   }
 }
 

@@ -599,11 +599,13 @@ var SpriteEngine = (() => {
       parts.push({ material: mat, roundness, sdf: f, bbox: [Math.floor(minx - 2), Math.floor(miny - 2), Math.ceil(maxx + 2), Math.ceil(maxy + 2)] });
     };
     const box = (mat, bx, by, hw, hh, r, roundness, xf) => place(mat, roundedBox(bx, by, hw, hh, r), bx - hw, by - hh, bx + hw, by + hh, roundness, xf);
-    if (hasCape) {
+    const drawCapeEarly = hasCape && facing !== "back";
+    const placeCape = () => {
       const capeTop = shoulderY + s * 0.01;
       const capeBot = legCy + legHh * 0.4;
       box(M.cape, cx, (capeTop + capeBot) / 2, torsoHw * 1.45, (capeBot - capeTop) / 2, s * 0.03, 0.5, xUpper);
-    }
+    };
+    if (drawCapeEarly) placeCape();
     if (hairStyle !== "bald" && (hat === "none" || hat === "cap")) {
       const back = hairStyle === "long" ? headHh * 1.35 : headHh * 0.95;
       box(M.hair, cx, headCy - headHh * 0.18 + (hairStyle === "long" ? headHh * 0.2 : 0), headHw * 1.06, back, headCorner * 0.9, 0.45, xHead());
@@ -681,6 +683,7 @@ var SpriteEngine = (() => {
       box(M.hat, cx, headCy - headHh * 0.78, headHw * 0.72, headHh * 0.5, headHw * 0.3, 0.45, xHead());
       box(M.hat, cx, headCy - headHh * 0.42, headHw * 1.55, headHh * 0.16, headHh * 0.12, 0.4, xHead());
     }
+    if (hasCape && facing === "back") placeCape();
     const weapon = config.weapon ?? "none";
     if (weapon !== "none") {
       const ax = cx + armX;
@@ -934,6 +937,8 @@ var SpriteEngine = (() => {
         return j([122, 138, 70], 0.16);
       case "crawler":
         return j([138, 46, 44], 0.16);
+      default:
+        return j([80, 80, 80], 0.15);
     }
   }
   function buildInsect(rng, s, color, alerted, phase, amp) {
@@ -1167,6 +1172,9 @@ var SpriteEngine = (() => {
       // gold
       case "scroll":
         return j([230, 215, 180], 0.06);
+      // parchment
+      default:
+        return j([180, 180, 180], 0.1);
     }
   }
   function buildMushroom(rng, s, color) {
