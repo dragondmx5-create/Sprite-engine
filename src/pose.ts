@@ -152,10 +152,40 @@ export const ATTACK: AnimationClip = {
   ],
 };
 
+/**
+ * HIT: a sharp one-shot recoil — the body jolts back, head snaps, then settles.
+ * Fast anticipation-free flinch (easeOut into the jolt, easeIn back).
+ */
+export const HIT: AnimationClip = {
+  name: 'hit', fps: 16, loop: false, frames: 5,
+  keyframes: [
+    { t: 0.0, pose: { rootX: 0, headTilt: 0, torsoLean: 0 }, ease: 'easeOut' },
+    { t: 0.25, pose: { rootX: -2.2, headTilt: 9 * D, torsoLean: 7 * D }, ease: 'easeIn' }, // knocked back
+    { t: 1.0, pose: { rootX: 0, headTilt: 0, torsoLean: 0 } },                              // settle
+  ],
+};
+
+/**
+ * DEATH: a one-shot collapse — the body buckles, topples about the pelvis, the
+ * head lolls and the whole thing sinks. Ends folded on the ground (held last
+ * frame), so a dead body can just freeze on the final frame.
+ */
+export const DEATH: AnimationClip = {
+  name: 'death', fps: 12, loop: false, frames: 7,
+  keyframes: [
+    { t: 0.0, pose: { torsoLean: 0, rootY: 0, headTilt: 0 }, ease: 'easeIn' },
+    { t: 0.2, pose: { torsoLean: -10 * D, headTilt: -8 * D, rootY: -1 }, ease: 'easeOut' }, // brief stagger up
+    { t: 0.6, pose: { torsoLean: 62 * D, headTilt: 40 * D, rootY: 3, legL: 22 * D, legR: -16 * D, armL: 30 * D, armR: -24 * D }, ease: 'easeIn' },
+    { t: 1.0, pose: { torsoLean: 80 * D, headTilt: 55 * D, rootY: 5, legL: 26 * D, legR: -20 * D, armL: 38 * D, armR: -30 * D } }, // collapsed
+  ],
+};
+
 export const CLIPS: Record<string, AnimationClip> = {
   idle: IDLE,
   walk: WALK,
   attack: ATTACK,
+  hit: HIT,
+  death: DEATH,
 };
 
 export type AnimationName = keyof typeof CLIPS;

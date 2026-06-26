@@ -21,6 +21,7 @@
 import type { SpriteBuffer, SpriteConfig } from './types';
 import { resolveRenderOpts, renderParts } from './engine';
 import { buildSkeleton } from './skeleton';
+import { buildCreature, type CreatureConfig } from './creatures';
 import { CLIPS, samplePose } from './pose';
 
 export interface AnimationResult {
@@ -58,9 +59,46 @@ export function generateAnimation(config: SpriteConfig, animationName: string): 
   return { name: clip.name, frames, frameCount: clip.frames, fps: clip.fps, loop: clip.loop };
 }
 
-/** List the built-in animation names. */
+/** List the built-in character animation names. */
 export function listAnimations(): string[] {
   return Object.keys(CLIPS);
+}
+
+// =============================================================================
+// Enemy animation. Creatures animate PROCEDURALLY (IK + springs) from a single
+// phase, so a "clip" is just a frame count + playback rate — there are no
+// authored keyframes. `amp` scales the motion so the same cycle serves a calm
+// idle and a full-speed move.
+// =============================================================================
+
+export interface EnemyClip { name: string; fps: number; loop: boolean; frames: number; amp: number; }
+
+export const ENEMY_CLIPS: Record<string, EnemyClip> = {
+  idle: { name: 'idle', fps: 8, loop: true, frames: 8, amp: 0.4 },
+  move: { name: 'move', fps: 12, loop: true, frames: 8, amp: 1.0 },
+};
+
+/** Generate a procedural enemy animation ('move' | 'idle'). */
+export function generateEnemyAnimation(
+  config: SpriteConfig & CreatureConfig, animationName: string,
+): AnimationResult {
+  const clip = ENEMY_CLIPS[animationName];
+  if (!clip) {
+    throw new Error(`Unknown enemy animation "${animationName}". Available: ${Object.keys(ENEMY_CLIPS).join(', ')}`);
+  }
+  const opts = resolveRenderOpts(config);
+  const frames: SpriteBuffer[] = [];
+  for (let i = 0; i < clip.frames; i++) {
+    const phase = i / clip.frames;                 // looping cycle
+    const parts = buildCreature(config, opts.W, phase, clip.amp);
+    frames.push(renderParts(parts, opts));
+  }
+  return { name: clip.name, frames, frameCount: clip.frames, fps: clip.fps, loop: clip.loop };
+}
+
+/** List the built-in enemy animation names. */
+export function listEnemyAnimations(): string[] {
+  return Object.keys(ENEMY_CLIPS);
 }
 
 /**

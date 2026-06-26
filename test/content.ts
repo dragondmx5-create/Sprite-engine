@@ -7,7 +7,9 @@ import { deflateSync } from 'zlib';
 import { writeFileSync, mkdirSync } from 'fs';
 import {
   generateSprite, generateEnemy, generateItem,
+  generateEnemyAnimation, generateAnimation,
   CREATURE_KINDS, ITEM_KINDS,
+  solveTwoBone, fabrik,
 } from '../src/index';
 import type { SpriteBuffer } from '../src/types';
 
@@ -74,6 +76,56 @@ check('facing front == default', same(
   generateSprite({ seed: 'hero', size: 40 }),
   generateSprite({ seed: 'hero', size: 40, facing: 'front' }),
 ));
+
+// --- 1b) procedural animation: deterministic, moving, and non-boiling -------
+const framesEqual = (a: SpriteBuffer[], b: SpriteBuffer[]) =>
+  a.length === b.length && a.every((f, i) => same(f, b[i]));
+
+for (const kind of CREATURE_KINDS) {
+  const cfg = { kind, seed: 'anim', size: 40, supersample: 2 } as const;
+  const a = generateEnemyAnimation(cfg, 'move');
+  const b = generateEnemyAnimation(cfg, 'move');
+  check(`enemy ${kind} animation deterministic`, framesEqual(a.frames, b.frames));
+  // motion actually happens: at least one frame differs from frame 0
+  check(`enemy ${kind} animation moves`, a.frames.some((f, i) => i > 0 && !same(f, a.frames[0])));
+  // no "boiling": the average opaque color stays ~constant frame to frame
+  const avg = (f: SpriteBuffer) => {
+    let r = 0, g = 0, bl = 0, n = 0;
+    for (let i = 0; i < f.data.length; i += 4) if (f.data[i + 3] > 128) { r += f.data[i]; g += f.data[i + 1]; bl += f.data[i + 2]; n++; }
+    return n ? [r / n, g / n, bl / n] : [0, 0, 0];
+  };
+  const a0 = avg(a.frames[0]);
+  const stable = a.frames.every((f) => {
+    const c = avg(f);
+    return Math.abs(c[0] - a0[0]) < 22 && Math.abs(c[1] - a0[1]) < 22 && Math.abs(c[2] - a0[2]) < 22;
+  });
+  check(`enemy ${kind} animation does not boil`, stable);
+}
+// new character clips exist and run
+for (const name of ['hit', 'death']) {
+  const a = generateAnimation({ seed: 'hero', size: 40 }, name);
+  check(`character clip ${name} produces frames`, a.frames.length > 0);
+}
+
+// --- 1c) IK solvers ---------------------------------------------------------
+{
+  // two-bone reaches an in-range target exactly, and each bone keeps its length
+  const base = { x: 0, y: 0 };
+  const target = { x: 6, y: 4 };
+  const { knee, foot } = solveTwoBone(base, target, 5, 5, 1);
+  const reached = Math.hypot(foot.x - target.x, foot.y - target.y) < 1e-6;
+  const l1ok = Math.abs(Math.hypot(knee.x - base.x, knee.y - base.y) - 5) < 1e-4;
+  const l2ok = Math.abs(Math.hypot(foot.x - knee.x, foot.y - knee.y) - 5) < 1e-4;
+  check('solveTwoBone reaches target', reached);
+  check('solveTwoBone preserves bone lengths', l1ok && l2ok);
+
+  // FABRIK converges toward an in-range target for a 4-link chain
+  const chain = [{ x: 0, y: 0 }, { x: 3, y: 0 }, { x: 6, y: 0 }, { x: 9, y: 0 }];
+  const out = fabrik(chain, { x: 5, y: 5 }, 16);
+  const tipErr = Math.hypot(out[out.length - 1].x - 5, out[out.length - 1].y - 5);
+  check('fabrik converges to target', tipErr < 0.05);
+  check('fabrik pins the root', Math.hypot(out[0].x - chain[0].x, out[0].y - chain[0].y) < 1e-9);
+}
 
 // --- 2) perf: a creature/item should generate in a few ms -------------------
 let acc = 0; const N = 100;

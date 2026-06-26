@@ -11,7 +11,11 @@
 
 import { generateSprite, generateEnemy, generateItem } from './engine';
 import type { SpriteBuffer, SpriteConfig } from './types';
-import { generateAnimation, packSpriteSheet, listAnimations, type AnimationResult } from './animation';
+import {
+  generateAnimation, packSpriteSheet, listAnimations,
+  generateEnemyAnimation, listEnemyAnimations, ENEMY_CLIPS,
+  type AnimationResult,
+} from './animation';
 
 export { generateSprite, generateEnemy, generateItem };
 export type { SpriteBuffer, SpriteConfig, Material, RGB, Vec3 } from './types';
@@ -26,8 +30,14 @@ export type { ItemConfig, ItemKind } from './items';
 // ---- Animation API ---------------------------------------------------------
 export { generateAnimation, packSpriteSheet, listAnimations };
 export type { AnimationResult };
+// Procedural enemy animation (IK + springs):
+export { generateEnemyAnimation, listEnemyAnimations, ENEMY_CLIPS };
+// IK + secondary-motion toolkit (for authoring custom procedural motion):
+export { solveTwoBone, fabrik } from './anim/ik';
+export type { Pt } from './anim/ik';
+export { damp, lag, squash, wave, pulse, smooth } from './anim/spring';
 // Pose system (for authoring custom clips):
-export { CLIPS, IDLE, WALK, ATTACK, samplePose, NEUTRAL_POSE } from './pose';
+export { CLIPS, IDLE, WALK, ATTACK, HIT, DEATH, samplePose, NEUTRAL_POSE } from './pose';
 export type { Pose, Keyframe, AnimationClip, AnimationName, Easing } from './pose';
 
 // Newer TS lib types ImageData's data as Uint8ClampedArray<ArrayBuffer>.

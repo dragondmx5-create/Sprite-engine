@@ -62,6 +62,35 @@ generateSprite({ seed: 'hero', facing: 'left' });  // 'front' | 'back' | 'left' 
 (seed / size / supersample / outline controls). `npm test` runs the determinism
 + perf checks and writes preview PNGs to `./preview/`.
 
+### Procedural enemy animation (IK + secondary motion)
+
+Enemies are **not** keyframed. Each creature animates from a single `phase` via
+real procedural-animation algorithms, so motion adapts to size/proportions and
+never needs authored frames:
+
+* **FABRIK / two-bone IK** (`anim/ik.ts`) plants each leg's foot on a cycling
+  target and solves the knee — the insect walks an alternating-tripod gait, the
+  crawler scuttles on eight legs.
+* **Traveling sine** undulates the worm's spine and breathes its maw open/closed.
+* **Springs / secondary motion** (`anim/spring.ts`) add the juice: squash &
+  stretch, follow-through (lagging antennae), and overshoot — all closed-form
+  functions of phase, so frames stay deterministic and never "boil".
+
+```ts
+import { generateEnemyAnimation } from './src/index';
+
+const anim = generateEnemyAnimation({ kind: 'worm', seed: 'w1', size: 24 }, 'move');
+// anim => { name, frames: SpriteBuffer[], frameCount, fps, loop }
+// clips: 'move' (full) | 'idle' (calm). Same frame/canvas/spritesheet helpers apply.
+```
+
+The IK + spring toolkit is exported too (`solveTwoBone`, `fabrik`, `damp`, `lag`,
+`squash`, `wave`, `pulse`) for authoring your own procedural motion.
+
+Two new **character** clips ship as well: `hit` (recoil) and `death` (collapse),
+alongside `idle` / `walk` / `attack`. `demo-procedural-animation.html` plays every
+clip live (seed / size / speed / play-pause).
+
 ### `SpriteConfig`
 
 | field | default | meaning |
@@ -83,8 +112,10 @@ generateSprite({ seed: 'hero', facing: 'left' });  // 'front' | 'back' | 'left' 
 
 ```
 skeleton.ts   config + seed   → ordered list of body parts (z = paint order)
-creatures.ts  config + seed   → enemy parts (insect / worm / crawler)
+creatures.ts  config + seed + phase → enemy parts (insect / worm / crawler)
 items.ts      config + seed   → loot parts  (mushroom / crystal / dagger)
+anim/ik.ts    base + target   → IK joint positions (two-bone + FABRIK)
+anim/spring.ts phase          → secondary motion (squash, follow-through)
 shapes.ts     SDF primitives  → crisp silhouette masks
 field.ts      mask            → inward distance field → fake surface normals   ← the trick
 lighting.ts   normal+material → diffuse tone ramp + Blinn-Phong specular
