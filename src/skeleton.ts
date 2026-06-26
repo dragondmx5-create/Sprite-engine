@@ -85,6 +85,7 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
   const bodyWidth = (body.bodyWidth ?? 1) * (1 + rng.jitter(0.05));
   const limbLen = (body.limbLength ?? 1) * (1 + rng.jitter(0.05));
   const stanceBase = ipose.stance ?? 1;
+  const facing = config.facing ?? 'front';
 
   const pal = config.palette ?? {};
   const col = {
@@ -205,17 +206,24 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
   // 7) HEAD.
   box(M.skin, cx, headCy, headHw, headHh, headCorner, 0.36, xHead());
 
-  // 8) EYES — small dark blocks, low on the face.
-  if (config.face !== false) {
+  // 8) EYES — small dark blocks, low on the face. Skipped when facing away;
+  // shifted toward the look direction for a 3/4 profile (geometry only, so
+  // animation frames inherit the facing for free).
+  if (config.face !== false && facing !== 'back') {
     const eyeY = headCy + headHh * 0.2;
-    const eyeDx = headHw * 0.42;
+    const lookSign = facing === 'left' ? -1 : facing === 'right' ? 1 : 0;
+    const eyeDx = lookSign === 0 ? headHw * 0.42 : headHw * 0.26; // closer together in profile
+    const shift = lookSign * headHw * 0.3;                        // whole pair leans that way
     const ew = headHw * 0.13, eh = headHh * 0.2;
     const eyeMat = { ...M.skin, name: 'eye', base: [40, 34, 44] as RGB, specStrength: 0.7, roughness: 0.3 };
-    for (const dir of [-1, 1]) box(eyeMat, cx + dir * eyeDx, eyeY, ew, eh, ew * 0.5, 0.4, xHead());
+    for (const dir of [-1, 1]) box(eyeMat, cx + shift + dir * eyeDx, eyeY, ew, eh, ew * 0.5, 0.4, xHead());
   }
 
-  // 9) HAIR FRONT — chunky fringe across the forehead.
-  if (hat === 'none' || hat === 'cap') {
+  // 9) HAIR FRONT — chunky fringe across the forehead. When facing away, the
+  // back of the head reads as a full hair mass covering the (hidden) face.
+  if (facing === 'back' && (hat === 'none' || hat === 'cap')) {
+    box(M.hair, cx, headCy + headHh * 0.04, headHw * 0.96, headHh * 0.9, headCorner * 0.85, 0.42, xHead());
+  } else if (hat === 'none' || hat === 'cap') {
     const fy = headCy - headHh * 0.52;
     const fr: SDF = union(
       roundedBox(cx, fy, headHw * 0.98, headHh * 0.34, headHw * 0.2),

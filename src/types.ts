@@ -96,6 +96,15 @@ export interface SpriteConfig {
 
   /** Draw simple eyes. Default true. */
   face?: boolean;
+
+  /**
+   * Which way the character looks (for top-down movement).
+   *   'front' (default) — faces the viewer, both eyes centered
+   *   'back'            — seen from behind; face hidden by hair
+   *   'left' | 'right'  — 3/4 profile; eyes shifted to that side
+   * Geometry-only (no buffer flipping), so it also works in animation frames.
+   */
+  facing?: 'front' | 'back' | 'left' | 'right';
 }
 
 /** RGBA pixel buffer — the engine's native, DOM-free output. */

@@ -28,6 +28,40 @@ ctx.putImageData(toImageData(sprite), x, y);
 // In Node: just use sprite.data (no DOM needed).
 ```
 
+### Enemies & loot (Phase 1 — UNDRAL content)
+
+Enemies and items are built the same way as the character — an ordered list of
+SDF parts run through the *identical* distance-field + lighting pass — so they
+are lit and styled to match. Same `seed`/`size`/`light`/`outline`/`quantize`
+options apply.
+
+```ts
+import { generateEnemy, generateItem, CREATURE_KINDS, ITEM_KINDS } from './src/index';
+
+// enemies: 'insect' | 'worm' | 'crawler'; `alerted` gives glowing eyes
+const bug = generateEnemy({ kind: 'insect', seed: 'e12', size: 20, alerted: true });
+
+// loot: 'mushroom' | 'crystal' | 'dagger'
+const gem = generateItem({ kind: 'crystal', seed: 'loot7', size: 20 });
+
+CREATURE_KINDS; // ['insect','worm','crawler']
+ITEM_KINDS;     // ['mushroom','crystal','dagger']
+```
+
+### Facing (top-down movement)
+
+Characters take an optional `facing`. It changes geometry only (eye position /
+hair), no buffer flipping, so it also works inside animation frames. `'front'`
+is byte-identical to omitting it.
+
+```ts
+generateSprite({ seed: 'hero', facing: 'left' });  // 'front' | 'back' | 'left' | 'right'
+```
+
+`demo-sprites.html` is a self-contained interactive gallery of all the above
+(seed / size / supersample / outline controls). `npm test` runs the determinism
++ perf checks and writes preview PNGs to `./preview/`.
+
 ### `SpriteConfig`
 
 | field | default | meaning |
@@ -49,6 +83,8 @@ ctx.putImageData(toImageData(sprite), x, y);
 
 ```
 skeleton.ts   config + seed   → ordered list of body parts (z = paint order)
+creatures.ts  config + seed   → enemy parts (insect / worm / crawler)
+items.ts      config + seed   → loot parts  (mushroom / crystal / dagger)
 shapes.ts     SDF primitives  → crisp silhouette masks
 field.ts      mask            → inward distance field → fake surface normals   ← the trick
 lighting.ts   normal+material → diffuse tone ramp + Blinn-Phong specular

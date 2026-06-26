@@ -9,13 +9,19 @@
 // are thin adapters that only touch the DOM when you actually call them.
 // =============================================================================
 
-import { generateSprite } from './engine';
+import { generateSprite, generateEnemy, generateItem } from './engine';
 import type { SpriteBuffer, SpriteConfig } from './types';
 import { generateAnimation, packSpriteSheet, listAnimations, type AnimationResult } from './animation';
 
-export { generateSprite };
+export { generateSprite, generateEnemy, generateItem };
 export type { SpriteBuffer, SpriteConfig, Material, RGB, Vec3 } from './types';
 export { MATERIALS } from './materials';
+
+// ---- Enemy / loot API (UNDRAL) ---------------------------------------------
+export { buildCreature, CREATURE_KINDS } from './creatures';
+export type { CreatureConfig, CreatureKind } from './creatures';
+export { buildItem, ITEM_KINDS } from './items';
+export type { ItemConfig, ItemKind } from './items';
 
 // ---- Animation API ---------------------------------------------------------
 export { generateAnimation, packSpriteSheet, listAnimations };

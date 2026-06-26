@@ -1,0 +1,1374 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UNDRAL Sprite Engine — Phase 1</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #14110f; color: #d8cfc4; font-family: system-ui, sans-serif; padding: 20px; }
+  h1 { font-size: 20px; color: #e0b070; margin-bottom: 4px; }
+  .sub { color: #7a6f63; font-size: 13px; margin-bottom: 18px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 16px; align-items: center;
+    background: #1d1815; border: 1px solid #2c2420; border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; }
+  .controls label { font-size: 13px; color: #b8a89a; display: flex; align-items: center; gap: 6px; }
+  .controls input[type=text] { background: #0e0c0a; border: 1px solid #3a302a; color: #e8ddd0;
+    border-radius: 5px; padding: 5px 8px; width: 120px; font-family: monospace; }
+  .controls button { background: #2a1f18; border: 1px solid #5a4030; color: #e0b070;
+    border-radius: 5px; padding: 6px 12px; cursor: pointer; font-size: 13px; }
+  .controls button:hover { background: #3a2a20; }
+  #stat { color: #6a8a5a; font-size: 12px; font-family: monospace; margin: 6px 2px 18px; }
+  .section { margin-bottom: 26px; }
+  .section h2 { font-size: 14px; color: #c89060; border-bottom: 1px solid #2c2420;
+    padding-bottom: 6px; margin-bottom: 14px; font-weight: 600; }
+  .grid { display: flex; flex-wrap: wrap; gap: 14px; }
+  .tile { background: #1a1613; border: 1px solid #2a221d; border-radius: 8px;
+    padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .tile canvas { image-rendering: pixelated; background:
+    repeating-conic-gradient(#222 0% 25%, #1a1a1a 0% 50%) 50% / 16px 16px; border-radius: 4px; }
+  .cap { font-size: 11px; color: #8a7d70; font-family: monospace; }
+</style>
+</head>
+<body>
+  <h1>UNDRAL Sprite Engine — Phase 1</h1>
+  <div class="sub">کاراکتر، دشمن، آیتم و جهت‌ها — همگی procedural و seed-based. هر سپرایت با همان pipeline نورپردازی رندر می‌شود.</div>
+  <div class="controls">
+    <label>seed <input type="text" id="seed" value="undral"></label>
+    <button id="rand">🎲 random</button>
+    <label>size <input type="range" id="size" min="16" max="64" value="24"> <span id="sizeval">24px</span></label>
+    <label>SS
+      <select id="ss"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option></select>
+    </label>
+    <label><input type="checkbox" id="outline" checked> outline</label>
+  </div>
+  <div id="stat"></div>
+  <div id="gallery"></div>
+
+<script>"use strict";
+var SpriteEngine = (() => {
+  var __defProp = Object.defineProperty;
+  var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+  var __getOwnPropNames = Object.getOwnPropertyNames;
+  var __hasOwnProp = Object.prototype.hasOwnProperty;
+  var __export = (target, all) => {
+    for (var name in all)
+      __defProp(target, name, { get: all[name], enumerable: true });
+  };
+  var __copyProps = (to, from, except, desc) => {
+    if (from && typeof from === "object" || typeof from === "function") {
+      for (let key of __getOwnPropNames(from))
+        if (!__hasOwnProp.call(to, key) && key !== except)
+          __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+    }
+    return to;
+  };
+  var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+  // src/index.ts
+  var index_exports = {};
+  __export(index_exports, {
+    ATTACK: () => ATTACK,
+    CLIPS: () => CLIPS,
+    CREATURE_KINDS: () => CREATURE_KINDS,
+    IDLE: () => IDLE,
+    ITEM_KINDS: () => ITEM_KINDS,
+    MATERIALS: () => MATERIALS,
+    NEUTRAL_POSE: () => NEUTRAL_POSE,
+    WALK: () => WALK,
+    animationToCanvases: () => animationToCanvases,
+    buildCreature: () => buildCreature,
+    buildItem: () => buildItem,
+    generateAnimation: () => generateAnimation,
+    generateEnemy: () => generateEnemy,
+    generateItem: () => generateItem,
+    generateSprite: () => generateSprite,
+    generateSpriteCanvas: () => generateSpriteCanvas,
+    generateSpriteSheetCanvas: () => generateSpriteSheetCanvas,
+    listAnimations: () => listAnimations,
+    packSpriteSheet: () => packSpriteSheet,
+    samplePose: () => samplePose,
+    toCanvas: () => toCanvas,
+    toImageData: () => toImageData
+  });
+
+  // src/rng.ts
+  function hashSeed(seed) {
+    const s = typeof seed === "number" ? seed.toString() : seed;
+    let h = 2166136261;
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+  function mulberry32(a) {
+    return function() {
+      a |= 0;
+      a = a + 1831565813 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  var RNG = class {
+    constructor(seed) {
+      this.next = mulberry32(hashSeed(seed));
+    }
+    /** Uniform float in [0,1). */
+    float() {
+      return this.next();
+    }
+    /** Uniform float in [min,max). */
+    range(min2, max2) {
+      return min2 + (max2 - min2) * this.next();
+    }
+    /** Symmetric jitter in [-amt, +amt]. */
+    jitter(amt) {
+      return (this.next() * 2 - 1) * amt;
+    }
+    /** Pick one element. */
+    pick(arr) {
+      return arr[Math.floor(this.next() * arr.length)];
+    }
+  };
+
+  // src/materials.ts
+  var MATERIALS = {
+    // Soft, broad sheen. Mostly matte with a faint living gloss.
+    skin: (base) => ({
+      name: "skin",
+      base,
+      specStrength: 0.18,
+      roughness: 0.78,
+      metallic: false,
+      shadowCoolShift: 0.5
+    }),
+    // Matte. Almost no specular — light is all diffuse form.
+    cloth: (base) => ({
+      name: "cloth",
+      base,
+      specStrength: 0.05,
+      roughness: 0.96,
+      metallic: false,
+      shadowCoolShift: 0.7
+    }),
+    // Semi-gloss. A defined but soft highlight band — catches light on one edge.
+    leather: (base) => ({
+      name: "leather",
+      base,
+      specStrength: 0.45,
+      roughness: 0.55,
+      metallic: false,
+      shadowCoolShift: 0.6
+    }),
+    // Tight, bright, COLOR-TINTED highlight. Reads unmistakably shiny.
+    metal: (base) => ({
+      name: "metal",
+      base,
+      specStrength: 0.7,
+      roughness: 0.26,
+      metallic: true,
+      shadowCoolShift: 0.8
+    }),
+    // Glossy strands — strong but slightly broad sheen, deep cool shadows.
+    hair: (base) => ({
+      name: "hair",
+      base,
+      specStrength: 0.4,
+      roughness: 0.45,
+      metallic: false,
+      shadowCoolShift: 0.9
+    }),
+    // --- Creature / loot materials (Phase 1) -------------------------------
+    // Insect shell: dark, hard, wet-looking. A tight tinted sheen rolls along
+    // the lit edge of every segment, reading as polished chitin.
+    chitin: (base) => ({
+      name: "chitin",
+      base,
+      specStrength: 0.6,
+      roughness: 0.3,
+      metallic: true,
+      shadowCoolShift: 0.85
+    }),
+    // Living tissue: soft, slightly wet, deep saturated shadows. Used for worms
+    // and crawlers — reads as something squishy and alive, not cloth.
+    flesh: (base) => ({
+      name: "flesh",
+      base,
+      specStrength: 0.3,
+      roughness: 0.6,
+      metallic: false,
+      shadowCoolShift: 0.45
+    }),
+    // Cut gem / crystal: bright, razor-tight pinpoint highlight, base-tinted —
+    // catches the light like a jewel even at a few pixels across.
+    gem: (base) => ({
+      name: "gem",
+      base,
+      specStrength: 0.9,
+      roughness: 0.1,
+      metallic: true,
+      shadowCoolShift: 0.6
+    }),
+    // Bone / tusk: chalky, near-matte, faint dry sheen. Cool, dead tone.
+    bone: (base) => ({
+      name: "bone",
+      base,
+      specStrength: 0.12,
+      roughness: 0.85,
+      metallic: false,
+      shadowCoolShift: 0.7
+    }),
+    // Ember / molten: emissive-feeling. Strong broad glow rather than a sharp
+    // spec dot, warm shadows so even the dark side stays hot. (Deeper layers.)
+    ember: (base) => ({
+      name: "ember",
+      base,
+      specStrength: 0.55,
+      roughness: 0.7,
+      metallic: false,
+      shadowCoolShift: 0
+    })
+  };
+
+  // src/shapes.ts
+  var min = Math.min;
+  var max = Math.max;
+  var hypot = Math.hypot;
+  function circle(cx, cy, r) {
+    return (x, y) => hypot(x - cx, y - cy) - r;
+  }
+  function ellipse(cx, cy, rx, ry) {
+    return (x, y) => {
+      const dx = (x - cx) / rx;
+      const dy = (y - cy) / ry;
+      return (hypot(dx, dy) - 1) * min(rx, ry);
+    };
+  }
+  function capsule(ax, ay, bx, by, r) {
+    const ex = bx - ax, ey = by - ay;
+    const ee = ex * ex + ey * ey || 1e-6;
+    return (x, y) => {
+      const px = x - ax, py = y - ay;
+      let t = (px * ex + py * ey) / ee;
+      t = t < 0 ? 0 : t > 1 ? 1 : t;
+      return hypot(px - ex * t, py - ey * t) - r;
+    };
+  }
+  function roundedBox(cx, cy, hx, hy, r) {
+    return (x, y) => {
+      const dx = Math.abs(x - cx) - hx + r;
+      const dy = Math.abs(y - cy) - hy + r;
+      const outside = hypot(max(dx, 0), max(dy, 0));
+      const inside = min(max(dx, dy), 0);
+      return outside + inside - r;
+    };
+  }
+  function union(a, b) {
+    return (x, y) => min(a(x, y), b(x, y));
+  }
+  function translated(sdf, dx, dy) {
+    return (x, y) => sdf(x - dx, y - dy);
+  }
+  function rotatedAround(sdf, angle, px, py) {
+    if (angle === 0) return sdf;
+    const c = Math.cos(-angle), s = Math.sin(-angle);
+    return (x, y) => {
+      const dx = x - px, dy = y - py;
+      return sdf(px + dx * c - dy * s, py + dx * s + dy * c);
+    };
+  }
+  function transformedAABB(x0, y0, x1, y1, angle, px, py, dx, dy) {
+    const c = Math.cos(angle), s = Math.sin(angle);
+    const corners = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+    let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
+    for (const [x, y] of corners) {
+      const rx = px + (x - px) * c - (y - py) * s + dx;
+      const ry = py + (x - px) * s + (y - py) * c + dy;
+      if (rx < minx) minx = rx;
+      if (rx > maxx) maxx = rx;
+      if (ry < miny) miny = ry;
+      if (ry > maxy) maxy = ry;
+    }
+    return [Math.floor(minx - 2), Math.floor(miny - 2), Math.ceil(maxx + 2), Math.ceil(maxy + 2)];
+  }
+
+  // src/pose.ts
+  var NEUTRAL_POSE = {
+    rootX: 0,
+    rootY: 0,
+    headBob: 0,
+    headTilt: 0,
+    armL: 0,
+    armR: 0,
+    legL: 0,
+    legR: 0,
+    torsoLean: 0
+  };
+  var POSE_KEYS = Object.keys(NEUTRAL_POSE);
+  function applyEase(e, x) {
+    switch (e) {
+      case "easeIn":
+        return x * x;
+      case "easeOut":
+        return 1 - (1 - x) * (1 - x);
+      case "linear":
+        return x;
+      case "easeInOut":
+      default:
+        return x * x * (3 - 2 * x);
+    }
+  }
+  function fullPose(p) {
+    return { ...NEUTRAL_POSE, ...p };
+  }
+  function samplePose(clip, phase) {
+    const ks = clip.keyframes;
+    let ph = phase;
+    if (clip.loop) ph = (ph % 1 + 1) % 1;
+    else ph = ph < 0 ? 0 : ph > 1 ? 1 : ph;
+    if (ph <= ks[0].t) return fullPose(ks[0].pose);
+    if (ph >= ks[ks.length - 1].t) return fullPose(ks[ks.length - 1].pose);
+    let a = ks[0], b = ks[ks.length - 1];
+    for (let i = 0; i < ks.length - 1; i++) {
+      if (ph >= ks[i].t && ph <= ks[i + 1].t) {
+        a = ks[i];
+        b = ks[i + 1];
+        break;
+      }
+    }
+    const span = b.t - a.t || 1e-6;
+    const local = applyEase(a.ease, (ph - a.t) / span);
+    const pa = fullPose(a.pose);
+    const pb = fullPose(b.pose);
+    const out = { ...NEUTRAL_POSE };
+    for (const k of POSE_KEYS) out[k] = pa[k] + (pb[k] - pa[k]) * local;
+    return out;
+  }
+  var D = Math.PI / 180;
+  var IDLE = {
+    name: "idle",
+    fps: 8,
+    loop: true,
+    frames: 4,
+    keyframes: [
+      { t: 0, pose: { rootY: 0, headBob: 0, armL: 3 * D, armR: -3 * D } },
+      { t: 0.5, pose: { rootY: -0.8, headBob: -0.5, armL: 1 * D, armR: -1 * D } },
+      { t: 1, pose: { rootY: 0, headBob: 0, armL: 3 * D, armR: -3 * D } }
+    ]
+  };
+  var WALK = {
+    name: "walk",
+    fps: 12,
+    loop: true,
+    frames: 8,
+    keyframes: [
+      // contact: left leg forward, right leg back, arms opposite, body low
+      { t: 0, pose: { legL: 18 * D, legR: -18 * D, armL: -16 * D, armR: 16 * D, rootY: 0.4 } },
+      // passing: legs together under body, body lifts
+      { t: 0.25, pose: { legL: 0, legR: 0, armL: 0, armR: 0, rootY: -1.2 } },
+      // contact: mirrored
+      { t: 0.5, pose: { legL: -18 * D, legR: 18 * D, armL: 16 * D, armR: -16 * D, rootY: 0.4 } },
+      // passing
+      { t: 0.75, pose: { legL: 0, legR: 0, armL: 0, armR: 0, rootY: -1.2 } },
+      { t: 1, pose: { legL: 18 * D, legR: -18 * D, armL: -16 * D, armR: 16 * D, rootY: 0.4 } }
+    ]
+  };
+  var ATTACK = {
+    name: "attack",
+    fps: 14,
+    loop: false,
+    frames: 6,
+    keyframes: [
+      { t: 0, pose: { armR: 0, torsoLean: 0 }, ease: "easeOut" },
+      { t: 0.35, pose: { armR: -120 * D, torsoLean: -5 * D, headTilt: -4 * D }, ease: "easeIn" },
+      // wind up (arm raised back)
+      { t: 0.55, pose: { armR: 70 * D, torsoLean: 8 * D, headTilt: 3 * D }, ease: "easeOut" },
+      // strike (arm swung forward/down)
+      { t: 1, pose: { armR: 0, torsoLean: 0, headTilt: 0 } }
+      // settle
+    ]
+  };
+  var CLIPS = {
+    idle: IDLE,
+    walk: WALK,
+    attack: ATTACK
+  };
+
+  // src/skeleton.ts
+  function defaultColor(rng, kind) {
+    const hsv = (h, s, v) => {
+      const c = v * s, hp = h % 1 * 6, xx = c * (1 - Math.abs(hp % 2 - 1));
+      let r = 0, g = 0, b = 0;
+      if (hp < 1) [r, g, b] = [c, xx, 0];
+      else if (hp < 2) [r, g, b] = [xx, c, 0];
+      else if (hp < 3) [r, g, b] = [0, c, xx];
+      else if (hp < 4) [r, g, b] = [0, xx, c];
+      else if (hp < 5) [r, g, b] = [xx, 0, c];
+      else [r, g, b] = [c, 0, xx];
+      const m = v - c;
+      return [(r + m) * 255, (g + m) * 255, (b + m) * 255];
+    };
+    switch (kind) {
+      case "skin":
+        return hsv(rng.range(0.03, 0.09), rng.range(0.35, 0.52), rng.range(0.8, 0.93));
+      case "hair":
+        return hsv(rng.range(0, 1), rng.range(0.45, 0.85), rng.range(0.28, 0.7));
+      case "cloth":
+        return hsv(rng.range(0, 1), rng.range(0.5, 0.85), rng.range(0.5, 0.82));
+      case "leather":
+        return hsv(rng.range(0.05, 0.1), rng.range(0.5, 0.7), rng.range(0.3, 0.5));
+      case "metal":
+        return hsv(rng.range(0.55, 0.62), rng.range(0.06, 0.14), rng.range(0.52, 0.64));
+      case "hat":
+        return hsv(rng.range(0, 1), rng.range(0.45, 0.8), rng.range(0.4, 0.7));
+      default:
+        return [200, 200, 200];
+    }
+  }
+  function fwd(x, y, xf) {
+    if (xf.jointAngle) {
+      const c = Math.cos(xf.jointAngle), s = Math.sin(xf.jointAngle);
+      const dx = x - xf.jx, dy = y - xf.jy;
+      x = xf.jx + dx * c - dy * s;
+      y = xf.jy + dx * s + dy * c;
+    }
+    if (xf.pelvisRot) {
+      const c = Math.cos(xf.pelvisRot), s = Math.sin(xf.pelvisRot);
+      const dx = x - xf.px, dy = y - xf.py;
+      x = xf.px + dx * c - dy * s;
+      y = xf.py + dx * s + dy * c;
+    }
+    return [x + (xf.tx || 0), y + (xf.ty || 0)];
+  }
+  function buildSkeleton(config, s, pose = NEUTRAL_POSE) {
+    const rng = new RNG(config.seed ?? 0);
+    const body = config.body ?? {};
+    const ipose = body.pose ?? {};
+    const outfit = config.outfit ?? {};
+    const torsoMat = outfit.torso ?? "cloth";
+    const hasArmor = outfit.armor ?? false;
+    const hasBelt = outfit.belt ?? true;
+    const hat = outfit.hat ?? "none";
+    const headScale = (body.headScale ?? 1) * (1 + rng.jitter(0.04));
+    const bodyWidth = (body.bodyWidth ?? 1) * (1 + rng.jitter(0.05));
+    const limbLen = (body.limbLength ?? 1) * (1 + rng.jitter(0.05));
+    const stanceBase = ipose.stance ?? 1;
+    const facing = config.facing ?? "front";
+    const pal = config.palette ?? {};
+    const col = {
+      skin: pal.skin ?? defaultColor(rng, "skin"),
+      hair: pal.hair ?? defaultColor(rng, "hair"),
+      cloth: pal.cloth ?? defaultColor(rng, "cloth"),
+      leather: pal.leather ?? defaultColor(rng, "leather"),
+      metal: pal.metal ?? defaultColor(rng, "metal"),
+      hat: pal.hat ?? defaultColor(rng, "hat")
+    };
+    const M = {
+      skin: MATERIALS.skin(col.skin),
+      hair: MATERIALS.hair(col.hair),
+      torso: MATERIALS[torsoMat](torsoMat === "leather" ? col.leather : col.cloth),
+      legs: MATERIALS.cloth(col.leather),
+      leather: MATERIALS.leather(col.leather),
+      metal: MATERIALS.metal(col.metal),
+      hat: MATERIALS[hat === "hat" ? "leather" : "cloth"](col.hat)
+    };
+    const cx = s * 0.5;
+    const headHw = s * 0.205 * headScale;
+    const headHh = s * 0.185 * headScale;
+    const headCy = s * 0.275;
+    const headCorner = headHw * 0.55;
+    const torsoTop = headCy + headHh * 0.86;
+    const torsoBot = s * 0.66;
+    const torsoCy = (torsoTop + torsoBot) / 2;
+    const torsoHw = s * 0.125 * bodyWidth;
+    const torsoHh = (torsoBot - torsoTop) / 2;
+    const shoulderY = torsoTop + s * 0.01;
+    const armHw = s * 0.036 * bodyWidth;
+    const armHh = torsoHh * 0.7 * limbLen;
+    const armCy = shoulderY + armHh;
+    const armX = torsoHw + armHw * 0.55;
+    const legHw = s * 0.05 * bodyWidth;
+    const legHh = s * 0.06 * limbLen;
+    const legCy = torsoBot + legHh - s * 5e-3;
+    const hipY = legCy - legHh;
+    const legSpread = s * 0.058 * stanceBase;
+    const unit = s / 48;
+    const rootX = pose.rootX * unit;
+    const rootY = pose.rootY * unit;
+    const headBob = pose.headBob * unit;
+    const lean = pose.torsoLean;
+    const neckY = headCy + headHh;
+    const pelX = cx, pelY = torsoBot;
+    const xUpper = { pelvisRot: lean, px: pelX, py: pelY, tx: rootX, ty: rootY };
+    const xHead = () => ({ jointAngle: pose.headTilt, jx: cx, jy: neckY, pelvisRot: lean, px: pelX, py: pelY, tx: rootX, ty: rootY + headBob });
+    const xArm = (a, jx, jy) => ({ jointAngle: a, jx, jy, pelvisRot: lean, px: pelX, py: pelY, tx: rootX, ty: rootY });
+    const xLeg = (a, jx, jy) => ({ jointAngle: a, jx, jy, tx: rootX, ty: rootY });
+    const parts = [];
+    const place = (mat, base, lx0, ly0, lx1, ly1, roundness, xf) => {
+      let f = base;
+      if (xf.jointAngle) f = rotatedAround(f, xf.jointAngle, xf.jx, xf.jy);
+      if (xf.pelvisRot) f = rotatedAround(f, xf.pelvisRot, xf.px, xf.py);
+      if (xf.tx || xf.ty) f = translated(f, xf.tx || 0, xf.ty || 0);
+      let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
+      for (const [cxn, cyn] of [[lx0, ly0], [lx1, ly0], [lx1, ly1], [lx0, ly1]]) {
+        const [px2, py2] = fwd(cxn, cyn, xf);
+        if (px2 < minx) minx = px2;
+        if (px2 > maxx) maxx = px2;
+        if (py2 < miny) miny = py2;
+        if (py2 > maxy) maxy = py2;
+      }
+      parts.push({ material: mat, roundness, sdf: f, bbox: [Math.floor(minx - 2), Math.floor(miny - 2), Math.ceil(maxx + 2), Math.ceil(maxy + 2)] });
+    };
+    const box = (mat, bx, by, hw, hh, r, roundness, xf) => place(mat, roundedBox(bx, by, hw, hh, r), bx - hw, by - hh, bx + hw, by + hh, roundness, xf);
+    if (hat === "none" || hat === "cap") {
+      box(M.hair, cx, headCy - headHh * 0.18, headHw * 1.06, headHh * 0.95, headCorner * 0.9, 0.45, xHead());
+    }
+    for (const dir of [-1, 1]) {
+      const lx = cx + dir * legSpread;
+      const ang = dir < 0 ? pose.legL : pose.legR;
+      box(M.legs, lx, legCy, legHw, legHh, legHw * 0.45, 0.4, xLeg(ang, lx, hipY));
+      box(M.leather, lx + dir * legHw * 0.15, legCy + legHh + s * 0.012, legHw * 1.05, s * 0.022, s * 0.012, 0.45, xLeg(ang, lx, hipY));
+    }
+    for (const dir of [-1, 1]) {
+      const ax = cx + dir * armX;
+      const ang = dir < 0 ? pose.armL : pose.armR;
+      box(M.torso, ax, armCy, armHw, armHh, armHw * 0.5, 0.4, xArm(ang, ax, shoulderY));
+      box(M.skin, ax, armCy + armHh + armHw * 0.2, armHw * 0.95, armHw * 0.9, armHw * 0.6, 0.5, xArm(ang, ax, shoulderY));
+    }
+    box(M.torso, cx, torsoCy, torsoHw, torsoHh, s * 0.028, 0.4, xUpper);
+    if (hasBelt) box(M.leather, cx, torsoBot - s * 0.03, torsoHw * 1.02, s * 0.02, s * 0.01, 0.4, xUpper);
+    if (hasArmor) {
+      box(M.metal, cx, torsoTop + torsoHh * 0.62, torsoHw * 0.95, torsoHh * 0.6, s * 0.03, 0.55, xUpper);
+      for (const dir of [-1, 1]) {
+        const ax = cx + dir * armX;
+        box(M.metal, ax, shoulderY + armHw * 0.4, armHw * 1.25, armHw * 0.95, armHw * 0.7, 0.55, xUpper);
+      }
+    }
+    box(M.skin, cx, headCy, headHw, headHh, headCorner, 0.36, xHead());
+    if (config.face !== false && facing !== "back") {
+      const eyeY = headCy + headHh * 0.2;
+      const lookSign = facing === "left" ? -1 : facing === "right" ? 1 : 0;
+      const eyeDx = lookSign === 0 ? headHw * 0.42 : headHw * 0.26;
+      const shift = lookSign * headHw * 0.3;
+      const ew = headHw * 0.13, eh = headHh * 0.2;
+      const eyeMat = { ...M.skin, name: "eye", base: [40, 34, 44], specStrength: 0.7, roughness: 0.3 };
+      for (const dir of [-1, 1]) box(eyeMat, cx + shift + dir * eyeDx, eyeY, ew, eh, ew * 0.5, 0.4, xHead());
+    }
+    if (facing === "back" && (hat === "none" || hat === "cap")) {
+      box(M.hair, cx, headCy + headHh * 0.04, headHw * 0.96, headHh * 0.9, headCorner * 0.85, 0.42, xHead());
+    } else if (hat === "none" || hat === "cap") {
+      const fy = headCy - headHh * 0.52;
+      const fr = union(
+        roundedBox(cx, fy, headHw * 0.98, headHh * 0.34, headHw * 0.2),
+        union(
+          roundedBox(cx - headHw * 0.74, headCy - headHh * 0.12, headHw * 0.28, headHh * 0.5, headHw * 0.18),
+          roundedBox(cx + headHw * 0.74, headCy - headHh * 0.12, headHw * 0.28, headHh * 0.5, headHw * 0.18)
+        )
+      );
+      place(M.hair, fr, cx - headHw * 1.05, headCy - headHh * 1, cx + headHw * 1.05, headCy + headHh * 0.45, 0.4, xHead());
+    }
+    if (hat === "cap") {
+      box(M.hat, cx, headCy - headHh * 0.62, headHw * 1.02, headHh * 0.5, headHw * 0.5, 0.5, xHead());
+      box(M.hat, cx, headCy - headHh * 0.32, headHw * 1.18, headHh * 0.12, s * 0.01, 0.4, xHead());
+    } else if (hat === "hat") {
+      box(M.hat, cx, headCy - headHh * 0.78, headHw * 0.72, headHh * 0.5, headHw * 0.3, 0.45, xHead());
+      box(M.hat, cx, headCy - headHh * 0.42, headHw * 1.55, headHh * 0.16, headHh * 0.12, 0.4, xHead());
+    }
+    return parts;
+  }
+
+  // src/creatures.ts
+  var PI = Math.PI;
+  function pushEllipse(parts, mat, cx, cy, rx, ry, roundness) {
+    parts.push({
+      material: mat,
+      roundness,
+      sdf: ellipse(cx, cy, rx, ry),
+      bbox: [Math.floor(cx - rx - 2), Math.floor(cy - ry - 2), Math.ceil(cx + rx + 2), Math.ceil(cy + ry + 2)]
+    });
+  }
+  function pushCircle(parts, mat, cx, cy, r, roundness) {
+    parts.push({
+      material: mat,
+      roundness,
+      sdf: circle(cx, cy, r),
+      bbox: [Math.floor(cx - r - 2), Math.floor(cy - r - 2), Math.ceil(cx + r + 2), Math.ceil(cy + r + 2)]
+    });
+  }
+  function pushCapsule(parts, mat, ax, ay, bx, by, r, roundness) {
+    parts.push({
+      material: mat,
+      roundness,
+      sdf: capsule(ax, ay, bx, by, r),
+      bbox: [Math.floor(Math.min(ax, bx) - r - 2), Math.floor(Math.min(ay, by) - r - 2), Math.ceil(Math.max(ax, bx) + r + 2), Math.ceil(Math.max(ay, by) + r + 2)]
+    });
+  }
+  function eyeMaterial(alerted) {
+    return alerted ? MATERIALS.ember([255, 70, 40]) : { ...MATERIALS.gem([60, 12, 14]), name: "eye" };
+  }
+  function defaultColor2(rng, kind) {
+    const j = (c, amt) => [
+      c[0] * (1 + rng.jitter(amt)),
+      c[1] * (1 + rng.jitter(amt)),
+      c[2] * (1 + rng.jitter(amt))
+    ];
+    switch (kind) {
+      case "insect":
+        return j([44, 50, 40], 0.18);
+      // greenish-black shell
+      case "worm":
+        return j([122, 138, 70], 0.16);
+      // sickly chartreuse flesh
+      case "crawler":
+        return j([138, 46, 44], 0.16);
+    }
+  }
+  function buildInsect(rng, s, color, alerted) {
+    const parts = [];
+    const cx = s * 0.5;
+    const shell = MATERIALS.chitin(color);
+    const eye = eyeMaterial(alerted);
+    const bodyR = s * 0.17;
+    const abdomenCy = s * 0.62;
+    const thoraxCy = s * 0.44;
+    const headCy = s * 0.3;
+    const legR = Math.max(1, s * 0.022);
+    for (const dir of [-1, 1]) {
+      for (let i = 0; i < 3; i++) {
+        const ay = thoraxCy + (i - 1) * s * 0.1;
+        const jointX = cx + dir * bodyR * 0.7;
+        const kneeX = cx + dir * s * (0.3 + i * 0.02);
+        const kneeY = ay - s * 0.04 + i * s * 0.03;
+        const footX = cx + dir * s * (0.4 + i * 0.015);
+        const footY = ay + s * (0.1 + i * 0.03);
+        pushCapsule(parts, shell, jointX, ay, kneeX, kneeY, legR, 0.9);
+        pushCapsule(parts, shell, kneeX, kneeY, footX, footY, legR * 0.85, 0.9);
+      }
+    }
+    for (const dir of [-1, 1]) {
+      pushCapsule(
+        parts,
+        shell,
+        cx + dir * bodyR * 0.4,
+        headCy - s * 0.02,
+        cx + dir * s * 0.16,
+        headCy - s * 0.18,
+        Math.max(1, s * 0.012),
+        0.9
+      );
+    }
+    pushEllipse(parts, shell, cx, abdomenCy, bodyR * 1.18, bodyR * 1.4, 1);
+    pushEllipse(parts, shell, cx, thoraxCy, bodyR, bodyR * 0.95, 1);
+    pushCircle(parts, shell, cx, headCy, bodyR * 0.72, 1);
+    for (const dir of [-1, 1]) {
+      pushCapsule(
+        parts,
+        shell,
+        cx + dir * bodyR * 0.4,
+        headCy + bodyR * 0.4,
+        cx + dir * bodyR * 0.85,
+        headCy + bodyR * 0.8,
+        legR * 0.9,
+        0.85
+      );
+    }
+    const eyeDx = bodyR * 0.42, eyeR = bodyR * 0.2;
+    for (const dir of [-1, 1]) pushCircle(parts, eye, cx + dir * eyeDx, headCy - bodyR * 0.05, eyeR, 0.7);
+    return parts;
+  }
+  function buildWorm(rng, s, color, alerted) {
+    const parts = [];
+    const cx = s * 0.5;
+    const flesh = MATERIALS.flesh(color);
+    const segs = 5;
+    const baseY = s * 0.86, topY = s * 0.22;
+    const sway = rng.range(0.04, 0.09) * s;
+    const phase = rng.range(0, PI * 2);
+    let topCx = cx, topR = 0;
+    for (let i = 0; i < segs; i++) {
+      const t = i / (segs - 1);
+      const cy = baseY + (topY - baseY) * t;
+      const segCx = cx + Math.sin(phase + t * PI * 1.4) * sway * t;
+      const r = s * (0.16 - 0.085 * t);
+      pushEllipse(parts, flesh, segCx, cy, r * 1.02, r * 1.18, 1);
+      if (i === segs - 1) {
+        topCx = segCx;
+        topR = r;
+      }
+    }
+    const bone = MATERIALS.bone([200, 196, 176]);
+    const maw = { ...MATERIALS.flesh([46, 30, 34]), name: "maw" };
+    pushCircle(parts, maw, topCx, topY, topR * 0.85, 1);
+    const teeth = 7;
+    for (let k = 0; k < teeth; k++) {
+      const a = k / teeth * PI * 2 + phase;
+      const tx = topCx + Math.cos(a) * topR * 0.7;
+      const ty = topY + Math.sin(a) * topR * 0.7;
+      const ix = topCx + Math.cos(a) * topR * 0.3;
+      const iy = topY + Math.sin(a) * topR * 0.3;
+      pushCapsule(parts, bone, tx, ty, ix, iy, Math.max(1, topR * 0.12), 0.85);
+    }
+    if (alerted) {
+      const eye = eyeMaterial(true);
+      for (const dir of [-1, 1]) pushCircle(parts, eye, topCx + dir * topR * 0.5, topY + topR * 1.2, topR * 0.22, 0.7);
+    }
+    return parts;
+  }
+  function buildCrawler(rng, s, color, alerted) {
+    const parts = [];
+    const cx = s * 0.5;
+    const flesh = MATERIALS.flesh(color);
+    const shell = MATERIALS.chitin([color[0] * 0.5, color[1] * 0.4, color[2] * 0.4]);
+    const eye = eyeMaterial(alerted);
+    const bodyCy = s * 0.56;
+    const bodyHx = s * 0.3, bodyHy = s * 0.17;
+    const legR = Math.max(1, s * 0.024);
+    for (const dir of [-1, 1]) {
+      for (let i = 0; i < 4; i++) {
+        const ax = cx + dir * bodyHx * 0.55;
+        const ay = bodyCy - bodyHy * 0.4 + (i - 1.5) * s * 0.055;
+        const footX = cx + dir * s * (0.4 + i % 2 * 0.04);
+        const footY = bodyCy + s * 0.16 + (i - 1.5) * s * 0.02;
+        const kneeX = (ax + footX) / 2 + dir * s * 0.04;
+        const kneeY = ay - s * 0.05;
+        pushCapsule(parts, shell, ax, ay, kneeX, kneeY, legR, 0.9);
+        pushCapsule(parts, shell, kneeX, kneeY, footX, footY, legR * 0.85, 0.9);
+      }
+    }
+    for (const dir of [-1, 1]) {
+      const baseX = cx + dir * bodyHx * 0.5;
+      const baseY = bodyCy + bodyHy * 0.5;
+      pushCapsule(parts, shell, baseX, baseY, cx + dir * s * 0.2, bodyCy + s * 0.2, legR * 1.3, 0.9);
+      pushCapsule(parts, shell, cx + dir * s * 0.2, bodyCy + s * 0.2, cx + dir * s * 0.13, bodyCy + s * 0.28, legR, 0.85);
+    }
+    pushEllipse(parts, flesh, cx, bodyCy, bodyHx, bodyHy, 1);
+    pushEllipse(parts, shell, cx, bodyCy - bodyHy * 0.35, bodyHx * 0.7, bodyHy * 0.8, 1);
+    const spikes = 3;
+    for (let k = 0; k < spikes; k++) {
+      const sx = cx + (k - (spikes - 1) / 2) * s * 0.11;
+      pushCapsule(parts, shell, sx, bodyCy - bodyHy * 0.5, sx, bodyCy - bodyHy * 1.15, Math.max(1, s * 0.02), 0.8);
+    }
+    const eyeDx = bodyHx * 0.4, eyeY = bodyCy + bodyHy * 0.55, eyeR = s * 0.03;
+    for (const dir of [-1, 1]) pushCircle(parts, eye, cx + dir * eyeDx, eyeY, eyeR, 0.7);
+    return parts;
+  }
+  function buildCreature(config, s) {
+    const rng = new RNG(config.seed ?? 0);
+    const kind = config.kind ?? "insect";
+    const color = config.color ?? defaultColor2(rng, kind);
+    const alerted = config.alerted ?? false;
+    switch (kind) {
+      case "worm":
+        return buildWorm(rng, s, color, alerted);
+      case "crawler":
+        return buildCrawler(rng, s, color, alerted);
+      case "insect":
+      default:
+        return buildInsect(rng, s, color, alerted);
+    }
+  }
+  var CREATURE_KINDS = ["insect", "worm", "crawler"];
+
+  // src/items.ts
+  function pushEllipse2(parts, mat, cx, cy, rx, ry, roundness) {
+    parts.push({
+      material: mat,
+      roundness,
+      sdf: ellipse(cx, cy, rx, ry),
+      bbox: [Math.floor(cx - rx - 2), Math.floor(cy - ry - 2), Math.ceil(cx + rx + 2), Math.ceil(cy + ry + 2)]
+    });
+  }
+  function pushCircle2(parts, mat, cx, cy, r, roundness) {
+    parts.push({
+      material: mat,
+      roundness,
+      sdf: circle(cx, cy, r),
+      bbox: [Math.floor(cx - r - 2), Math.floor(cy - r - 2), Math.ceil(cx + r + 2), Math.ceil(cy + r + 2)]
+    });
+  }
+  function pushCapsule2(parts, mat, ax, ay, bx, by, r, roundness) {
+    parts.push({
+      material: mat,
+      roundness,
+      sdf: capsule(ax, ay, bx, by, r),
+      bbox: [Math.floor(Math.min(ax, bx) - r - 2), Math.floor(Math.min(ay, by) - r - 2), Math.ceil(Math.max(ax, bx) + r + 2), Math.ceil(Math.max(ay, by) + r + 2)]
+    });
+  }
+  function pushBox(parts, mat, cx, cy, hx, hy, corner, roundness) {
+    parts.push({
+      material: mat,
+      roundness,
+      sdf: roundedBox(cx, cy, hx, hy, corner),
+      bbox: [Math.floor(cx - hx - 2), Math.floor(cy - hy - 2), Math.ceil(cx + hx + 2), Math.ceil(cy + hy + 2)]
+    });
+  }
+  function pushRotBox(parts, mat, cx, cy, hx, hy, corner, angle, roundness) {
+    const base = roundedBox(cx, cy, hx, hy, corner);
+    const sdf = rotatedAround(base, angle, cx, cy);
+    parts.push({
+      material: mat,
+      roundness,
+      sdf,
+      bbox: transformedAABB(cx - hx, cy - hy, cx + hx, cy + hy, angle, cx, cy, 0, 0)
+    });
+  }
+  function defaultColor3(rng, kind) {
+    const j = (c, amt) => [
+      c[0] * (1 + rng.jitter(amt)),
+      c[1] * (1 + rng.jitter(amt)),
+      c[2] * (1 + rng.jitter(amt))
+    ];
+    switch (kind) {
+      case "mushroom":
+        return j([176, 58, 52], 0.16);
+      // red cap
+      case "crystal":
+        return j([96, 178, 214], 0.14);
+      // cyan gem
+      case "dagger":
+        return j([122, 132, 150], 0.1);
+    }
+  }
+  function buildMushroom(rng, s, color) {
+    const parts = [];
+    const cx = s * 0.5;
+    const stem = MATERIALS.flesh([224, 212, 190]);
+    const cap = MATERIALS.flesh(color);
+    const spot = MATERIALS.bone([238, 232, 214]);
+    pushCapsule2(parts, stem, cx - s * 0.02, s * 0.78, cx, s * 0.52, s * 0.07, 1);
+    const capCy = s * 0.46, capRx = s * 0.26, capRy = s * 0.18;
+    pushEllipse2(parts, cap, cx, capCy, capRx, capRy, 1);
+    pushEllipse2(parts, cap, cx, capCy + capRy * 0.55, capRx * 0.92, capRy * 0.4, 1);
+    const n = 3;
+    for (let i = 0; i < n; i++) {
+      const a = rng.range(-1, 1) * 0.9;
+      const sx = cx + a * capRx * 0.7;
+      const sy = capCy - capRy * 0.2 + rng.jitter(capRy * 0.3);
+      pushCircle2(parts, spot, sx, sy, s * (0.03 + rng.range(0, 0.015)), 0.8);
+    }
+    return parts;
+  }
+  function buildCrystal(rng, s, color) {
+    const parts = [];
+    const cx = s * 0.5, baseY = s * 0.74;
+    const gem = MATERIALS.gem(color);
+    const gemDim = MATERIALS.gem([color[0] * 0.7, color[1] * 0.72, color[2] * 0.78]);
+    pushRotBox(parts, gemDim, cx - s * 0.13, baseY - s * 0.12, s * 0.05, s * 0.16, s * 0.02, -0.35 + rng.jitter(0.1), 0.9);
+    pushRotBox(parts, gemDim, cx + s * 0.14, baseY - s * 0.1, s * 0.045, s * 0.14, s * 0.02, 0.4 + rng.jitter(0.1), 0.9);
+    pushRotBox(parts, gem, cx + s * 0.01, baseY - s * 0.18, s * 0.07, s * 0.24, s * 0.025, rng.jitter(0.12), 0.9);
+    pushCircle2(
+      parts,
+      MATERIALS.gem([Math.min(255, color[0] + 60), Math.min(255, color[1] + 60), Math.min(255, color[2] + 60)]),
+      cx + s * 0.01,
+      baseY - s * 0.36,
+      s * 0.03,
+      0.8
+    );
+    return parts;
+  }
+  function buildDagger(rng, s, color) {
+    const parts = [];
+    const cx = s * 0.5;
+    const steel = MATERIALS.metal(color);
+    const guard = MATERIALS.metal([150, 120, 70]);
+    const grip = MATERIALS.leather([70, 50, 44]);
+    const pommel = MATERIALS.gem([150, 70, 190]);
+    pushEllipse2(parts, steel, cx, s * 0.36, s * 0.055, s * 0.28, 0.7);
+    pushCapsule2(parts, MATERIALS.metal([170, 178, 196]), cx, s * 0.2, cx, s * 0.52, Math.max(1, s * 0.012), 0.6);
+    pushBox(parts, guard, cx, s * 0.66, s * 0.16, s * 0.03, s * 0.015, 0.6);
+    pushCapsule2(parts, grip, cx, s * 0.7, cx, s * 0.84, s * 0.035, 1);
+    pushCircle2(parts, pommel, cx, s * 0.87, s * 0.045, 0.85);
+    return parts;
+  }
+  function buildItem(config, s) {
+    const rng = new RNG(config.seed ?? 0);
+    const kind = config.kind ?? "mushroom";
+    const color = config.color ?? defaultColor3(rng, kind);
+    switch (kind) {
+      case "crystal":
+        return buildCrystal(rng, s, color);
+      case "dagger":
+        return buildDagger(rng, s, color);
+      case "mushroom":
+      default:
+        return buildMushroom(rng, s, color);
+    }
+  }
+  var ITEM_KINDS = ["mushroom", "crystal", "dagger"];
+
+  // src/field.ts
+  function edt1d(f, n, out) {
+    const v = new Int32Array(n);
+    const z = new Float64Array(n + 1);
+    let k = 0;
+    v[0] = 0;
+    z[0] = -Infinity;
+    z[1] = Infinity;
+    for (let q = 1; q < n; q++) {
+      let s = (f[q] + q * q - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+      while (s <= z[k]) {
+        k--;
+        s = (f[q] + q * q - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+      }
+      k++;
+      v[k] = q;
+      z[k] = s;
+      z[k + 1] = Infinity;
+    }
+    k = 0;
+    for (let q = 0; q < n; q++) {
+      while (z[k + 1] < q) k++;
+      const d = q - v[k];
+      out[q] = d * d + f[v[k]];
+    }
+  }
+  function distanceField(mask, w, h) {
+    const INF = 1e12;
+    const g = new Float64Array(w * h);
+    for (let i = 0; i < w * h; i++) g[i] = mask[i] ? INF : 0;
+    const colIn = new Float64Array(h);
+    const colOut = new Float64Array(h);
+    for (let x = 0; x < w; x++) {
+      for (let y = 0; y < h; y++) colIn[y] = g[y * w + x];
+      edt1d(colIn, h, colOut);
+      for (let y = 0; y < h; y++) g[y * w + x] = colOut[y];
+    }
+    const rowIn = new Float64Array(w);
+    const rowOut = new Float64Array(w);
+    for (let y = 0; y < h; y++) {
+      const base = y * w;
+      for (let x = 0; x < w; x++) rowIn[x] = g[base + x];
+      edt1d(rowIn, w, rowOut);
+      for (let x = 0; x < w; x++) g[base + x] = rowOut[x];
+    }
+    const dist = new Float32Array(w * h);
+    let maxDist = 0;
+    for (let i = 0; i < w * h; i++) {
+      const d = mask[i] ? Math.sqrt(g[i]) : 0;
+      dist[i] = d;
+      if (d > maxDist) maxDist = d;
+    }
+    return { dist, maxDist };
+  }
+  function fieldToNormals(dist, mask, w, h, bevel) {
+    const nx = new Float32Array(w * h);
+    const ny = new Float32Array(w * h);
+    const nz = new Float32Array(w * h);
+    const HALF_PI = Math.PI / 2;
+    const inv = bevel > 1e-3 ? 1 / bevel : 1;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = y * w + x;
+        if (!mask[i]) continue;
+        const xm = x > 0 ? dist[i - 1] : dist[i];
+        const xp = x < w - 1 ? dist[i + 1] : dist[i];
+        const ym = y > 0 ? dist[i - w] : dist[i];
+        const yp = y < h - 1 ? dist[i + w] : dist[i];
+        let gx = (xp - xm) * 0.5;
+        let gy = (yp - ym) * 0.5;
+        const glen = Math.hypot(gx, gy) || 1e-6;
+        gx /= glen;
+        gy /= glen;
+        const t = dist[i] * inv;
+        const tc = t < 0 ? 0 : t > 1 ? 1 : t;
+        const theta = HALF_PI * (1 - tc);
+        const s = Math.sin(theta);
+        nx[i] = -gx * s;
+        ny[i] = -gy * s;
+        nz[i] = Math.cos(theta);
+      }
+    }
+    return { nx, ny, nz };
+  }
+
+  // src/color.ts
+  var clamp = (v, lo = 0, hi = 1) => v < lo ? lo : v > hi ? hi : v;
+  var clamp255 = (v) => v < 0 ? 0 : v > 255 ? 255 : v;
+  function mix(a, b, t) {
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  }
+  function scale(c, k) {
+    return [c[0] * k, c[1] * k, c[2] * k];
+  }
+  function smoothstep(e0, e1, x) {
+    const t = clamp((x - e0) / (e1 - e0 || 1e-6));
+    return t * t * (3 - 2 * t);
+  }
+  var WHITE = [255, 255, 255];
+  function buildRamp(base, coolShift) {
+    const cool = (c, amt) => [
+      c[0] * (1 - 0.18 * amt),
+      c[1] * (1 - 0.06 * amt),
+      c[2] * (1 + 0.1 * amt)
+    ];
+    const warm = (c, amt) => [
+      c[0] + (255 - c[0]) * 0.1 * amt,
+      c[1] + (255 - c[1]) * 0.07 * amt,
+      c[2] + (255 - c[2]) * 0.02 * amt
+    ];
+    return {
+      core: cool(scale(base, 0.34), coolShift),
+      shadow: cool(scale(base, 0.62), coolShift),
+      mid: base,
+      light: warm(scale(base, 1.12), 1),
+      hi: warm(mix(scale(base, 1.18), WHITE, 0.25), 1)
+    };
+  }
+  function sampleRamp(r, x) {
+    if (x < 0.4) return mix(r.core, r.shadow, smoothstep(0, 0.4, x));
+    if (x < 0.55) return mix(r.shadow, r.mid, smoothstep(0.4, 0.55, x));
+    if (x < 0.78) return mix(r.mid, r.light, smoothstep(0.55, 0.78, x));
+    return mix(r.light, r.hi, smoothstep(0.78, 1, x));
+  }
+  function quantizeChannel(v, levels) {
+    if (levels <= 1) return v;
+    const step = 255 / (levels - 1);
+    return Math.round(v / step) * step;
+  }
+
+  // src/lighting.ts
+  function normalize(v) {
+    const l = Math.hypot(v.x, v.y, v.z) || 1e-6;
+    return { x: v.x / l, y: v.y / l, z: v.z / l };
+  }
+  var VIEW = { x: 0, y: 0, z: 1 };
+  function makeShadeContext(mat, light) {
+    const L = normalize(light.dir);
+    const H = normalize({ x: L.x + VIEW.x, y: L.y + VIEW.y, z: L.z + VIEW.z });
+    const shininess = 8 + (1 - mat.roughness) * (1 - mat.roughness) * 132;
+    const specColor = mat.metallic ? [
+      // tint white toward the base color for a metallic highlight
+      255 * 0.35 + mat.base[0] * 0.65,
+      255 * 0.35 + mat.base[1] * 0.65,
+      255 * 0.35 + mat.base[2] * 0.65
+    ] : [255, 255, 255];
+    return {
+      ramp: buildRamp(mat.base, mat.shadowCoolShift),
+      L,
+      H,
+      ambient: light.ambient,
+      shininess,
+      specStrength: mat.specStrength,
+      specColor
+    };
+  }
+  function shade(ctx, nx, ny, nz, out) {
+    const ndotl = nx * ctx.L.x + ny * ctx.L.y + nz * ctx.L.z;
+    const x = clamp(ctx.ambient + (1 - ctx.ambient) * (ndotl * 0.5 + 0.5));
+    const diff = sampleRamp(ctx.ramp, x);
+    const ndoth = nx * ctx.H.x + ny * ctx.H.y + nz * ctx.H.z;
+    let spec = 0;
+    if (ndoth > 0 && ctx.specStrength > 0) {
+      spec = Math.pow(ndoth, ctx.shininess) * ctx.specStrength;
+    }
+    out[0] = diff[0] + ctx.specColor[0] * spec;
+    out[1] = diff[1] + ctx.specColor[1] * spec;
+    out[2] = diff[2] + ctx.specColor[2] * spec;
+  }
+
+  // src/engine.ts
+  var DEFAULT_LIGHT = {
+    // toward upper-left-front (remember: +y is down, so -y is up)
+    dir: { x: -0.5, y: -0.78, z: 0.62 },
+    ambient: 0.22
+  };
+  function resolveRenderOpts(config = {}) {
+    const size = config.size ?? 48;
+    const ss = Math.max(1, Math.floor(config.supersample ?? 1));
+    const light = {
+      dir: { ...DEFAULT_LIGHT.dir, ...config.light ?? {} },
+      ambient: config.ambient ?? DEFAULT_LIGHT.ambient
+    };
+    const outlineColor = config.outline === false ? null : config.outline && config.outline.color || [22, 18, 28];
+    const quantize = config.quantize === false ? 0 : config.quantize ?? 5;
+    return { size, ss, W: size * ss, H: size * ss, roundness: config.roundness ?? 0.45, light, outlineColor, quantize };
+  }
+  function renderParts(parts, opts) {
+    const { size, ss, W, H, roundness, light } = opts;
+    const acc = new Float32Array(W * H * 4);
+    const out = [0, 0, 0];
+    for (const part of parts) {
+      const [bx0, by0, bx1, by1] = part.bbox;
+      const cx0 = Math.max(0, (bx0 | 0) - 1);
+      const cy0 = Math.max(0, (by0 | 0) - 1);
+      const cx1 = Math.min(W, (bx1 | 0) + 2);
+      const cy1 = Math.min(H, (by1 | 0) + 2);
+      const cw = cx1 - cx0, ch = cy1 - cy0;
+      if (cw <= 0 || ch <= 0) continue;
+      const mask = new Uint8Array(cw * ch);
+      for (let y = 0; y < ch; y++) {
+        for (let x = 0; x < cw; x++) {
+          if (part.sdf(cx0 + x + 0.5, cy0 + y + 0.5) < 0) mask[y * cw + x] = 1;
+        }
+      }
+      const { dist, maxDist } = distanceField(mask, cw, ch);
+      if (maxDist <= 0) continue;
+      const pr = part.roundness ?? roundness;
+      const bevel = Math.max(1.5, pr * maxDist);
+      const { nx, ny, nz } = fieldToNormals(dist, mask, cw, ch, bevel);
+      const ctx = makeShadeContext(part.material, light);
+      for (let y = 0; y < ch; y++) {
+        for (let x = 0; x < cw; x++) {
+          const li = y * cw + x;
+          if (!mask[li]) continue;
+          shade(ctx, nx[li], ny[li], nz[li], out);
+          const j = ((cy0 + y) * W + (cx0 + x)) * 4;
+          acc[j] = out[0];
+          acc[j + 1] = out[1];
+          acc[j + 2] = out[2];
+          acc[j + 3] = 255;
+        }
+      }
+    }
+    const data = new Uint8ClampedArray(size * size * 4);
+    const area = ss * ss;
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        let r = 0, g = 0, b = 0, a = 0;
+        for (let sy = 0; sy < ss; sy++) {
+          for (let sx = 0; sx < ss; sx++) {
+            const si = ((y * ss + sy) * W + (x * ss + sx)) * 4;
+            const sa = acc[si + 3];
+            const w = sa / 255;
+            r += acc[si] * w;
+            g += acc[si + 1] * w;
+            b += acc[si + 2] * w;
+            a += sa;
+          }
+        }
+        const di = (y * size + x) * 4;
+        const aw = a > 0 ? a / 255 : 1;
+        data[di] = clamp255(r / aw);
+        data[di + 1] = clamp255(g / aw);
+        data[di + 2] = clamp255(b / aw);
+        data[di + 3] = clamp255(a / area);
+      }
+    }
+    if (opts.outlineColor) applyOutline(data, size, size, opts.outlineColor);
+    if (opts.quantize > 1) {
+      const levels = opts.quantize;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] < 8) continue;
+        data[i] = quantizeChannel(data[i], levels);
+        data[i + 1] = quantizeChannel(data[i + 1], levels);
+        data[i + 2] = quantizeChannel(data[i + 2], levels);
+      }
+    }
+    return { width: size, height: size, data };
+  }
+  function generateSprite(config = {}, pose) {
+    const opts = resolveRenderOpts(config);
+    const parts = buildSkeleton(config, opts.W, pose);
+    return renderParts(parts, opts);
+  }
+  function generateEnemy(config = {}) {
+    const opts = resolveRenderOpts(config);
+    const parts = buildCreature(config, opts.W);
+    return renderParts(parts, opts);
+  }
+  function generateItem(config = {}) {
+    const opts = resolveRenderOpts(config);
+    const parts = buildItem(config, opts.W);
+    return renderParts(parts, opts);
+  }
+  function applyOutline(data, w, h, color) {
+    const isSolid = (x, y) => x >= 0 && x < w && y >= 0 && y < h && data[(y * w + x) * 4 + 3] > 128;
+    const snapshotAlpha = new Uint8Array(w * h);
+    for (let i = 0; i < w * h; i++) snapshotAlpha[i] = data[i * 4 + 3] > 128 ? 1 : 0;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = y * w + x;
+        if (snapshotAlpha[i]) continue;
+        if (isSolid(x - 1, y) || isSolid(x + 1, y) || isSolid(x, y - 1) || isSolid(x, y + 1)) {
+          const j = i * 4;
+          data[j] = color[0];
+          data[j + 1] = color[1];
+          data[j + 2] = color[2];
+          data[j + 3] = 255;
+        }
+      }
+    }
+  }
+
+  // src/animation.ts
+  function generateAnimation(config, animationName) {
+    const clip = CLIPS[animationName];
+    if (!clip) {
+      throw new Error(`Unknown animation "${animationName}". Available: ${Object.keys(CLIPS).join(", ")}`);
+    }
+    const opts = resolveRenderOpts(config);
+    const frames = [];
+    for (let i = 0; i < clip.frames; i++) {
+      const phase = clip.loop ? i / clip.frames : clip.frames > 1 ? i / (clip.frames - 1) : 0;
+      const pose = samplePose(clip, phase);
+      const parts = buildSkeleton(config, opts.W, pose);
+      frames.push(renderParts(parts, opts));
+    }
+    return { name: clip.name, frames, frameCount: clip.frames, fps: clip.fps, loop: clip.loop };
+  }
+  function listAnimations() {
+    return Object.keys(CLIPS);
+  }
+  function packSpriteSheet(frames) {
+    if (frames.length === 0) return { width: 0, height: 0, data: new Uint8ClampedArray(0) };
+    const fw = frames[0].width, fh = frames[0].height, n = frames.length;
+    const W = fw * n;
+    const data = new Uint8ClampedArray(W * fh * 4);
+    for (let i = 0; i < n; i++) {
+      const f = frames[i];
+      for (let y = 0; y < fh; y++) {
+        const srcRow = y * fw * 4;
+        const dstRow = (y * W + i * fw) * 4;
+        data.set(f.data.subarray(srcRow, srcRow + fw * 4), dstRow);
+      }
+    }
+    return { width: W, height: fh, data };
+  }
+
+  // src/index.ts
+  function asImageDataArray(d) {
+    return d;
+  }
+  function toImageData(sprite) {
+    if (typeof ImageData === "undefined") {
+      throw new Error("ImageData is not available in this environment.");
+    }
+    return new ImageData(asImageDataArray(sprite.data), sprite.width, sprite.height);
+  }
+  function toCanvas(sprite) {
+    const { width, height } = sprite;
+    let canvas;
+    if (typeof OffscreenCanvas !== "undefined") {
+      canvas = new OffscreenCanvas(width, height);
+    } else if (typeof document !== "undefined") {
+      const c = document.createElement("canvas");
+      c.width = width;
+      c.height = height;
+      canvas = c;
+    } else {
+      throw new Error("No canvas available; use sprite.data or toImageData() in Node.");
+    }
+    const ctx = canvas.getContext("2d");
+    ctx.putImageData(toImageData(sprite), 0, 0);
+    return canvas;
+  }
+  function generateSpriteCanvas(config = {}) {
+    return toCanvas(generateSprite(config));
+  }
+  function animationToCanvases(result) {
+    return result.frames.map(toCanvas);
+  }
+  function generateSpriteSheetCanvas(config, animationName) {
+    const result = generateAnimation(config, animationName);
+    const sheet = packSpriteSheet(result.frames);
+    return {
+      canvas: toCanvas(sheet),
+      frameWidth: result.frames[0]?.width ?? 0,
+      frameCount: result.frameCount,
+      fps: result.fps
+    };
+  }
+  return __toCommonJS(index_exports);
+})();
+</script>
+<script>
+const { generateSprite, generateEnemy, generateItem, generateAnimation,
+        CREATURE_KINDS, ITEM_KINDS } = SpriteEngine;
+
+const $ = (id) => document.getElementById(id);
+let SEED = 'undral';
+let SIZE = 24;
+let SS = 2;
+let OUTLINE = true;
+
+function opts(extra) {
+  return Object.assign({ seed: SEED, size: SIZE, supersample: SS,
+    outline: OUTLINE ? {} : false }, extra);
+}
+
+// Draw a SpriteBuffer onto a fresh canvas, nearest-neighbour upscaled.
+function spriteCanvas(buf, scale) {
+  const c = document.createElement('canvas');
+  c.width = buf.width * scale; c.height = buf.height * scale;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const tmp = document.createElement('canvas');
+  tmp.width = buf.width; tmp.height = buf.height;
+  tmp.getContext('2d').putImageData(new ImageData(buf.data, buf.width, buf.height), 0, 0);
+  ctx.drawImage(tmp, 0, 0, c.width, c.height);
+  return c;
+}
+
+function tile(label, buf) {
+  const wrap = document.createElement('div');
+  wrap.className = 'tile';
+  const scale = Math.max(2, Math.floor(96 / buf.width));
+  wrap.appendChild(spriteCanvas(buf, scale));
+  const cap = document.createElement('div');
+  cap.className = 'cap'; cap.textContent = label;
+  wrap.appendChild(cap);
+  return wrap;
+}
+
+function section(title, tiles) {
+  const sec = document.createElement('div'); sec.className = 'section';
+  const h = document.createElement('h2'); h.textContent = title; sec.appendChild(h);
+  const grid = document.createElement('div'); grid.className = 'grid';
+  for (const t of tiles) grid.appendChild(t);
+  sec.appendChild(grid);
+  return sec;
+}
+
+function render() {
+  const root = $('gallery');
+  root.innerHTML = '';
+  const t0 = performance.now();
+  let count = 0;
+  const add = (label, buf) => { count++; return tile(label, buf); };
+
+  // Characters
+  root.appendChild(section('کاراکترها — Characters', [
+    add('villager', generateSprite(opts())),
+    add('knight',   generateSprite(opts({ outfit: { armor: true } }))),
+    add('rogue',    generateSprite(opts({ outfit: { torso: 'leather' } }))),
+    add('cap',      generateSprite(opts({ outfit: { hat: 'cap' } }))),
+    add('wizard',   generateSprite(opts({ outfit: { hat: 'hat' }, palette: { cloth: [80,150,110] } }))),
+    add('redshirt', generateSprite(opts({ palette: { cloth: [200,70,70] } }))),
+  ]));
+
+  // Facing (top-down movement directions)
+  root.appendChild(section('جهت‌ها — Facing (top-down)', [
+    add('front', generateSprite(opts({ facing: 'front' }))),
+    add('back',  generateSprite(opts({ facing: 'back' }))),
+    add('left',  generateSprite(opts({ facing: 'left' }))),
+    add('right', generateSprite(opts({ facing: 'right' }))),
+  ]));
+
+  // Enemies
+  const en = [];
+  for (const kind of CREATURE_KINDS) {
+    en.push(add(kind, generateEnemy(opts({ kind }))));
+    en.push(add(kind + ' (alert)', generateEnemy(opts({ kind, alerted: true }))));
+  }
+  root.appendChild(section('دشمن‌ها — Enemies', en));
+
+  // Items
+  const it = ITEM_KINDS.map((kind) => add(kind, generateItem(opts({ kind }))));
+  root.appendChild(section('آیتم‌ها — Loot', it));
+
+  const ms = (performance.now() - t0).toFixed(1);
+  $('stat').textContent = count + ' sprites @ ' + SIZE + 'px · ' + ms + ' ms total';
+}
+
+// Controls
+$('seed').addEventListener('input', (e) => { SEED = e.target.value || '0'; render(); });
+$('size').addEventListener('input', (e) => { SIZE = +e.target.value; $('sizeval').textContent = SIZE + 'px'; render(); });
+$('ss').addEventListener('change', (e) => { SS = +e.target.value; render(); });
+$('outline').addEventListener('change', (e) => { OUTLINE = e.target.checked; render(); });
+$('rand').addEventListener('click', () => { SEED = Math.random().toString(36).slice(2, 8); $('seed').value = SEED; render(); });
+
+render();
+</script>
+</body>
+</html>

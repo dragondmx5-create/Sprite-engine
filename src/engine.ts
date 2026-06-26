@@ -13,6 +13,8 @@
 import type { RGB, SpriteConfig, SpriteBuffer, Light } from './types';
 import { buildSkeleton } from './skeleton';
 import type { Pose } from './pose';
+import { buildCreature, type CreatureConfig } from './creatures';
+import { buildItem, type ItemConfig } from './items';
 import { distanceField, fieldToNormals } from './field';
 import { makeShadeContext, shade } from './lighting';
 import { clamp255, quantizeChannel } from './color';
@@ -154,6 +156,24 @@ export function renderParts(parts: Part[], opts: RenderOpts): SpriteBuffer {
 export function generateSprite(config: SpriteConfig = {}, pose?: Pose): SpriteBuffer {
   const opts = resolveRenderOpts(config);
   const parts = buildSkeleton(config, opts.W, pose);
+  return renderParts(parts, opts);
+}
+
+/**
+ * Enemy sprite: build a creature's parts, then run the SAME shading pass as the
+ * player. Render options (light, outline, quantize, size) come from the same
+ * SpriteConfig fields so enemies match the character's look exactly.
+ */
+export function generateEnemy(config: SpriteConfig & CreatureConfig = {}): SpriteBuffer {
+  const opts = resolveRenderOpts(config);
+  const parts = buildCreature(config, opts.W);
+  return renderParts(parts, opts);
+}
+
+/** Loot sprite: build an item's parts, then run the shared shading pass. */
+export function generateItem(config: SpriteConfig & ItemConfig = {}): SpriteBuffer {
+  const opts = resolveRenderOpts(config);
+  const parts = buildItem(config, opts.W);
   return renderParts(parts, opts);
 }
 
