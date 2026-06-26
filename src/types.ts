@@ -100,6 +100,9 @@ export interface SpriteConfig {
   /** Hairstyle. Default 'short' (the original look). 'bald' draws no hair. */
   hairStyle?: 'short' | 'long' | 'spiky' | 'bun' | 'bald';
 
+  /** Weapon held in the right hand. Follows arm rotation during animations. */
+  weapon?: 'none' | 'dagger' | 'sword' | 'axe' | 'staff';
+
   /** Draw simple eyes. Default true. */
   face?: boolean;
 

@@ -6,10 +6,13 @@
 import { deflateSync } from 'zlib';
 import { writeFileSync, mkdirSync } from 'fs';
 import {
-  generateSprite, generateEnemy, generateItem,
+  generateSprite, generateEnemy, generateItem, generateTile,
   generateEnemyAnimation, generateAnimation,
-  CREATURE_KINDS, ITEM_KINDS,
+  CREATURE_KINDS, ITEM_KINDS, TILE_KINDS, MINIMAP_ICONS,
   solveTwoBone, fabrik,
+  generateShadow, generateSlashEffect, generateImpactEffect,
+  flashSprite, tintSprite, applyStatusEffect,
+  generateMinimapIcon,
 } from '../src/index';
 import type { SpriteBuffer } from '../src/types';
 
@@ -127,6 +130,74 @@ for (const name of ['hit', 'death']) {
   check('fabrik pins the root', Math.hypot(out[0].x - chain[0].x, out[0].y - chain[0].y) < 1e-9);
 }
 
+// --- 1d) weapons: holding a weapon changes the sprite -----------------------
+{
+  const base = generateSprite({ seed: 'hero', size: 40 });
+  const withSword = generateSprite({ seed: 'hero', size: 40, weapon: 'sword' });
+  const withDagger = generateSprite({ seed: 'hero', size: 40, weapon: 'dagger' });
+  const withAxe = generateSprite({ seed: 'hero', size: 40, weapon: 'axe' });
+  const withStaff = generateSprite({ seed: 'hero', size: 40, weapon: 'staff' });
+  check('weapon sword changes sprite', !same(base, withSword));
+  check('weapon dagger changes sprite', !same(base, withDagger));
+  check('weapon axe changes sprite', !same(base, withAxe));
+  check('weapon staff changes sprite', !same(base, withStaff));
+  check('weapon=none matches default', same(base, generateSprite({ seed: 'hero', size: 40, weapon: 'none' })));
+  // weapon is deterministic
+  check('weapon sword deterministic', same(withSword, generateSprite({ seed: 'hero', size: 40, weapon: 'sword' })));
+  // weapon works in attack animation
+  const attackNoWeapon = generateAnimation({ seed: 'hero', size: 40 }, 'attack');
+  const attackSword = generateAnimation({ seed: 'hero', size: 40, weapon: 'sword' }, 'attack');
+  check('attack+sword differs from unarmed', !same(attackSword.frames[2], attackNoWeapon.frames[2]));
+}
+
+// --- 1e) effects: VFX generate and process correctly ------------------------
+{
+  const shadow = generateShadow(24);
+  check('shadow has correct dimensions', shadow.width === 24 && shadow.height > 0);
+  check('shadow has non-zero alpha', shadow.data.some((v, i) => i % 4 === 3 && v > 0));
+
+  const slash = generateSlashEffect({ size: 24 });
+  check('slash effect generates', slash.width === 24 && slash.height === 24);
+  check('slash has opaque pixels', slash.data.some((v, i) => i % 4 === 3 && v > 128));
+
+  const impact = generateImpactEffect({ size: 20 });
+  check('impact effect generates', impact.width === 20 && impact.height === 20);
+
+  const hero = generateSprite({ seed: 'hero', size: 32 });
+  const flashed = flashSprite(hero);
+  check('flash makes pixels white', (() => {
+    let allWhite = true;
+    for (let i = 0; i < flashed.data.length; i += 4)
+      if (flashed.data[i + 3] > 8 && (flashed.data[i] !== 255 || flashed.data[i + 1] !== 255)) allWhite = false;
+    return allWhite;
+  })());
+
+  const tinted = tintSprite(hero, [255, 0, 0], 0.5);
+  check('tint shifts color', !same(hero, tinted));
+
+  for (const fx of ['poison', 'frozen', 'burning'] as const) {
+    const result = applyStatusEffect(hero, fx);
+    check(`status ${fx} changes sprite`, !same(hero, result));
+  }
+}
+
+// --- 1f) tiles: deterministic generation ------------------------------------
+for (const kind of TILE_KINDS) {
+  const a = generateTile({ kind, seed: 'det', size: 20, supersample: 2 });
+  const b = generateTile({ kind, seed: 'det', size: 20, supersample: 2 });
+  check(`tile ${kind} deterministic`, same(a, b));
+}
+check('tile seed varies', !same(
+  generateTile({ kind: 'stone_floor', seed: 'a', size: 20 }),
+  generateTile({ kind: 'stone_floor', seed: 'b', size: 20 }),
+));
+
+// --- 1g) minimap icons: generate correctly ----------------------------------
+for (const icon of MINIMAP_ICONS) {
+  const ic = generateMinimapIcon({ icon, size: 6 });
+  check(`minimap ${icon} generates`, ic.width === 6 && ic.height === 6 && ic.data.some((v, i) => i % 4 === 3 && v > 0));
+}
+
 // --- 2) perf: a creature/item should generate in a few ms -------------------
 let acc = 0; const N = 100;
 for (let i = 0; i < N; i++) {
@@ -145,6 +216,14 @@ for (const kind of CREATURE_KINDS) {
 }
 for (const kind of ITEM_KINDS) previews.push({ name: `item_${kind}`, sprite: generateItem({ kind, seed: kind, size: 48, supersample: 2 }) });
 for (const facing of ['front', 'back', 'left', 'right'] as const) previews.push({ name: `face_${facing}`, sprite: generateSprite({ seed: 'hero', size: 48, supersample: 2, facing }) });
+// weapons
+for (const weapon of ['dagger', 'sword', 'axe', 'staff'] as const) previews.push({ name: `weapon_${weapon}`, sprite: generateSprite({ seed: 'hero', size: 48, supersample: 2, weapon }) });
+// tiles
+for (const kind of TILE_KINDS) previews.push({ name: `tile_${kind}`, sprite: generateTile({ kind, seed: kind, size: 20, supersample: 2 }) });
+// effects
+previews.push({ name: 'fx_slash', sprite: generateSlashEffect({ size: 32 }) });
+previews.push({ name: 'fx_impact', sprite: generateImpactEffect({ size: 24 }) });
+previews.push({ name: 'fx_shadow', sprite: generateShadow(32) });
 const k = 6;
 for (const { name, sprite } of previews) writeFileSync(`preview/${name}.png`, encodePNG(sprite.width * k, sprite.height * k, upscaleOnBg(sprite, k)));
 console.log(`wrote ${previews.length} preview PNGs to ./preview/`);

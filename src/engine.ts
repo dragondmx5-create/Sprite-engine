@@ -15,6 +15,7 @@ import { buildSkeleton } from './skeleton';
 import type { Pose } from './pose';
 import { buildCreature, type CreatureConfig } from './creatures';
 import { buildItem, type ItemConfig } from './items';
+import { buildTile, type TileConfig } from './tiles';
 import { distanceField, fieldToNormals } from './field';
 import { makeShadeContext, shade } from './lighting';
 import { clamp255, quantizeChannel } from './color';
@@ -174,6 +175,13 @@ export function generateEnemy(config: SpriteConfig & CreatureConfig = {}): Sprit
 export function generateItem(config: SpriteConfig & ItemConfig = {}): SpriteBuffer {
   const opts = resolveRenderOpts(config);
   const parts = buildItem(config, opts.W);
+  return renderParts(parts, opts);
+}
+
+/** Dungeon tile: build a tile's parts, then run the shared shading pass. */
+export function generateTile(config: SpriteConfig & TileConfig = {}): SpriteBuffer {
+  const opts = resolveRenderOpts(config);
+  const parts = buildTile(config, opts.W);
   return renderParts(parts, opts);
 }
 

@@ -9,7 +9,7 @@
 // are thin adapters that only touch the DOM when you actually call them.
 // =============================================================================
 
-import { generateSprite, generateEnemy, generateItem } from './engine';
+import { generateSprite, generateEnemy, generateItem, generateTile } from './engine';
 import type { SpriteBuffer, SpriteConfig } from './types';
 import {
   generateAnimation, packSpriteSheet, listAnimations,
@@ -17,7 +17,7 @@ import {
   type AnimationResult,
 } from './animation';
 
-export { generateSprite, generateEnemy, generateItem };
+export { generateSprite, generateEnemy, generateItem, generateTile };
 export type { SpriteBuffer, SpriteConfig, Material, RGB, Vec3 } from './types';
 export { MATERIALS } from './materials';
 
@@ -26,6 +26,21 @@ export { buildCreature, CREATURE_KINDS } from './creatures';
 export type { CreatureConfig, CreatureKind } from './creatures';
 export { buildItem, ITEM_KINDS } from './items';
 export type { ItemConfig, ItemKind } from './items';
+
+// ---- Tiles (dungeon) -------------------------------------------------------
+export { buildTile, TILE_KINDS } from './tiles';
+export type { TileConfig, TileKind } from './tiles';
+
+// ---- Effects (combat / status) ---------------------------------------------
+export {
+  generateShadow, generateSlashEffect, generateImpactEffect,
+  flashSprite, tintSprite, applyStatusEffect,
+} from './effects';
+export type { StatusEffect, VFXConfig } from './effects';
+
+// ---- Minimap ---------------------------------------------------------------
+export { generateMinimapIcon, MINIMAP_ICONS } from './minimap';
+export type { MinimapConfig, MinimapIcon } from './minimap';
 
 // ---- Animation API ---------------------------------------------------------
 export { generateAnimation, packSpriteSheet, listAnimations };

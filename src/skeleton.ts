@@ -20,7 +20,7 @@
 import type { RGB, SpriteConfig } from './types';
 import { RNG } from './rng';
 import { MATERIALS } from './materials';
-import { Part, SDF, roundedBox, capsule, union, rotatedAround, translated } from './shapes';
+import { Part, SDF, roundedBox, capsule, circle, union, rotatedAround, translated } from './shapes';
 import { Pose, NEUTRAL_POSE } from './pose';
 
 /** Pick a deterministic default color (HSV-ish) when the user didn't specify one. */
@@ -279,6 +279,45 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
   } else if (hat === 'hat') {
     box(M.hat, cx, headCy - headHh * 0.78, headHw * 0.72, headHh * 0.5, headHw * 0.3, 0.45, xHead());
     box(M.hat, cx, headCy - headHh * 0.42, headHw * 1.55, headHh * 0.16, headHh * 0.12, 0.4, xHead());
+  }
+
+  // 11) HELD WEAPON — drawn last (on top) so it stays visible during attack
+  // swings. Uses the same shoulder rotation transform as the right arm, so the
+  // weapon swings with the arm automatically in every animation frame.
+  const weapon = config.weapon ?? 'none';
+  if (weapon !== 'none') {
+    const ax = cx + armX;
+    const handY = armCy + armHh + armHw * 1.1;
+    const xf = xArm(pose.armR, ax, shoulderY);
+    const guard = MATERIALS.metal([160, 140, 80]);
+
+    if (weapon === 'dagger') {
+      const bLen = s * 0.10;
+      box(guard, ax, handY, s * 0.04, s * 0.008, s * 0.004, 0.5, xf);
+      place(M.metal, capsule(ax, handY + s * 0.008, ax, handY + bLen, s * 0.016),
+        ax - s * 0.03, handY - s * 0.01, ax + s * 0.03, handY + bLen + s * 0.02, 0.6, xf);
+    } else if (weapon === 'sword') {
+      const bLen = s * 0.20;
+      box(guard, ax, handY, s * 0.06, s * 0.01, s * 0.006, 0.5, xf);
+      place(M.metal, capsule(ax, handY + s * 0.01, ax, handY + bLen, s * 0.02),
+        ax - s * 0.04, handY - s * 0.01, ax + s * 0.04, handY + bLen + s * 0.02, 0.6, xf);
+      place(MATERIALS.metal([200, 210, 230]),
+        capsule(ax + s * 0.008, handY + s * 0.04, ax + s * 0.008, handY + bLen - s * 0.02, Math.max(1, s * 0.004)),
+        ax - s * 0.02, handY + s * 0.02, ax + s * 0.03, handY + bLen, 0.5, xf);
+    } else if (weapon === 'axe') {
+      const shaftLen = s * 0.18;
+      place(M.leather, capsule(ax, handY - s * 0.02, ax, handY + shaftLen, s * 0.014),
+        ax - s * 0.03, handY - s * 0.04, ax + s * 0.03, handY + shaftLen + s * 0.02, 0.7, xf);
+      box(M.metal, ax + s * 0.04, handY + shaftLen * 0.15, s * 0.048, s * 0.058, s * 0.012, 0.5, xf);
+    } else if (weapon === 'staff') {
+      const staffLen = s * 0.28;
+      place(M.leather, capsule(ax, handY - staffLen * 0.45, ax, handY + staffLen * 0.55, s * 0.012),
+        ax - s * 0.025, handY - staffLen * 0.5, ax + s * 0.025, handY + staffLen * 0.6, 0.8, xf);
+      const orbR = s * 0.026;
+      const orbY = handY - staffLen * 0.45 - orbR;
+      place(MATERIALS.gem([150, 70, 210]), circle(ax, orbY, orbR),
+        ax - orbR - 2, orbY - orbR - 2, ax + orbR + 2, orbY + orbR + 2, 0.9, xf);
+    }
   }
 
   return parts;

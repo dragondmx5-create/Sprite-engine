@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>UNDRAL Sprite Engine — Phase 1</title>
+<title>UNDRAL Sprite Engine — Phase 2</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: #14110f; color: #d8cfc4; font-family: system-ui, sans-serif; padding: 20px; }
@@ -30,8 +30,8 @@
 </style>
 </head>
 <body>
-  <h1>UNDRAL Sprite Engine — Phase 1</h1>
-  <div class="sub">کاراکتر، دشمن، آیتم و جهت‌ها — همگی procedural و seed-based. هر سپرایت با همان pipeline نورپردازی رندر می‌شود.</div>
+  <h1>UNDRAL Sprite Engine — Phase 2</h1>
+  <div class="sub">کاراکتر، سلاح، دشمن، آیتم، کاشی دانجن، افکت رزمی و وضعیت — همگی procedural. هر چیزی با نورپردازی یکسان رندر می‌شود.</div>
   <div class="controls">
     <label>seed <input type="text" id="seed" value="undral"></label>
     <button id="rand">🎲 random</button>
@@ -76,20 +76,30 @@ var SpriteEngine = (() => {
     IDLE: () => IDLE,
     ITEM_KINDS: () => ITEM_KINDS,
     MATERIALS: () => MATERIALS,
+    MINIMAP_ICONS: () => MINIMAP_ICONS,
     NEUTRAL_POSE: () => NEUTRAL_POSE,
+    TILE_KINDS: () => TILE_KINDS,
     WALK: () => WALK,
     animationToCanvases: () => animationToCanvases,
+    applyStatusEffect: () => applyStatusEffect,
     buildCreature: () => buildCreature,
     buildItem: () => buildItem,
+    buildTile: () => buildTile,
     damp: () => damp,
     fabrik: () => fabrik,
+    flashSprite: () => flashSprite,
     generateAnimation: () => generateAnimation,
     generateEnemy: () => generateEnemy,
     generateEnemyAnimation: () => generateEnemyAnimation,
+    generateImpactEffect: () => generateImpactEffect,
     generateItem: () => generateItem,
+    generateMinimapIcon: () => generateMinimapIcon,
+    generateShadow: () => generateShadow,
+    generateSlashEffect: () => generateSlashEffect,
     generateSprite: () => generateSprite,
     generateSpriteCanvas: () => generateSpriteCanvas,
     generateSpriteSheetCanvas: () => generateSpriteSheetCanvas,
+    generateTile: () => generateTile,
     lag: () => lag,
     listAnimations: () => listAnimations,
     listEnemyAnimations: () => listEnemyAnimations,
@@ -99,6 +109,7 @@ var SpriteEngine = (() => {
     smooth: () => smooth,
     solveTwoBone: () => solveTwoBone,
     squash: () => squash,
+    tintSprite: () => tintSprite,
     toCanvas: () => toCanvas,
     toImageData: () => toImageData,
     wave: () => wave
@@ -668,6 +679,87 @@ var SpriteEngine = (() => {
       box(M.hat, cx, headCy - headHh * 0.78, headHw * 0.72, headHh * 0.5, headHw * 0.3, 0.45, xHead());
       box(M.hat, cx, headCy - headHh * 0.42, headHw * 1.55, headHh * 0.16, headHh * 0.12, 0.4, xHead());
     }
+    const weapon = config.weapon ?? "none";
+    if (weapon !== "none") {
+      const ax = cx + armX;
+      const handY = armCy + armHh + armHw * 1.1;
+      const xf = xArm(pose.armR, ax, shoulderY);
+      const guard = MATERIALS.metal([160, 140, 80]);
+      if (weapon === "dagger") {
+        const bLen = s * 0.1;
+        box(guard, ax, handY, s * 0.04, s * 8e-3, s * 4e-3, 0.5, xf);
+        place(
+          M.metal,
+          capsule(ax, handY + s * 8e-3, ax, handY + bLen, s * 0.016),
+          ax - s * 0.03,
+          handY - s * 0.01,
+          ax + s * 0.03,
+          handY + bLen + s * 0.02,
+          0.6,
+          xf
+        );
+      } else if (weapon === "sword") {
+        const bLen = s * 0.2;
+        box(guard, ax, handY, s * 0.06, s * 0.01, s * 6e-3, 0.5, xf);
+        place(
+          M.metal,
+          capsule(ax, handY + s * 0.01, ax, handY + bLen, s * 0.02),
+          ax - s * 0.04,
+          handY - s * 0.01,
+          ax + s * 0.04,
+          handY + bLen + s * 0.02,
+          0.6,
+          xf
+        );
+        place(
+          MATERIALS.metal([200, 210, 230]),
+          capsule(ax + s * 8e-3, handY + s * 0.04, ax + s * 8e-3, handY + bLen - s * 0.02, Math.max(1, s * 4e-3)),
+          ax - s * 0.02,
+          handY + s * 0.02,
+          ax + s * 0.03,
+          handY + bLen,
+          0.5,
+          xf
+        );
+      } else if (weapon === "axe") {
+        const shaftLen = s * 0.18;
+        place(
+          M.leather,
+          capsule(ax, handY - s * 0.02, ax, handY + shaftLen, s * 0.014),
+          ax - s * 0.03,
+          handY - s * 0.04,
+          ax + s * 0.03,
+          handY + shaftLen + s * 0.02,
+          0.7,
+          xf
+        );
+        box(M.metal, ax + s * 0.04, handY + shaftLen * 0.15, s * 0.048, s * 0.058, s * 0.012, 0.5, xf);
+      } else if (weapon === "staff") {
+        const staffLen = s * 0.28;
+        place(
+          M.leather,
+          capsule(ax, handY - staffLen * 0.45, ax, handY + staffLen * 0.55, s * 0.012),
+          ax - s * 0.025,
+          handY - staffLen * 0.5,
+          ax + s * 0.025,
+          handY + staffLen * 0.6,
+          0.8,
+          xf
+        );
+        const orbR = s * 0.026;
+        const orbY = handY - staffLen * 0.45 - orbR;
+        place(
+          MATERIALS.gem([150, 70, 210]),
+          circle(ax, orbY, orbR),
+          ax - orbR - 2,
+          orbY - orbR - 2,
+          ax + orbR + 2,
+          orbY + orbR + 2,
+          0.9,
+          xf
+        );
+      }
+    }
     return parts;
   }
 
@@ -1167,6 +1259,127 @@ var SpriteEngine = (() => {
   }
   var ITEM_KINDS = ["mushroom", "crystal", "dagger", "torch", "potion", "coin", "rune"];
 
+  // src/tiles.ts
+  function pushBox2(parts, mat, cx, cy, hx, hy, corner, roundness) {
+    parts.push({
+      material: mat,
+      roundness,
+      sdf: roundedBox(cx, cy, hx, hy, corner),
+      bbox: [Math.floor(cx - hx - 2), Math.floor(cy - hy - 2), Math.ceil(cx + hx + 2), Math.ceil(cy + hy + 2)]
+    });
+  }
+  function pushCircle3(parts, mat, cx, cy, r, roundness) {
+    parts.push({
+      material: mat,
+      roundness,
+      sdf: circle(cx, cy, r),
+      bbox: [Math.floor(cx - r - 2), Math.floor(cy - r - 2), Math.ceil(cx + r + 2), Math.ceil(cy + r + 2)]
+    });
+  }
+  function pushCapsule3(parts, mat, ax, ay, bx, by, r, roundness) {
+    parts.push({
+      material: mat,
+      roundness,
+      sdf: capsule(ax, ay, bx, by, r),
+      bbox: [
+        Math.floor(Math.min(ax, bx) - r - 2),
+        Math.floor(Math.min(ay, by) - r - 2),
+        Math.ceil(Math.max(ax, bx) + r + 2),
+        Math.ceil(Math.max(ay, by) + r + 2)
+      ]
+    });
+  }
+  function buildStoneFloor(rng, s) {
+    const parts = [];
+    const gap = s * 0.04;
+    const bw = (s - gap * 3) / 2;
+    const bh = (s - gap * 3) / 2;
+    for (let row = 0; row < 2; row++) {
+      for (let col = 0; col < 2; col++) {
+        const j = rng.jitter(6);
+        const base = [88 + j, 82 + j, 76 + j];
+        const cx = gap + bw / 2 + col * (bw + gap);
+        const cy = gap + bh / 2 + row * (bh + gap);
+        pushBox2(parts, MATERIALS.bone(base), cx, cy, bw / 2 - 1, bh / 2 - 1, s * 0.02, 0.15);
+      }
+    }
+    if (rng.float() > 0.5) {
+      const ax = s * (0.2 + rng.float() * 0.6), ay = s * (0.2 + rng.float() * 0.6);
+      const bx = ax + rng.jitter(s * 0.2), by = ay + rng.jitter(s * 0.2);
+      pushCapsule3(parts, MATERIALS.bone([50, 46, 42]), ax, ay, bx, by, Math.max(1, s * 8e-3), 0.1);
+    }
+    return parts;
+  }
+  function buildDirtFloor(rng, s) {
+    const parts = [];
+    const base = [110 + rng.jitter(15), 80 + rng.jitter(10), 55 + rng.jitter(10)];
+    pushBox2(parts, MATERIALS.flesh(base), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.03, 0.08);
+    for (let i = 0; i < 3; i++) {
+      const px = s * (0.15 + rng.float() * 0.7);
+      const py = s * (0.15 + rng.float() * 0.7);
+      const pr = s * (0.025 + rng.float() * 0.02);
+      pushCircle3(parts, MATERIALS.bone([base[0] * 0.75, base[1] * 0.75, base[2] * 0.75]), px, py, pr, 0.25);
+    }
+    return parts;
+  }
+  function buildStoneWall(rng, s) {
+    const parts = [];
+    const base = [62 + rng.jitter(8), 58 + rng.jitter(6), 56 + rng.jitter(6)];
+    pushBox2(parts, MATERIALS.bone(base), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.3);
+    const my = s * (0.38 + rng.jitter(0.04));
+    pushBox2(parts, MATERIALS.bone([base[0] * 0.6, base[1] * 0.6, base[2] * 0.6]), s * 0.5, my, s * 0.44, s * 0.012, s * 5e-3, 0.08);
+    const mx = s * (0.33 + rng.jitter(0.06));
+    pushBox2(parts, MATERIALS.bone([base[0] * 0.63, base[1] * 0.63, base[2] * 0.63]), mx, s * 0.22, s * 0.012, s * 0.16, s * 5e-3, 0.08);
+    const mx2 = s * (0.6 + rng.jitter(0.06));
+    pushBox2(parts, MATERIALS.bone([base[0] * 0.63, base[1] * 0.63, base[2] * 0.63]), mx2, s * 0.68, s * 0.012, s * 0.16, s * 5e-3, 0.08);
+    return parts;
+  }
+  function buildCrystalFloor(rng, s) {
+    const parts = [];
+    const base = [38 + rng.jitter(8), 33 + rng.jitter(6), 48 + rng.jitter(8)];
+    pushBox2(parts, MATERIALS.bone(base), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.12);
+    const veins = 2 + Math.floor(rng.float() * 2);
+    for (let i = 0; i < veins; i++) {
+      const ax = s * (0.12 + rng.float() * 0.76);
+      const ay = s * (0.12 + rng.float() * 0.76);
+      const bx = s * (0.12 + rng.float() * 0.76);
+      const by = s * (0.12 + rng.float() * 0.76);
+      const r = Math.max(1, s * 0.014);
+      const color = [70 + rng.jitter(20), 150 + rng.jitter(30), 200 + rng.jitter(20)];
+      pushCapsule3(parts, MATERIALS.gem(color), ax, ay, bx, by, r, 0.5);
+    }
+    return parts;
+  }
+  function buildWoodDoor(rng, s) {
+    const parts = [];
+    const wood = [118 + rng.jitter(10), 78 + rng.jitter(8), 48 + rng.jitter(6)];
+    const frame = [78, 73, 68];
+    pushBox2(parts, MATERIALS.bone(frame), s * 0.5, s * 0.5, s * 0.48, s * 0.48, s * 0.02, 0.2);
+    pushBox2(parts, MATERIALS.leather(wood), s * 0.5, s * 0.52, s * 0.34, s * 0.42, s * 0.025, 0.28);
+    const band = MATERIALS.metal([95, 95, 105]);
+    pushBox2(parts, band, s * 0.5, s * 0.28, s * 0.36, s * 0.016, s * 8e-3, 0.35);
+    pushBox2(parts, band, s * 0.5, s * 0.72, s * 0.36, s * 0.016, s * 8e-3, 0.35);
+    pushCircle3(parts, MATERIALS.metal([148, 138, 96]), s * 0.63, s * 0.52, s * 0.028, 0.55);
+    return parts;
+  }
+  function buildTile(config, s) {
+    const rng = new RNG(config.seed ?? 0);
+    switch (config.kind ?? "stone_floor") {
+      case "dirt_floor":
+        return buildDirtFloor(rng, s);
+      case "stone_wall":
+        return buildStoneWall(rng, s);
+      case "crystal_floor":
+        return buildCrystalFloor(rng, s);
+      case "wood_door":
+        return buildWoodDoor(rng, s);
+      case "stone_floor":
+      default:
+        return buildStoneFloor(rng, s);
+    }
+  }
+  var TILE_KINDS = ["stone_floor", "dirt_floor", "stone_wall", "crystal_floor", "wood_door"];
+
   // src/field.ts
   function edt1d(f, n, out) {
     const v = new Int32Array(n);
@@ -1442,6 +1655,11 @@ var SpriteEngine = (() => {
     const parts = buildItem(config, opts.W);
     return renderParts(parts, opts);
   }
+  function generateTile(config = {}) {
+    const opts = resolveRenderOpts(config);
+    const parts = buildTile(config, opts.W);
+    return renderParts(parts, opts);
+  }
   function applyOutline(data, w, h, color) {
     const isSolid = (x, y) => x >= 0 && x < w && y >= 0 && y < h && data[(y * w + x) * 4 + 3] > 128;
     const snapshotAlpha = new Uint8Array(w * h);
@@ -1517,6 +1735,191 @@ var SpriteEngine = (() => {
     return { width: W, height: fh, data };
   }
 
+  // src/effects.ts
+  function generateShadow(size, opacity = 0.4) {
+    const w = size;
+    const h = Math.max(1, Math.ceil(size * 0.3));
+    const data = new Uint8ClampedArray(w * h * 4);
+    const cx = w * 0.5, cy = h * 0.5;
+    const rx = w * 0.42, ry = h * 0.42;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const dx = (x + 0.5 - cx) / rx;
+        const dy = (y + 0.5 - cy) / ry;
+        const d = dx * dx + dy * dy;
+        if (d < 1) {
+          const i = (y * w + x) * 4;
+          data[i + 3] = clamp255((1 - d) * opacity * 255);
+        }
+      }
+    }
+    return { width: w, height: h, data };
+  }
+  function generateSlashEffect(config = {}) {
+    const size = config.size ?? 32;
+    const color = config.color ?? [255, 240, 200];
+    const ss = config.supersample ?? 2;
+    const opts = resolveRenderOpts({ size, supersample: ss, outline: false, quantize: false });
+    const s = opts.W;
+    const parts = [];
+    const mat = MATERIALS.glass(color);
+    const core = MATERIALS.ember([255, 255, 240]);
+    const cx = s * 0.45, cy = s * 0.5;
+    const r = s * 0.35;
+    const segs = 5;
+    const a0 = -Math.PI * 0.65, a1 = Math.PI * 0.25;
+    for (let i = 0; i < segs; i++) {
+      const t0 = a0 + (a1 - a0) * (i / segs);
+      const t1 = a0 + (a1 - a0) * ((i + 1) / segs);
+      const ax = cx + Math.cos(t0) * r, ay = cy + Math.sin(t0) * r;
+      const bx = cx + Math.cos(t1) * r, by = cy + Math.sin(t1) * r;
+      const w = s * 0.03;
+      parts.push({
+        material: mat,
+        roundness: 0.9,
+        sdf: capsule(ax, ay, bx, by, w),
+        bbox: [
+          Math.floor(Math.min(ax, bx) - w - 2),
+          Math.floor(Math.min(ay, by) - w - 2),
+          Math.ceil(Math.max(ax, bx) + w + 2),
+          Math.ceil(Math.max(ay, by) + w + 2)
+        ]
+      });
+      const wc = s * 0.014;
+      parts.push({
+        material: core,
+        roundness: 0.9,
+        sdf: capsule(ax, ay, bx, by, wc),
+        bbox: [
+          Math.floor(Math.min(ax, bx) - wc - 2),
+          Math.floor(Math.min(ay, by) - wc - 2),
+          Math.ceil(Math.max(ax, bx) + wc + 2),
+          Math.ceil(Math.max(ay, by) + wc + 2)
+        ]
+      });
+    }
+    return renderParts(parts, opts);
+  }
+  function generateImpactEffect(config = {}) {
+    const size = config.size ?? 24;
+    const color = config.color ?? [255, 220, 100];
+    const ss = config.supersample ?? 2;
+    const opts = resolveRenderOpts({ size, supersample: ss, outline: false, quantize: false });
+    const s = opts.W;
+    const parts = [];
+    const mat = MATERIALS.ember(color);
+    const cx = s * 0.5, cy = s * 0.5;
+    const rays = 6;
+    for (let i = 0; i < rays; i++) {
+      const a = i / rays * Math.PI * 2 + 0.2;
+      const len = s * (0.24 + i % 2 * 0.1);
+      const bx = cx + Math.cos(a) * len, by = cy + Math.sin(a) * len;
+      const r = s * 0.022;
+      parts.push({
+        material: mat,
+        roundness: 0.8,
+        sdf: capsule(cx, cy, bx, by, r),
+        bbox: [
+          Math.floor(Math.min(cx, bx) - r - 2),
+          Math.floor(Math.min(cy, by) - r - 2),
+          Math.ceil(Math.max(cx, bx) + r + 2),
+          Math.ceil(Math.max(cy, by) + r + 2)
+        ]
+      });
+    }
+    const cr = s * 0.055;
+    parts.push({
+      material: MATERIALS.ember([255, 255, 230]),
+      roundness: 1,
+      sdf: circle(cx, cy, cr),
+      bbox: [Math.floor(cx - cr - 2), Math.floor(cy - cr - 2), Math.ceil(cx + cr + 2), Math.ceil(cy + cr + 2)]
+    });
+    return renderParts(parts, opts);
+  }
+  function flashSprite(sprite) {
+    const data = new Uint8ClampedArray(sprite.data);
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] > 8) {
+        data[i] = 255;
+        data[i + 1] = 255;
+        data[i + 2] = 255;
+      }
+    }
+    return { width: sprite.width, height: sprite.height, data };
+  }
+  function tintSprite(sprite, color, amount) {
+    const data = new Uint8ClampedArray(sprite.data);
+    const inv = 1 - amount;
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] > 8) {
+        data[i] = clamp255(data[i] * inv + color[0] * amount);
+        data[i + 1] = clamp255(data[i + 1] * inv + color[1] * amount);
+        data[i + 2] = clamp255(data[i + 2] * inv + color[2] * amount);
+      }
+    }
+    return { width: sprite.width, height: sprite.height, data };
+  }
+  function applyStatusEffect(sprite, effect, phase = 0) {
+    switch (effect) {
+      case "poison":
+        return tintSprite(sprite, [50, 210, 70], 0.22 + 0.1 * Math.sin(phase * Math.PI * 2));
+      case "frozen":
+        return tintSprite(sprite, [130, 200, 255], 0.35);
+      case "burning":
+        return tintSprite(sprite, [255, 110, 30], 0.18 + 0.14 * Math.sin(phase * Math.PI * 2));
+    }
+  }
+
+  // src/minimap.ts
+  var ICON_COLORS = {
+    player: [80, 220, 110],
+    enemy: [220, 60, 60],
+    item: [240, 210, 70],
+    door: [160, 120, 70],
+    stairs: [200, 200, 220]
+  };
+  function generateMinimapIcon(config = {}) {
+    const icon = config.icon ?? "player";
+    const size = config.size ?? 6;
+    const color = config.color ?? ICON_COLORS[icon];
+    const data = new Uint8ClampedArray(size * size * 4);
+    const cx = size / 2, cy = size / 2;
+    const put = (x, y) => {
+      if (x < 0 || x >= size || y < 0 || y >= size) return;
+      const i = (y * size + x) * 4;
+      data[i] = clamp255(color[0]);
+      data[i + 1] = clamp255(color[1]);
+      data[i + 2] = clamp255(color[2]);
+      data[i + 3] = 255;
+    };
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const px = x + 0.5, py = y + 0.5;
+        let inside = false;
+        switch (icon) {
+          case "player":
+            inside = Math.hypot(px - cx, py - cy) < size * 0.45;
+            break;
+          case "enemy":
+            inside = Math.abs(px - cx) + Math.abs(py - cy) < size * 0.45;
+            break;
+          case "item":
+            inside = Math.abs(px - cx) < size * 0.3 && Math.abs(py - cy) < size * 0.3;
+            break;
+          case "door":
+            inside = Math.abs(px - cx) < size * 0.4 && Math.abs(py - cy) < size * 0.22;
+            break;
+          case "stairs":
+            inside = py > size * 0.2 && py < size * 0.8 && Math.abs(px - cx) < py / size * size * 0.45;
+            break;
+        }
+        if (inside) put(x, y);
+      }
+    }
+    return { width: size, height: size, data };
+  }
+  var MINIMAP_ICONS = ["player", "enemy", "item", "door", "stairs"];
+
   // src/index.ts
   function asImageDataArray(d) {
     return d;
@@ -1564,8 +1967,10 @@ var SpriteEngine = (() => {
 })();
 </script>
 <script>
-const { generateSprite, generateEnemy, generateItem, generateAnimation,
-        CREATURE_KINDS, ITEM_KINDS } = SpriteEngine;
+const { generateSprite, generateEnemy, generateItem, generateTile, generateAnimation,
+        generateShadow, generateSlashEffect, generateImpactEffect,
+        flashSprite, tintSprite, applyStatusEffect, generateMinimapIcon,
+        CREATURE_KINDS, ITEM_KINDS, TILE_KINDS, MINIMAP_ICONS } = SpriteEngine;
 
 const $ = (id) => document.getElementById(id);
 let SEED = 'undral';
@@ -1628,6 +2033,16 @@ function render() {
     add('redshirt', generateSprite(opts({ palette: { cloth: [200,70,70] } }))),
   ]));
 
+  // Weapons
+  root.appendChild(section('سلاح‌ها — Weapons', [
+    add('unarmed',  generateSprite(opts())),
+    add('dagger',   generateSprite(opts({ weapon: 'dagger' }))),
+    add('sword',    generateSprite(opts({ weapon: 'sword' }))),
+    add('axe',      generateSprite(opts({ weapon: 'axe' }))),
+    add('staff',    generateSprite(opts({ weapon: 'staff' }))),
+    add('sword knight', generateSprite(opts({ weapon: 'sword', outfit: { armor: true } }))),
+  ]));
+
   // Hair styles + outfit assets
   root.appendChild(section('مو و لباس — Hair & outfits', [
     add('short',  generateSprite(opts({ hairStyle: 'short' }))),
@@ -1658,6 +2073,33 @@ function render() {
   // Items
   const it = ITEM_KINDS.map((kind) => add(kind, generateItem(opts({ kind }))));
   root.appendChild(section('آیتم‌ها — Loot', it));
+
+  // Tiles
+  const tileSize = 20;
+  const tl = TILE_KINDS.map((kind) => add(kind, generateTile({ kind, seed: SEED, size: tileSize, supersample: SS, outline: false, quantize: false })));
+  root.appendChild(section('کاشی‌ها — Dungeon tiles', tl));
+
+  // Effects
+  root.appendChild(section('افکت‌ها — Combat VFX', [
+    add('slash',   generateSlashEffect({ size: SIZE, supersample: SS })),
+    add('impact',  generateImpactEffect({ size: SIZE, supersample: SS })),
+    add('shadow',  generateShadow(SIZE)),
+  ]));
+
+  // Status effects
+  const hero = generateSprite(opts());
+  root.appendChild(section('وضعیت — Status effects', [
+    add('normal',  hero),
+    add('flash',   flashSprite(hero)),
+    add('poison',  applyStatusEffect(hero, 'poison', 0)),
+    add('frozen',  applyStatusEffect(hero, 'frozen')),
+    add('burning', applyStatusEffect(hero, 'burning', 0.25)),
+    add('tint red', tintSprite(hero, [255,0,0], 0.4)),
+  ]));
+
+  // Minimap icons
+  const mm = MINIMAP_ICONS.map((icon) => add(icon, generateMinimapIcon({ icon, size: 6 })));
+  root.appendChild(section('نقشه کوچیک — Minimap icons', mm));
 
   const ms = (performance.now() - t0).toFixed(1);
   $('stat').textContent = count + ' sprites @ ' + SIZE + 'px · ' + ms + ' ms total';
