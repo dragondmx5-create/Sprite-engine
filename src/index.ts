@@ -39,7 +39,9 @@ export {
   generateProjectile, generateSparkle,
   flashSprite, tintSprite, applyStatusEffect,
   buildSlashEffect, buildImpactEffect, buildSparkleEffect,
-  buildFireballEffect, buildMagicBoltEffect, buildEffect,
+  buildFireballEffect, buildMagicBoltEffect,
+  buildWaterRippleEffect, buildSmokeEffect, buildDripEffect,
+  buildEffect,
 } from './effects';
 export type { StatusEffect, VFXConfig, ProjectileKind, ProjectileConfig, EffectKind, EffectConfig } from './effects';
 

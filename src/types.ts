@@ -107,7 +107,7 @@ export interface SpriteConfig {
   hairStyle?: 'short' | 'long' | 'spiky' | 'bun' | 'bald' | 'flowing' | 'ponytail';
 
   /** Weapon held in the right hand. Follows arm rotation during animations. */
-  weapon?: 'none' | 'dagger' | 'sword' | 'axe' | 'staff' | 'bow' | 'mace' | 'wand' | 'hammer';
+  weapon?: 'none' | 'dagger' | 'sword' | 'axe' | 'staff' | 'bow' | 'mace' | 'wand' | 'hammer' | 'fishing_rod';
 
   /** Round buckler shield on the left arm. */
   shield?: boolean;

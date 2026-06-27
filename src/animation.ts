@@ -151,19 +151,25 @@ export function listItemAnimations(): string[] {
 export interface EffectClip { name: string; fps: number; loop: boolean; frames: number; amp: number; }
 
 export const EFFECT_CLIPS: Record<string, EffectClip> = {
-  slash:      { name: 'slash',      fps: 16, loop: false, frames: 6,  amp: 1.0 },
-  impact:     { name: 'impact',     fps: 16, loop: false, frames: 5,  amp: 1.0 },
-  sparkle:    { name: 'sparkle',    fps: 10, loop: true,  frames: 8,  amp: 1.0 },
-  fireball:   { name: 'fireball',   fps: 12, loop: true,  frames: 8,  amp: 1.0 },
-  magic_bolt: { name: 'magic_bolt', fps: 12, loop: true,  frames: 8,  amp: 1.0 },
+  slash:        { name: 'slash',        fps: 16, loop: false, frames: 6,  amp: 1.0 },
+  impact:       { name: 'impact',       fps: 16, loop: false, frames: 5,  amp: 1.0 },
+  sparkle:      { name: 'sparkle',      fps: 10, loop: true,  frames: 8,  amp: 1.0 },
+  fireball:     { name: 'fireball',     fps: 12, loop: true,  frames: 8,  amp: 1.0 },
+  magic_bolt:   { name: 'magic_bolt',   fps: 12, loop: true,  frames: 8,  amp: 1.0 },
+  water_ripple: { name: 'water_ripple', fps: 10, loop: true,  frames: 8,  amp: 1.0 },
+  smoke:        { name: 'smoke',        fps: 10, loop: false, frames: 8,  amp: 1.0 },
+  drip:         { name: 'drip',         fps: 12, loop: false, frames: 6,  amp: 1.0 },
 };
 
 const DEFAULT_EFFECT_COLORS: Record<EffectKind, RGB> = {
-  slash:      [255, 240, 200],
-  impact:     [255, 220, 100],
-  sparkle:    [255, 255, 200],
-  fireball:   [255, 140, 40],
-  magic_bolt: [120, 80, 255],
+  slash:        [255, 240, 200],
+  impact:       [255, 220, 100],
+  sparkle:      [255, 255, 200],
+  fireball:     [255, 140, 40],
+  magic_bolt:   [120, 80, 255],
+  water_ripple: [150, 200, 220],
+  smoke:        [120, 115, 110],
+  drip:         [140, 180, 210],
 };
 
 /** Generate a VFX animation. */

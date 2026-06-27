@@ -180,12 +180,39 @@ export const DEATH: AnimationClip = {
   ],
 };
 
+/**
+ * CAST: a one-shot spell/fishing cast motion — wind-up, thrust forward, settle.
+ */
+export const CAST: AnimationClip = {
+  name: 'cast', fps: 12, loop: false, frames: 6,
+  keyframes: [
+    { t: 0.0,  pose: {} },                                                                          // neutral
+    { t: 0.25, pose: { armR: -90 * D, torsoLean: -8 * D },                        ease: 'easeOut' }, // wind-up
+    { t: 0.5,  pose: { armR: 60 * D, torsoLean: 12 * D, headTilt: 5 * D },        ease: 'easeIn' },  // cast forward
+    { t: 1.0,  pose: {} },                                                                          // settle
+  ],
+};
+
+/**
+ * DODGE: a quick sidestep — shift, crouch, lean, then snap back.
+ */
+export const DODGE: AnimationClip = {
+  name: 'dodge', fps: 16, loop: false, frames: 5,
+  keyframes: [
+    { t: 0.0, pose: {} },                                                                           // neutral
+    { t: 0.3, pose: { rootX: -3, rootY: 1.5, torsoLean: -12 * D },                ease: 'easeOut' }, // sidestep
+    { t: 1.0, pose: {} },                                                                           // back to neutral
+  ],
+};
+
 export const CLIPS: Record<string, AnimationClip> = {
   idle: IDLE,
   walk: WALK,
   attack: ATTACK,
   hit: HIT,
   death: DEATH,
+  cast: CAST,
+  dodge: DODGE,
 };
 
 export type AnimationName = keyof typeof CLIPS;

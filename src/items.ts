@@ -20,7 +20,7 @@ import { wave } from './anim/spring';
 
 const PI = Math.PI;
 
-export type ItemKind = 'mushroom' | 'crystal' | 'dagger' | 'torch' | 'potion' | 'coin' | 'rune' | 'chest' | 'key' | 'scroll' | 'meat' | 'lantern' | 'ore' | 'firestone' | 'bone_shard';
+export type ItemKind = 'mushroom' | 'crystal' | 'dagger' | 'torch' | 'potion' | 'coin' | 'rune' | 'chest' | 'key' | 'scroll' | 'meat' | 'lantern' | 'ore' | 'firestone' | 'bone_shard' | 'fish';
 
 export interface ItemConfig {
   seed?: number | string;
@@ -87,6 +87,7 @@ function defaultColor(rng: RNG, kind: ItemKind): RGB {
     case 'ore':        return j([140, 145, 155], 0.08); // iron ore
     case 'firestone':  return j([255, 100, 30], 0.12);  // fire stone
     case 'bone_shard': return j([200, 192, 175], 0.08); // bone fragment
+    case 'fish':       return j([210, 185, 175], 0.10); // pale cave fish
     default:           return j([180, 180, 180], 0.10);
   }
 }
@@ -412,6 +413,35 @@ function buildBoneShard(rng: RNG, s: number, color: RGB, phase: number, amp: num
   return parts;
 }
 
+/** FISH — blind cave fish, pale and floppy. Wobbles/flops on idle. */
+function buildFish(rng: RNG, s: number, color: RGB, phase: number, amp: number): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5;
+  const flesh = MATERIALS.flesh(color);
+  const fin = MATERIALS.flesh([color[0] * 0.85, color[1] * 0.8, color[2] * 0.8] as RGB);
+  const eyeColor = MATERIALS.bone([40, 35, 35]);
+
+  // whole fish wobbles/flops
+  const wobble = wave(phase, 1) * s * 0.01 * amp;
+
+  // body — horizontal ellipse
+  pushEllipse(parts, flesh, cx + wobble, s * 0.52, s * 0.22, s * 0.10, 0.9);
+
+  // tail — capsule that flaps with wave(phase, 2)
+  const tailFlap = wave(phase, 2) * s * 0.04 * amp;
+  pushCapsule(parts, flesh, cx - s * 0.18 + wobble, s * 0.52,
+    cx - s * 0.30 + wobble, s * 0.48 + tailFlap, s * 0.04, 0.8);
+
+  // dorsal fin on top — small capsule
+  pushCapsule(parts, fin, cx + s * 0.02 + wobble, s * 0.44,
+    cx + s * 0.08 + wobble, s * 0.38, Math.max(1, s * 0.02), 0.7);
+
+  // eye — small dark dot (blind, but still has a vestigial eye spot)
+  pushCircle(parts, eyeColor, cx + s * 0.14 + wobble, s * 0.50, Math.max(1, s * 0.018), 0.6);
+
+  return parts;
+}
+
 /** Build an item's part list. `s` = working px (size * supersample). */
 export function buildItem(config: ItemConfig, s: number, phase = 0, amp = 1): Part[] {
   const rng = new RNG(config.seed ?? 0);
@@ -432,10 +462,11 @@ export function buildItem(config: ItemConfig, s: number, phase = 0, amp = 1): Pa
     case 'ore':        return buildOre(rng, s, color, phase, amp);
     case 'firestone':  return buildFirestone(rng, s, color, phase, amp);
     case 'bone_shard': return buildBoneShard(rng, s, color, phase, amp);
+    case 'fish':       return buildFish(rng, s, color, phase, amp);
     case 'mushroom':
     default:           return buildMushroom(rng, s, color, phase, amp);
   }
 }
 
 /** Names of the built-in item kinds. */
-export const ITEM_KINDS: ItemKind[] = ['mushroom', 'crystal', 'dagger', 'torch', 'potion', 'coin', 'rune', 'chest', 'key', 'scroll', 'meat', 'lantern', 'ore', 'firestone', 'bone_shard'];
+export const ITEM_KINDS: ItemKind[] = ['mushroom', 'crystal', 'dagger', 'torch', 'potion', 'coin', 'rune', 'chest', 'key', 'scroll', 'meat', 'lantern', 'ore', 'firestone', 'bone_shard', 'fish'];

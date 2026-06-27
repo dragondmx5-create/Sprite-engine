@@ -40,10 +40,10 @@ src/
   materials.ts  — 12 preset materials: skin, cloth, leather, metal, hair, chitin, flesh, gem, bone, ember, gold, glass
   engine.ts     — resolveRenderOpts + renderParts + generateSprite/Enemy/Item/Tile
   skeleton.ts   — character body builder (head, torso, arms, legs, hair, outfit, weapons, shield)
-  creatures.ts  — enemy builders: 8 kinds (insect, worm, crawler, fire_elemental, shadow, burrower, bat, slime)
-  items.ts      — loot builders: 15 kinds (mushroom, crystal, dagger, torch, potion, coin, rune, chest, key, scroll, meat, lantern, ore, firestone, bone_shard)
-  tiles.ts      — dungeon tile builders: 13 kinds (+ spike_trap, stairs_down, stairs_up, cracked_wall, pit)
-  effects.ts    — VFX: slash, impact, projectiles, sparkle, shadow, flash, tint, status effects + phase-driven builders
+  creatures.ts  — enemy builders: 11 kinds (insect, worm, crawler, fire_elemental, shadow, burrower, bat, slime, undead, golem, ghost)
+  items.ts      — loot builders: 16 kinds (+ fish)
+  tiles.ts      — dungeon tile builders: 20 kinds (+ water_pool, underground_river, stalagmite, cobweb, barrel, chain, bone_pile)
+  effects.ts    — VFX: slash, impact, projectiles, sparkle, shadow, flash, tint, status effects, water_ripple, smoke, drip + phase-driven builders
   loot.ts       — death markers: loot_bag, skull, gravestone, blood_stain
   minimap.ts    — tiny colored icons (4-8px): player, enemy, item, door, stairs, loot, trap, boss
   darkness.ts   — fog-of-war / lighting system: darkness overlay, light glow, torch flicker, darkness check
@@ -98,21 +98,21 @@ generateSprite({ seed, size, supersample, weapon, shield, facing, outfit, hairSt
 //   outfit: { torso:'cloth'|'leather'|'robe'|'chainmail'|'vest', armor, belt,
 //             hat:'none'|'cap'|'hat'|'hood'|'wizard'|'crown'|'helmet'|'bandana',
 //             cape, coat, boots, gloves, scarf, shoulderpad }
-//   weapon: 'none'|'dagger'|'sword'|'axe'|'staff'|'bow'|'mace'|'wand'|'hammer'
+//   weapon: 'none'|'dagger'|'sword'|'axe'|'staff'|'bow'|'mace'|'wand'|'hammer'|'fishing_rod'
 //   hairStyle: 'short'|'long'|'spiky'|'bun'|'bald'|'flowing'|'ponytail'
 //   palette: { skin, hair, cloth, leather, metal, hat, cape, pants, accent }
-generateAnimation(config, 'walk'|'idle'|'attack'|'hit'|'death')
+generateAnimation(config, 'walk'|'idle'|'attack'|'hit'|'death'|'cast'|'dodge')
 
-// Enemies (8 kinds — UNDRAL layer creatures + ambush types)
-generateEnemy({ seed, size, kind: 'insect'|'worm'|'crawler'|'fire_elemental'|'shadow'|'burrower'|'bat'|'slime', alerted })
+// Enemies (11 kinds — UNDRAL layer creatures + ambush types + undead)
+generateEnemy({ seed, size, kind: 'insect'|'worm'|'crawler'|'fire_elemental'|'shadow'|'burrower'|'bat'|'slime'|'undead'|'golem'|'ghost', alerted })
 generateEnemyAnimation(config, 'move'|'idle'|'death'|'hit'|'emerge')
 
-// Items (15 kinds — all phase-animated: sway, spin, glow, flicker, etc.)
-generateItem({ seed, size, kind: 'mushroom'|'crystal'|'dagger'|'torch'|'potion'|'coin'|'rune'|'chest'|'key'|'scroll'|'meat'|'lantern'|'ore'|'firestone'|'bone_shard' })
+// Items (16 kinds — all phase-animated: sway, spin, glow, flicker, etc.)
+generateItem({ seed, size, kind: 'mushroom'|'crystal'|'dagger'|'torch'|'potion'|'coin'|'rune'|'chest'|'key'|'scroll'|'meat'|'lantern'|'ore'|'firestone'|'bone_shard'|'fish' })
 generateItemAnimation(config, 'idle'|'active'|'pickup')
 
-// Tiles (13 kinds — dungeon floors, walls, doors, traps, navigation)
-generateTile({ seed, size, kind: 'stone_floor'|'dirt_floor'|'stone_wall'|'crystal_floor'|'wood_door'|'lava_floor'|'ice_floor'|'moss_floor'|'spike_trap'|'stairs_down'|'stairs_up'|'cracked_wall'|'pit' })
+// Tiles (20 kinds — dungeon floors, walls, doors, traps, navigation, props)
+generateTile({ seed, size, kind: 'stone_floor'|'dirt_floor'|'stone_wall'|'crystal_floor'|'wood_door'|'lava_floor'|'ice_floor'|'moss_floor'|'spike_trap'|'stairs_down'|'stairs_up'|'cracked_wall'|'pit'|'water_pool'|'underground_river'|'stalagmite'|'cobweb'|'barrel'|'chain'|'bone_pile' })
 
 // Loot / death markers (UNDRAL permadeath drops)
 generateLootMarker({ kind: 'loot_bag'|'skull'|'gravestone'|'blood_stain', seed, size, color })
@@ -120,7 +120,7 @@ generateLootMarker({ kind: 'loot_bag'|'skull'|'gravestone'|'blood_stain', seed, 
 // Effects (static one-shot + animated)
 generateSlashEffect({ size, color }), generateImpactEffect(), generateProjectile({ kind }), generateSparkle()
 generateShadow(size, opacity), flashSprite(buf), tintSprite(buf, color, amount), applyStatusEffect(buf, effect, phase)
-generateEffectAnimation({ kind: 'slash'|'impact'|'sparkle'|'fireball'|'magic_bolt', size, color })
+generateEffectAnimation({ kind: 'slash'|'impact'|'sparkle'|'fireball'|'magic_bolt'|'water_ripple'|'smoke'|'drip', size, color })
 
 // Minimap (8 icon types)
 generateMinimapIcon({ icon: 'player'|'enemy'|'item'|'door'|'stairs'|'loot'|'trap'|'boss', size })

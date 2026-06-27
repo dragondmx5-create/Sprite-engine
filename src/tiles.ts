@@ -16,7 +16,7 @@ import { RNG } from './rng';
 import { MATERIALS } from './materials';
 import { Part, roundedBox, circle, capsule } from './shapes';
 
-export type TileKind = 'stone_floor' | 'dirt_floor' | 'stone_wall' | 'crystal_floor' | 'wood_door' | 'lava_floor' | 'ice_floor' | 'moss_floor' | 'spike_trap' | 'stairs_down' | 'stairs_up' | 'cracked_wall' | 'pit';
+export type TileKind = 'stone_floor' | 'dirt_floor' | 'stone_wall' | 'crystal_floor' | 'wood_door' | 'lava_floor' | 'ice_floor' | 'moss_floor' | 'spike_trap' | 'stairs_down' | 'stairs_up' | 'cracked_wall' | 'pit' | 'water_pool' | 'underground_river' | 'stalagmite' | 'cobweb' | 'barrel' | 'chain' | 'bone_pile';
 
 export interface TileConfig {
   kind?: TileKind;
@@ -246,6 +246,164 @@ function buildPit(rng: RNG, s: number): Part[] {
   return parts;
 }
 
+function buildWaterPool(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const j = rng.jitter(6);
+  const base: RGB = [30 + j, 55 + j, 70 + j];
+  // dark reflective water surface
+  pushBox(parts, MATERIALS.glass(base), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.04, 0.15);
+  // 2-3 ripple rings
+  const ripples = 2 + (rng.float() > 0.5 ? 1 : 0);
+  for (let i = 0; i < ripples; i++) {
+    const cx = s * (0.3 + rng.float() * 0.4);
+    const cy = s * (0.3 + rng.float() * 0.4);
+    const r = s * (0.08 + rng.float() * 0.06);
+    const rippleCol: RGB = [base[0] + 35, base[1] + 40, base[2] + 35];
+    // draw ripple as a ring of capsule arcs (top, bottom, left, right)
+    const thickness = Math.max(1.2, s * 0.012);
+    pushCapsule(parts, MATERIALS.glass(rippleCol), cx - r, cy, cx, cy - r, thickness, 0.2);
+    pushCapsule(parts, MATERIALS.glass(rippleCol), cx, cy - r, cx + r, cy, thickness, 0.2);
+    pushCapsule(parts, MATERIALS.glass(rippleCol), cx + r, cy, cx, cy + r, thickness, 0.2);
+    pushCapsule(parts, MATERIALS.glass(rippleCol), cx, cy + r, cx - r, cy, thickness, 0.2);
+  }
+  return parts;
+}
+
+function buildUndergroundRiver(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  // stone banks on top and bottom edges
+  const bankCol: RGB = [78 + rng.jitter(6), 72 + rng.jitter(5), 68 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(bankCol), s * 0.5, s * 0.12, s * 0.46, s * 0.12, s * 0.02, 0.2);
+  pushBox(parts, MATERIALS.bone(bankCol), s * 0.5, s * 0.88, s * 0.46, s * 0.12, s * 0.02, 0.2);
+  // flowing water in center
+  const j = rng.jitter(6);
+  const waterCol: RGB = [25 + j, 50 + j, 65 + j];
+  pushBox(parts, MATERIALS.glass(waterCol), s * 0.5, s * 0.5, s * 0.46, s * 0.28, s * 0.02, 0.12);
+  // directional ripple lines (horizontal, following flow)
+  const ripples = 3 + Math.floor(rng.float() * 2);
+  for (let i = 0; i < ripples; i++) {
+    const ry = s * (0.32 + rng.float() * 0.36);
+    const ax = s * (0.08 + rng.float() * 0.15);
+    const bx = s * (0.72 + rng.float() * 0.2);
+    const rippleCol: RGB = [waterCol[0] + 30, waterCol[1] + 35, waterCol[2] + 30];
+    pushCapsule(parts, MATERIALS.glass(rippleCol), ax, ry, bx, ry + rng.jitter(s * 0.02), Math.max(1.2, s * 0.01), 0.18);
+  }
+  return parts;
+}
+
+function buildStalagmite(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  // stone floor base
+  const baseCol: RGB = [78 + rng.jitter(6), 72 + rng.jitter(5), 68 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(baseCol), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.12);
+  // 2-3 pointed stone pillars rising up
+  const pillars = 2 + (rng.float() > 0.5 ? 1 : 0);
+  for (let i = 0; i < pillars; i++) {
+    const j = rng.jitter(10);
+    const col: RGB = [95 + j, 85 + j, 75 + j];
+    const cx = s * (0.25 + i * 0.25) + rng.jitter(s * 0.06);
+    const baseY = s * 0.82;
+    const tipY = s * (0.15 + rng.float() * 0.2);
+    const thickness = Math.max(1.2, s * (0.04 + rng.float() * 0.025));
+    pushCapsule(parts, MATERIALS.bone(col), cx, baseY, cx + rng.jitter(s * 0.03), tipY, thickness, 0.25);
+  }
+  return parts;
+}
+
+function buildCobweb(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  // stone floor base
+  const baseCol: RGB = [78 + rng.jitter(6), 72 + rng.jitter(5), 68 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(baseCol), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.12);
+  // web strands radiating from top-left corner
+  const webCol: RGB = [180, 180, 175];
+  const originX = s * 0.05;
+  const originY = s * 0.05;
+  const strands = 5 + Math.floor(rng.float() * 3);
+  for (let i = 0; i < strands; i++) {
+    const angle = (i / strands) * (Math.PI * 0.5); // spread across 90 degrees
+    const len = s * (0.4 + rng.float() * 0.35);
+    const ex = originX + Math.cos(angle) * len;
+    const ey = originY + Math.sin(angle) * len;
+    const thickness = Math.max(1.2, s * 0.008);
+    pushCapsule(parts, MATERIALS.bone(webCol), originX, originY, ex, ey, thickness, 0.08);
+  }
+  // cross strands connecting radial strands
+  for (let i = 0; i < 2; i++) {
+    const dist = s * (0.18 + i * 0.2);
+    const a1 = 0.1 + rng.float() * 0.2;
+    const a2 = 1.1 + rng.float() * 0.3;
+    const ax = originX + Math.cos(a1) * dist;
+    const ay = originY + Math.sin(a1) * dist;
+    const bx = originX + Math.cos(a2) * dist;
+    const by = originY + Math.sin(a2) * dist;
+    pushCapsule(parts, MATERIALS.bone(webCol), ax, ay, bx, by, Math.max(1.2, s * 0.006), 0.06);
+  }
+  return parts;
+}
+
+function buildBarrel(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  // stone floor base
+  const floorCol: RGB = [78 + rng.jitter(6), 72 + rng.jitter(5), 68 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(floorCol), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.12);
+  // barrel body (oval, wooden)
+  const woodCol: RGB = [118 + rng.jitter(10), 78 + rng.jitter(8), 48 + rng.jitter(6)];
+  pushBox(parts, MATERIALS.leather(woodCol), s * 0.5, s * 0.5, s * 0.22, s * 0.32, s * 0.12, 0.3);
+  // metal bands (2 horizontal)
+  const bandMat = MATERIALS.metal([140, 135, 128]);
+  pushBox(parts, bandMat, s * 0.5, s * 0.3, s * 0.24, s * 0.018, s * 0.008, 0.4);
+  pushBox(parts, bandMat, s * 0.5, s * 0.7, s * 0.24, s * 0.018, s * 0.008, 0.4);
+  return parts;
+}
+
+function buildChain(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  // dark background
+  pushBox(parts, MATERIALS.bone([22, 20, 18]), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.08);
+  // chain links descending from top center
+  const chainMat = MATERIALS.metal([160 + rng.jitter(10), 155 + rng.jitter(8), 148 + rng.jitter(8)]);
+  const links = 4 + Math.floor(rng.float() * 2);
+  const cx = s * 0.5 + rng.jitter(s * 0.05);
+  for (let i = 0; i < links; i++) {
+    const ly = s * (0.12 + i * 0.17);
+    const linkR = Math.max(1.2, s * 0.035);
+    if (i % 2 === 0) {
+      // vertical link: circle
+      pushCircle(parts, chainMat, cx, ly, linkR, 0.5);
+    } else {
+      // connecting piece: small capsule
+      pushCapsule(parts, chainMat, cx, ly - linkR * 0.6, cx, ly + linkR * 0.6, Math.max(1.2, s * 0.018), 0.45);
+    }
+  }
+  return parts;
+}
+
+function buildBonePile(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  // stone floor base
+  const baseCol: RGB = [78 + rng.jitter(6), 72 + rng.jitter(5), 68 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(baseCol), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.12);
+  // scattered bones at various angles
+  const boneMat = MATERIALS.bone([200, 192, 175]);
+  const bones = 5 + Math.floor(rng.float() * 3);
+  for (let i = 0; i < bones; i++) {
+    const cx = s * (0.2 + rng.float() * 0.6);
+    const cy = s * (0.3 + rng.float() * 0.5);
+    const angle = rng.float() * Math.PI;
+    const len = s * (0.06 + rng.float() * 0.08);
+    const ax = cx - Math.cos(angle) * len;
+    const ay = cy - Math.sin(angle) * len;
+    const bx = cx + Math.cos(angle) * len;
+    const by = cy + Math.sin(angle) * len;
+    const thickness = Math.max(1.2, s * (0.014 + rng.float() * 0.01));
+    pushCapsule(parts, boneMat, ax, ay, bx, by, thickness, 0.3);
+  }
+  // a skull-like circle for detail
+  pushCircle(parts, boneMat, s * (0.45 + rng.jitter(0.08)), s * (0.45 + rng.jitter(0.06)), s * 0.04, 0.35);
+  return parts;
+}
+
 // ---- public API -------------------------------------------------------------
 
 export function buildTile(config: TileConfig, s: number): Part[] {
@@ -262,10 +420,17 @@ export function buildTile(config: TileConfig, s: number): Part[] {
     case 'stairs_down':   return buildStairsDown(rng, s);
     case 'stairs_up':     return buildStairsUp(rng, s);
     case 'cracked_wall':  return buildCrackedWall(rng, s);
-    case 'pit':           return buildPit(rng, s);
+    case 'pit':              return buildPit(rng, s);
+    case 'water_pool':       return buildWaterPool(rng, s);
+    case 'underground_river': return buildUndergroundRiver(rng, s);
+    case 'stalagmite':       return buildStalagmite(rng, s);
+    case 'cobweb':           return buildCobweb(rng, s);
+    case 'barrel':           return buildBarrel(rng, s);
+    case 'chain':            return buildChain(rng, s);
+    case 'bone_pile':        return buildBonePile(rng, s);
     case 'stone_floor':
-    default:              return buildStoneFloor(rng, s);
+    default:                 return buildStoneFloor(rng, s);
   }
 }
 
-export const TILE_KINDS: TileKind[] = ['stone_floor', 'dirt_floor', 'stone_wall', 'crystal_floor', 'wood_door', 'lava_floor', 'ice_floor', 'moss_floor', 'spike_trap', 'stairs_down', 'stairs_up', 'cracked_wall', 'pit'];
+export const TILE_KINDS: TileKind[] = ['stone_floor', 'dirt_floor', 'stone_wall', 'crystal_floor', 'wood_door', 'lava_floor', 'ice_floor', 'moss_floor', 'spike_trap', 'stairs_down', 'stairs_up', 'cracked_wall', 'pit', 'water_pool', 'underground_river', 'stalagmite', 'cobweb', 'barrel', 'chain', 'bone_pile'];

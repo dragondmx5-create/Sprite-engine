@@ -531,6 +531,22 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
       const headH = s * 0.040;
       const headY = handY + shaftLen * 0.05;
       box(M.metal, ax, headY, headW, headH, s * 0.012, 0.45, xf);
+
+    } else if (weapon === 'fishing_rod') {
+      // Long thin rod (longer than staff)
+      const rodLen = s * 0.30;
+      place(M.leather, capsule(ax, handY - rodLen * 0.35, ax, handY + rodLen * 0.65, s * 0.010),
+        ax - s * 0.02, handY - rodLen * 0.4, ax + s * 0.02, handY + rodLen * 0.7, 0.8, xf);
+      // Thin fishing line dangling from the tip
+      const tipY = handY - rodLen * 0.35;
+      const lineBot = tipY + s * 0.18;
+      const lineMat = MATERIALS.cloth([200, 200, 190]);
+      place(lineMat, capsule(ax, tipY, ax + s * 0.02, lineBot, Math.max(1, s * 0.003)),
+        ax - s * 0.01, tipY - s * 0.01, ax + s * 0.04, lineBot + s * 0.01, 0.4, xf);
+      // Small hook at end of line
+      const hookR = Math.max(1.2, s * 0.008);
+      place(M.metal, circle(ax + s * 0.02, lineBot, hookR),
+        ax + s * 0.02 - hookR - 2, lineBot - hookR - 2, ax + s * 0.02 + hookR + 2, lineBot + hookR + 2, 0.6, xf);
     }
   }
 
