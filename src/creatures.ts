@@ -390,8 +390,8 @@ function buildBat(rng: RNG, s: number, color: RGB, alerted: boolean, phase: numb
   const skin = MATERIALS.flesh(color);
   const eye = eyeMaterial(alerted);
 
-  const flapAngle = wave(phase, 4) * 0.6 * amp;
-  const bob = wave(phase, 4) * s * 0.02 * amp;
+  const flapAngle = wave(phase, 3) * 0.6 * amp;
+  const bob = wave(phase, 3) * s * 0.02 * amp;
   const bodyCy = s * 0.5 + bob;
   const bodyR = s * 0.08;
 
