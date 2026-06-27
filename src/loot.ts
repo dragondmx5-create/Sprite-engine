@@ -58,12 +58,19 @@ function buildLootBag(rng: RNG, s: number, color: RGB): Part[] {
   const cx = s * 0.5;
   const sack = MATERIALS.leather(color);
   const tie = MATERIALS.leather([color[0] * 0.6, color[1] * 0.55, color[2] * 0.5]);
-
-  pushEllipse(parts, sack, cx, s * 0.58, s * 0.22, s * 0.18, 0.9);
-  pushEllipse(parts, sack, cx, s * 0.42, s * 0.12, s * 0.10, 0.8);
-  pushCapsule(parts, tie, cx - s * 0.06, s * 0.38, cx + s * 0.06, s * 0.38, Math.max(1, s * 0.015), 0.5);
-  // knot
-  pushCircle(parts, tie, cx, s * 0.36, s * 0.025, 0.7);
+  // Shadow under bag
+  pushEllipse(parts, MATERIALS.bone([40, 36, 32]), cx + s * 0.02, s * 0.76, s * 0.18, s * 0.05, 0.05);
+  // Bag body (3/4 front view)
+  pushEllipse(parts, sack, cx, s * 0.60, s * 0.20, s * 0.16, 0.9);
+  // Gathered top
+  pushEllipse(parts, sack, cx, s * 0.44, s * 0.10, s * 0.08, 0.8);
+  // Wrinkle detail on bag
+  pushCapsule(parts, MATERIALS.leather([color[0] * 0.82, color[1] * 0.78, color[2] * 0.75] as RGB),
+    cx - s * 0.10, s * 0.56, cx + s * 0.06, s * 0.62, Math.max(1, s * 0.006), 0.3);
+  // Tie
+  pushCapsule(parts, tie, cx - s * 0.06, s * 0.40, cx + s * 0.06, s * 0.40, Math.max(1, s * 0.015), 0.5);
+  // Knot
+  pushCircle(parts, tie, cx, s * 0.38, s * 0.025, 0.7);
 
   return parts;
 }
@@ -94,18 +101,22 @@ function buildSkull(rng: RNG, s: number): Part[] {
 function buildGravestone(rng: RNG, s: number): Part[] {
   const parts: Part[] = [];
   const cx = s * 0.5;
-  const stone = MATERIALS.bone([80, 76, 72]);
-  const dark = MATERIALS.bone([50, 46, 42]);
-
-  // stone slab
-  pushBox(parts, stone, cx, s * 0.48, s * 0.18, s * 0.28, s * 0.04, 0.35);
-  // rounded top
-  pushCircle(parts, stone, cx, s * 0.22, s * 0.18, 0.4);
-  // ground
-  pushBox(parts, MATERIALS.flesh([70, 55, 38]), cx, s * 0.80, s * 0.24, s * 0.06, s * 0.02, 0.2);
-  // crack
-  pushCapsule(parts, dark, cx + rng.jitter(s * 0.04), s * 0.30, cx + rng.jitter(s * 0.06), s * 0.55,
-    Math.max(1, s * 0.008), 0.15);
+  const stone = MATERIALS.bone([82, 78, 74]);
+  const dark = MATERIALS.bone([48, 44, 40]);
+  // Ground mound
+  pushEllipse(parts, MATERIALS.flesh([68, 54, 36]), cx, s * 0.82, s * 0.26, s * 0.08, 0.15);
+  // Shadow behind gravestone
+  pushBox(parts, MATERIALS.bone([35, 32, 28]), cx + s * 0.02, s * 0.52, s * 0.16, s * 0.22, s * 0.02, 0.06);
+  // Stone slab front face (3/4 perspective)
+  pushBox(parts, stone, cx, s * 0.50, s * 0.16, s * 0.26, s * 0.03, 0.32);
+  // Rounded top
+  pushCircle(parts, stone, cx, s * 0.26, s * 0.16, 0.38);
+  // Front face detail: carved cross or symbol
+  pushCapsule(parts, dark, cx, s * 0.35, cx, s * 0.55, Math.max(1, s * 0.008), 0.15);
+  pushCapsule(parts, dark, cx - s * 0.06, s * 0.42, cx + s * 0.06, s * 0.42, Math.max(1, s * 0.008), 0.15);
+  // Crack
+  pushCapsule(parts, dark, cx + rng.jitter(s * 0.04), s * 0.32, cx + rng.jitter(s * 0.06), s * 0.56,
+    Math.max(1, s * 0.007), 0.12);
 
   return parts;
 }
