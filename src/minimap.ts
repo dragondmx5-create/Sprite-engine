@@ -7,7 +7,7 @@
 import type { RGB, SpriteBuffer } from './types';
 import { clamp255 } from './color';
 
-export type MinimapIcon = 'player' | 'enemy' | 'item' | 'door' | 'stairs';
+export type MinimapIcon = 'player' | 'enemy' | 'item' | 'door' | 'stairs' | 'loot' | 'trap' | 'boss';
 
 export interface MinimapConfig {
   icon?: MinimapIcon;
@@ -21,6 +21,9 @@ const ICON_COLORS: Record<MinimapIcon, RGB> = {
   item:   [240, 210, 70],
   door:   [160, 120, 70],
   stairs: [200, 200, 220],
+  loot:   [180, 140, 60],
+  trap:   [255, 80, 80],
+  boss:   [200, 40, 200],
 };
 
 export function generateMinimapIcon(config: MinimapConfig = {}): SpriteBuffer {
@@ -57,6 +60,17 @@ export function generateMinimapIcon(config: MinimapConfig = {}): SpriteBuffer {
         case 'stairs': // downward-pointing triangle
           inside = py > size * 0.2 && py < size * 0.8 && Math.abs(px - cx) < (py / size) * size * 0.45;
           break;
+        case 'loot': // X mark
+          inside = (Math.abs((px - cx) - (py - cy)) < size * 0.15 || Math.abs((px - cx) + (py - cy)) < size * 0.15) &&
+                   Math.hypot(px - cx, py - cy) < size * 0.42;
+          break;
+        case 'trap': // exclamation mark (vertical bar + dot)
+          inside = (Math.abs(px - cx) < size * 0.12 && py > size * 0.15 && py < size * 0.55) ||
+                   (Math.hypot(px - cx, py - size * 0.72) < size * 0.12);
+          break;
+        case 'boss': // large diamond
+          inside = Math.abs(px - cx) + Math.abs(py - cy) < size * 0.48;
+          break;
       }
       if (inside) put(x, y);
     }
@@ -64,4 +78,4 @@ export function generateMinimapIcon(config: MinimapConfig = {}): SpriteBuffer {
   return { width: size, height: size, data };
 }
 
-export const MINIMAP_ICONS: MinimapIcon[] = ['player', 'enemy', 'item', 'door', 'stairs'];
+export const MINIMAP_ICONS: MinimapIcon[] = ['player', 'enemy', 'item', 'door', 'stairs', 'loot', 'trap', 'boss'];

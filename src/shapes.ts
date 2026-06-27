@@ -6,6 +6,16 @@
 
 import type { Material } from './types';
 
+export const SDF_CIRCLE = 0;
+export const SDF_ELLIPSE = 1;
+export const SDF_CAPSULE = 2;
+export const SDF_ROUNDED_BOX = 3;
+
+export interface SDFDesc {
+  type: number;
+  params: number[];
+}
+
 /** A body part: a material + a function that returns signed distance (<0 inside). */
 export interface Part {
   material: Material;
@@ -14,6 +24,8 @@ export interface Part {
   bbox: [number, number, number, number];
   /** 0..1; how rounded this part's volume reads (overrides global roundness). */
   roundness?: number;
+  /** GPU-friendly SDF descriptor. Attached automatically by shape factories. */
+  sdfDesc?: SDFDesc;
 }
 
 const min = Math.min, max = Math.max, hypot = Math.hypot;
@@ -22,40 +34,52 @@ const min = Math.min, max = Math.max, hypot = Math.hypot;
 
 /** Circle of radius r at (cx,cy). */
 export function circle(cx: number, cy: number, r: number) {
-  return (x: number, y: number) => hypot(x - cx, y - cy) - r;
+  const fn = (x: number, y: number) => hypot(x - cx, y - cy) - r;
+  (fn as any).__sdfDesc = { type: SDF_CIRCLE, params: [cx, cy, r] } as SDFDesc;
+  return fn;
 }
 
 /** Axis-aligned ellipse via space-scaling (exact inside test). */
 export function ellipse(cx: number, cy: number, rx: number, ry: number) {
-  return (x: number, y: number) => {
+  const fn = (x: number, y: number) => {
     const dx = (x - cx) / rx;
     const dy = (y - cy) / ry;
-    // Scaled distance; multiply back by min radius to keep units ~pixels.
     return (hypot(dx, dy) - 1) * min(rx, ry);
   };
+  (fn as any).__sdfDesc = { type: SDF_ELLIPSE, params: [cx, cy, rx, ry] } as SDFDesc;
+  return fn;
 }
 
 /** Capsule: segment (ax,ay)-(bx,by) inflated by radius r. Great for limbs. */
 export function capsule(ax: number, ay: number, bx: number, by: number, r: number) {
   const ex = bx - ax, ey = by - ay;
   const ee = ex * ex + ey * ey || 1e-6;
-  return (x: number, y: number) => {
+  const fn = (x: number, y: number) => {
     const px = x - ax, py = y - ay;
     let t = (px * ex + py * ey) / ee;
     t = t < 0 ? 0 : t > 1 ? 1 : t;
     return hypot(px - ex * t, py - ey * t) - r;
   };
+  (fn as any).__sdfDesc = { type: SDF_CAPSULE, params: [ax, ay, bx, by, r] } as SDFDesc;
+  return fn;
 }
 
 /** Rounded box centered at (cx,cy), half-extents (hx,hy), corner radius r. */
 export function roundedBox(cx: number, cy: number, hx: number, hy: number, r: number) {
-  return (x: number, y: number) => {
+  const fn = (x: number, y: number) => {
     const dx = Math.abs(x - cx) - hx + r;
     const dy = Math.abs(y - cy) - hy + r;
     const outside = hypot(max(dx, 0), max(dy, 0));
     const inside = min(max(dx, dy), 0);
     return outside + inside - r;
   };
+  (fn as any).__sdfDesc = { type: SDF_ROUNDED_BOX, params: [cx, cy, hx, hy, r] } as SDFDesc;
+  return fn;
+}
+
+/** Extract the GPU-friendly SDF descriptor from an SDF function (if available). */
+export function extractSDFDesc(sdf: (x: number, y: number) => number): SDFDesc | undefined {
+  return (sdf as any).__sdfDesc;
 }
 
 /** Union of two SDFs (min). Lets a part be built from several primitives. */
