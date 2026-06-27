@@ -95,8 +95,12 @@ npx esbuild src/index.ts --bundle --format=iife --global-name=SpriteEngine --out
 ```ts
 // Character
 generateSprite({ seed, size, supersample, weapon, shield, facing, outfit, hairStyle, palette })
-//   outfit: { torso, armor, belt, hat:'none'|'cap'|'hat'|'hood', cape, coat, boots }
+//   outfit: { torso:'cloth'|'leather'|'robe'|'chainmail'|'vest', armor, belt,
+//             hat:'none'|'cap'|'hat'|'hood'|'wizard'|'crown'|'helmet'|'bandana',
+//             cape, coat, boots, gloves, scarf, shoulderpad }
+//   weapon: 'none'|'dagger'|'sword'|'axe'|'staff'|'bow'|'mace'|'wand'|'hammer'
 //   hairStyle: 'short'|'long'|'spiky'|'bun'|'bald'|'flowing'|'ponytail'
+//   palette: { skin, hair, cloth, leather, metal, hat, cape, pants, accent }
 generateAnimation(config, 'walk'|'idle'|'attack'|'hit'|'death')
 
 // Enemies (8 kinds — UNDRAL layer creatures + ambush types)
