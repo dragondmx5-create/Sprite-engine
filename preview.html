@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UNDRAL Sprite Engine — Asset Preview</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1a1a2e; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; padding: 20px; }
+  h1 { text-align: center; color: #e94560; margin-bottom: 8px; font-size: 28px; }
+  .subtitle { text-align: center; color: #888; margin-bottom: 30px; font-size: 14px; }
+  h2 { color: #e94560; margin: 30px 0 12px; padding-bottom: 6px; border-bottom: 1px solid #333; font-size: 20px; }
+  h3 { color: #aaa; margin: 16px 0 8px; font-size: 15px; }
+  .section { margin-bottom: 20px; }
+  .grid {
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: end;
+  }
+  .card {
+    background: #16213e; border: 1px solid #333; border-radius: 8px;
+    padding: 8px; text-align: center; min-width: 80px;
+  }
+  .card canvas { image-rendering: pixelated; display: block; margin: 0 auto 4px; }
+  .card .label { font-size: 11px; color: #999; word-break: break-all; }
+  .anim-card {
+    background: #16213e; border: 1px solid #333; border-radius: 8px;
+    padding: 8px; text-align: center; min-width: 100px;
+  }
+  .anim-card canvas { image-rendering: pixelated; display: block; margin: 0 auto 4px; }
+  .anim-card .label { font-size: 11px; color: #999; }
+  .anim-card .fps { font-size: 10px; color: #666; }
+  .tile-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, 52px); gap: 2px;
+  }
+  .tile-grid canvas { image-rendering: pixelated; }
+  .minimap-row { display: flex; gap: 16px; align-items: center; }
+  .minimap-row canvas { image-rendering: pixelated; }
+  .minimap-row .label { font-size: 11px; color: #999; }
+  .ui-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+  .ui-row canvas { image-rendering: pixelated; display: block; }
+  .scene-container canvas { image-rendering: pixelated; border: 1px solid #333; border-radius: 4px; }
+  .controls { margin: 10px 0; display: flex; gap: 10px; flex-wrap: wrap; }
+  .controls button {
+    background: #e94560; color: white; border: none; padding: 6px 14px;
+    border-radius: 4px; cursor: pointer; font-size: 12px;
+  }
+  .controls button:hover { background: #c73650; }
+  .controls button.active { background: #0f3460; }
+  .stats { color: #666; font-size: 12px; margin-top: 10px; }
+  #loading { text-align: center; padding: 60px; font-size: 18px; color: #e94560; }
+  .tab-bar { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
+  .tab-bar button {
+    background: #16213e; color: #aaa; border: 1px solid #333; padding: 8px 16px;
+    border-radius: 6px 6px 0 0; cursor: pointer; font-size: 13px;
+  }
+  .tab-bar button.active { background: #0f3460; color: #fff; border-bottom-color: #0f3460; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+</style>
+</head>
+<body>
+
+<h1>UNDRAL Sprite Engine</h1>
+<p class="subtitle">Procedural Asset Preview — All sprites generated from code, zero external files</p>
+
+<div class="tab-bar" id="tabBar"></div>
+<div id="content"></div>
+<div id="loading">Generating assets...</div>
+<div class="stats" id="stats"></div>
+
+<script src="sprite-engine.iife.js"></script>
+<script>
+const SE = SpriteEngine;
+const SCALE = 4;
+let totalAssets = 0;
+const t0 = performance.now();
+
+function spriteToCanvas(buf, scale) {
+  const s = scale || SCALE;
+  const c = document.createElement('canvas');
+  c.width = buf.width * s;
+  c.height = buf.height * s;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const src = SE.toCanvas(buf);
+  ctx.drawImage(src, 0, 0, c.width, c.height);
+  totalAssets++;
+  return c;
+}
+
+function makeCard(canvas, label) {
+  const div = document.createElement('div');
+  div.className = 'card';
+  div.appendChild(canvas);
+  const lbl = document.createElement('div');
+  lbl.className = 'label';
+  lbl.textContent = label;
+  div.appendChild(lbl);
+  return div;
+}
+
+function makeAnimCard(frames, fps, label, scale) {
+  const s = scale || SCALE;
+  const div = document.createElement('div');
+  div.className = 'anim-card';
+
+  const fw = frames[0].width * s;
+  const fh = frames[0].height * s;
+  const c = document.createElement('canvas');
+  c.width = fw;
+  c.height = fh;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  div.appendChild(c);
+
+  const canvases = frames.map(f => {
+    totalAssets++;
+    return SE.toCanvas(f);
+  });
+
+  let fi = 0;
+  setInterval(() => {
+    ctx.clearRect(0, 0, fw, fh);
+    ctx.drawImage(canvases[fi], 0, 0, fw, fh);
+    fi = (fi + 1) % canvases.length;
+  }, 1000 / fps);
+
+  const lbl = document.createElement('div');
+  lbl.className = 'label';
+  lbl.textContent = label;
+  div.appendChild(lbl);
+
+  const fpsLbl = document.createElement('div');
+  fpsLbl.className = 'fps';
+  fpsLbl.textContent = `${frames.length}f @ ${fps}fps`;
+  div.appendChild(fpsLbl);
+
+  return div;
+}
+
+// ---- TABS ----
+const tabs = [
+  { id: 'characters', label: 'Characters' },
+  { id: 'enemies',    label: 'Enemies' },
+  { id: 'items',      label: 'Items' },
+  { id: 'tiles',      label: 'Tiles' },
+  { id: 'effects',    label: 'Effects' },
+  { id: 'loot',       label: 'Loot' },
+  { id: 'ui',         label: 'UI/HUD' },
+  { id: 'minimap',    label: 'Minimap' },
+  { id: 'scene',      label: 'Scene' },
+];
+
+const tabBar = document.getElementById('tabBar');
+const content = document.getElementById('content');
+
+tabs.forEach((tab, i) => {
+  const btn = document.createElement('button');
+  btn.textContent = tab.label;
+  btn.onclick = () => switchTab(tab.id);
+  if (i === 0) btn.classList.add('active');
+  btn.id = 'tab-btn-' + tab.id;
+  tabBar.appendChild(btn);
+
+  const div = document.createElement('div');
+  div.id = 'tab-' + tab.id;
+  div.className = 'tab-content' + (i === 0 ? ' active' : '');
+  content.appendChild(div);
+});
+
+function switchTab(id) {
+  document.querySelectorAll('.tab-content').forEach(d => d.classList.remove('active'));
+  document.querySelectorAll('.tab-bar button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  document.getElementById('tab-btn-' + id).classList.add('active');
+}
+
+// Use setTimeout chunks to avoid freezing the page
+function buildAllTabs() {
+  buildCharacters();
+  setTimeout(() => { buildEnemies();  }, 0);
+  setTimeout(() => { buildItems();    }, 50);
+  setTimeout(() => { buildTiles();    }, 100);
+  setTimeout(() => { buildEffects();  }, 150);
+  setTimeout(() => { buildLoot();     }, 200);
+  setTimeout(() => { buildUI();       }, 250);
+  setTimeout(() => { buildMinimap();  }, 300);
+  setTimeout(() => { buildScene();    }, 350);
+  setTimeout(() => {
+    document.getElementById('loading').style.display = 'none';
+    const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+    document.getElementById('stats').textContent =
+      `Generated ${totalAssets} assets in ${elapsed}s`;
+  }, 500);
+}
+
+// ======================= CHARACTERS =======================
+function buildCharacters() {
+  const container = document.getElementById('tab-characters');
+
+  // -- Static characters with different outfits --
+  let h = document.createElement('h2');
+  h.textContent = 'Characters — Outfits & Weapons';
+  container.appendChild(h);
+
+  const charConfigs = [
+    { label: 'Default',       config: { seed: 1, size: 48 } },
+    { label: 'Sword+Shield',  config: { seed: 2, size: 48, weapon: 'sword', shield: true, outfit: { torso: 'chainmail', hat: 'helmet' } } },
+    { label: 'Wizard',        config: { seed: 3, size: 48, weapon: 'staff', outfit: { torso: 'robe', hat: 'wizard', cape: true }, hairStyle: 'long' } },
+    { label: 'Archer',        config: { seed: 4, size: 48, weapon: 'bow', outfit: { torso: 'leather', hat: 'hood', boots: true }, hairStyle: 'ponytail' } },
+    { label: 'Knight',        config: { seed: 5, size: 48, weapon: 'mace', shield: true, outfit: { torso: 'chainmail', hat: 'helmet', cape: true, boots: true, gloves: true } } },
+    { label: 'King',          config: { seed: 6, size: 48, weapon: 'sword', outfit: { torso: 'vest', hat: 'crown', cape: true, boots: true } } },
+    { label: 'Rogue',         config: { seed: 7, size: 48, weapon: 'dagger', outfit: { torso: 'leather', hat: 'bandana', boots: true, scarf: true } } },
+    { label: 'Hammer',        config: { seed: 8, size: 48, weapon: 'hammer', outfit: { torso: 'cloth', hat: 'none', shoulderpad: true } } },
+    { label: 'Wand',          config: { seed: 9, size: 48, weapon: 'wand', outfit: { torso: 'robe', hat: 'cap' }, hairStyle: 'bun' } },
+    { label: 'Fisher',        config: { seed: 10, size: 48, weapon: 'fishing_rod', outfit: { torso: 'cloth', hat: 'hat' } } },
+    { label: 'Axe',           config: { seed: 11, size: 48, weapon: 'axe', outfit: { torso: 'leather', hat: 'none' }, hairStyle: 'spiky' } },
+    { label: 'Bald Monk',     config: { seed: 12, size: 48, weapon: 'staff', outfit: { torso: 'robe' }, hairStyle: 'bald' } },
+  ];
+
+  const charGrid = document.createElement('div');
+  charGrid.className = 'grid';
+  charConfigs.forEach(c => {
+    const buf = SE.generateSprite(c.config);
+    charGrid.appendChild(makeCard(spriteToCanvas(buf), c.label));
+  });
+  container.appendChild(charGrid);
+
+  // -- Hair styles --
+  h = document.createElement('h3');
+  h.textContent = 'Hair Styles';
+  container.appendChild(h);
+  const hairGrid = document.createElement('div');
+  hairGrid.className = 'grid';
+  ['short', 'long', 'spiky', 'bun', 'bald', 'flowing', 'ponytail'].forEach(hs => {
+    const buf = SE.generateSprite({ seed: 42, size: 48, hairStyle: hs });
+    hairGrid.appendChild(makeCard(spriteToCanvas(buf), hs));
+  });
+  container.appendChild(hairGrid);
+
+  // -- Facing directions --
+  h = document.createElement('h3');
+  h.textContent = 'Facing Directions';
+  container.appendChild(h);
+  const faceGrid = document.createElement('div');
+  faceGrid.className = 'grid';
+  ['front', 'back', 'left', 'right'].forEach(f => {
+    const buf = SE.generateSprite({ seed: 1, size: 48, facing: f, weapon: 'sword', shield: true });
+    faceGrid.appendChild(makeCard(spriteToCanvas(buf), f));
+  });
+  container.appendChild(faceGrid);
+
+  // -- Character Animations --
+  h = document.createElement('h2');
+  h.textContent = 'Character Animations';
+  container.appendChild(h);
+  const animGrid = document.createElement('div');
+  animGrid.className = 'grid';
+  const charAnimConfig = { seed: 1, size: 48, weapon: 'sword', shield: true, outfit: { torso: 'chainmail', hat: 'helmet' } };
+  ['idle', 'walk', 'attack', 'hit', 'death', 'cast', 'dodge'].forEach(name => {
+    try {
+      const anim = SE.generateAnimation(charAnimConfig, name);
+      animGrid.appendChild(makeAnimCard(anim.frames, anim.fps, name));
+    } catch(e) { /* skip unavailable clips */ }
+  });
+  container.appendChild(animGrid);
+
+  // -- Seed variation --
+  h = document.createElement('h3');
+  h.textContent = 'Seed Variation (same config, different seeds)';
+  container.appendChild(h);
+  const seedGrid = document.createElement('div');
+  seedGrid.className = 'grid';
+  for (let s = 1; s <= 16; s++) {
+    const buf = SE.generateSprite({ seed: s, size: 48 });
+    seedGrid.appendChild(makeCard(spriteToCanvas(buf), `seed ${s}`));
+  }
+  container.appendChild(seedGrid);
+}
+
+// ======================= ENEMIES =======================
+function buildEnemies() {
+  const container = document.getElementById('tab-enemies');
+
+  let h = document.createElement('h2');
+  h.textContent = 'Enemies — All 11 Kinds';
+  container.appendChild(h);
+
+  const kinds = ['insect', 'worm', 'crawler', 'fire_elemental', 'shadow', 'burrower', 'bat', 'slime', 'undead', 'golem', 'ghost'];
+
+  const grid = document.createElement('div');
+  grid.className = 'grid';
+  kinds.forEach(kind => {
+    const buf = SE.generateEnemy({ seed: 42, size: 48, kind: kind });
+    grid.appendChild(makeCard(spriteToCanvas(buf), kind));
+  });
+  container.appendChild(grid);
+
+  // Alerted variants
+  h = document.createElement('h3');
+  h.textContent = 'Alerted State';
+  container.appendChild(h);
+  const alertGrid = document.createElement('div');
+  alertGrid.className = 'grid';
+  kinds.forEach(kind => {
+    const buf = SE.generateEnemy({ seed: 42, size: 48, kind: kind, alerted: true });
+    alertGrid.appendChild(makeCard(spriteToCanvas(buf), kind + ' (!)'));
+  });
+  container.appendChild(alertGrid);
+
+  // Enemy animations
+  h = document.createElement('h2');
+  h.textContent = 'Enemy Animations';
+  container.appendChild(h);
+
+  kinds.forEach(kind => {
+    const h3 = document.createElement('h3');
+    h3.textContent = kind;
+    container.appendChild(h3);
+    const animGrid = document.createElement('div');
+    animGrid.className = 'grid';
+    const cfg = { seed: 42, size: 48, kind: kind };
+    ['move', 'idle', 'death', 'hit', 'emerge'].forEach(clip => {
+      try {
+        const anim = SE.generateEnemyAnimation(cfg, clip);
+        animGrid.appendChild(makeAnimCard(anim.frames, anim.fps, clip));
+      } catch(e) { /* skip */ }
+    });
+    container.appendChild(animGrid);
+  });
+}
+
+// ======================= ITEMS =======================
+function buildItems() {
+  const container = document.getElementById('tab-items');
+
+  let h = document.createElement('h2');
+  h.textContent = 'Items — All 16 Kinds';
+  container.appendChild(h);
+
+  const kinds = ['mushroom', 'crystal', 'dagger', 'torch', 'potion', 'coin', 'rune', 'chest', 'key', 'scroll', 'meat', 'lantern', 'ore', 'firestone', 'bone_shard', 'fish'];
+
+  const grid = document.createElement('div');
+  grid.className = 'grid';
+  kinds.forEach(kind => {
+    const buf = SE.generateItem({ seed: 42, size: 48, kind: kind });
+    grid.appendChild(makeCard(spriteToCanvas(buf), kind));
+  });
+  container.appendChild(grid);
+
+  // Item animations
+  h = document.createElement('h2');
+  h.textContent = 'Item Animations (idle)';
+  container.appendChild(h);
+  const animGrid = document.createElement('div');
+  animGrid.className = 'grid';
+  kinds.forEach(kind => {
+    try {
+      const anim = SE.generateItemAnimation({ seed: 42, size: 48, kind: kind }, 'idle');
+      animGrid.appendChild(makeAnimCard(anim.frames, anim.fps, kind));
+    } catch(e) { /* skip */ }
+  });
+  container.appendChild(animGrid);
+}
+
+// ======================= TILES =======================
+function buildTiles() {
+  const container = document.getElementById('tab-tiles');
+
+  let h = document.createElement('h2');
+  h.textContent = 'Tiles — All 30 Kinds';
+  container.appendChild(h);
+
+  const kinds = ['stone_floor', 'dirt_floor', 'stone_wall', 'crystal_floor', 'wood_door',
+    'lava_floor', 'ice_floor', 'moss_floor', 'spike_trap', 'stairs_down', 'stairs_up',
+    'cracked_wall', 'pit', 'water_pool', 'underground_river', 'stalagmite', 'cobweb',
+    'barrel', 'chain', 'bone_pile', 'shop_counter', 'iron_gate', 'torch_bracket',
+    'altar', 'anvil', 'bed', 'table', 'bookshelf', 'pillar', 'fountain'];
+
+  const grid = document.createElement('div');
+  grid.className = 'grid';
+  kinds.forEach(kind => {
+    const buf = SE.generateTile({ seed: 42, size: 32, kind: kind });
+    grid.appendChild(makeCard(spriteToCanvas(buf, 3), kind));
+  });
+  container.appendChild(grid);
+
+  // Tile grid preview
+  h = document.createElement('h2');
+  h.textContent = 'Dungeon Floor Grid (seed variation)';
+  container.appendChild(h);
+  const tileGrid = document.createElement('div');
+  tileGrid.className = 'tile-grid';
+  for (let i = 0; i < 64; i++) {
+    const kind = i % 4 === 0 ? 'stone_wall' : (i % 7 === 0 ? 'crystal_floor' : (i % 5 === 0 ? 'moss_floor' : 'stone_floor'));
+    const buf = SE.generateTile({ seed: i, size: 16, kind: kind });
+    const c = spriteToCanvas(buf, 3);
+    c.title = kind;
+    tileGrid.appendChild(c);
+  }
+  container.appendChild(tileGrid);
+}
+
+// ======================= EFFECTS =======================
+function buildEffects() {
+  const container = document.getElementById('tab-effects');
+
+  let h = document.createElement('h2');
+  h.textContent = 'Static Effects';
+  container.appendChild(h);
+
+  const grid = document.createElement('div');
+  grid.className = 'grid';
+
+  const slash = SE.generateSlashEffect({ size: 48 });
+  grid.appendChild(makeCard(spriteToCanvas(slash), 'slash'));
+
+  const impact = SE.generateImpactEffect({ size: 48 });
+  grid.appendChild(makeCard(spriteToCanvas(impact), 'impact'));
+
+  const sparkle = SE.generateSparkle({ size: 48 });
+  grid.appendChild(makeCard(spriteToCanvas(sparkle), 'sparkle'));
+
+  ['arrow', 'fireball', 'magic_bolt'].forEach(kind => {
+    const buf = SE.generateProjectile({ kind: kind, size: 48 });
+    grid.appendChild(makeCard(spriteToCanvas(buf), kind));
+  });
+
+  const shadow = SE.generateShadow(48, 0.4);
+  grid.appendChild(makeCard(spriteToCanvas(shadow), 'shadow'));
+
+  container.appendChild(grid);
+
+  // Post-processing
+  h = document.createElement('h3');
+  h.textContent = 'Post-Processing';
+  container.appendChild(h);
+  const ppGrid = document.createElement('div');
+  ppGrid.className = 'grid';
+  const base = SE.generateSprite({ seed: 1, size: 48, weapon: 'sword' });
+  ppGrid.appendChild(makeCard(spriteToCanvas(base), 'original'));
+  ppGrid.appendChild(makeCard(spriteToCanvas(SE.flashSprite(base)), 'flash'));
+  ppGrid.appendChild(makeCard(spriteToCanvas(SE.tintSprite(base, [255, 0, 0], 0.5)), 'tint red'));
+  ppGrid.appendChild(makeCard(spriteToCanvas(SE.applyStatusEffect(base, 'poison', 0.5)), 'poison'));
+  ppGrid.appendChild(makeCard(spriteToCanvas(SE.applyStatusEffect(base, 'frozen', 0.5)), 'frozen'));
+  ppGrid.appendChild(makeCard(spriteToCanvas(SE.applyStatusEffect(base, 'burning', 0.5)), 'burning'));
+  container.appendChild(ppGrid);
+
+  // Animated effects
+  h = document.createElement('h2');
+  h.textContent = 'Effect Animations';
+  container.appendChild(h);
+  const animGrid = document.createElement('div');
+  animGrid.className = 'grid';
+  ['slash', 'impact', 'sparkle', 'fireball', 'magic_bolt', 'water_ripple', 'smoke', 'drip'].forEach(kind => {
+    try {
+      const anim = SE.generateEffectAnimation({ kind: kind, size: 48 });
+      animGrid.appendChild(makeAnimCard(anim.frames, anim.fps, kind));
+    } catch(e) { /* skip */ }
+  });
+  container.appendChild(animGrid);
+}
+
+// ======================= LOOT =======================
+function buildLoot() {
+  const container = document.getElementById('tab-loot');
+
+  let h = document.createElement('h2');
+  h.textContent = 'Loot / Death Markers';
+  container.appendChild(h);
+
+  const grid = document.createElement('div');
+  grid.className = 'grid';
+  ['loot_bag', 'skull', 'gravestone', 'blood_stain'].forEach(kind => {
+    const buf = SE.generateLootMarker({ seed: 42, size: 48, kind: kind });
+    grid.appendChild(makeCard(spriteToCanvas(buf), kind));
+  });
+  container.appendChild(grid);
+
+  // Color variations
+  h = document.createElement('h3');
+  h.textContent = 'Loot Bag Colors';
+  container.appendChild(h);
+  const colorGrid = document.createElement('div');
+  colorGrid.className = 'grid';
+  const colors = [
+    { label: 'common',    color: [140, 100, 60] },
+    { label: 'uncommon',  color: [60, 140, 80] },
+    { label: 'rare',      color: [60, 80, 180] },
+    { label: 'epic',      color: [140, 60, 180] },
+    { label: 'legendary', color: [200, 160, 40] },
+  ];
+  colors.forEach(c => {
+    const buf = SE.generateLootMarker({ seed: 42, size: 48, kind: 'loot_bag', color: c.color });
+    colorGrid.appendChild(makeCard(spriteToCanvas(buf), c.label));
+  });
+  container.appendChild(colorGrid);
+}
+
+// ======================= UI =======================
+function buildUI() {
+  const container = document.getElementById('tab-ui');
+
+  let h = document.createElement('h2');
+  h.textContent = 'UI / HUD Elements';
+  container.appendChild(h);
+
+  const row = document.createElement('div');
+  row.className = 'ui-row';
+
+  // Health bars at various fill levels
+  [1.0, 0.7, 0.4, 0.15].forEach(fill => {
+    const buf = SE.generateHealthBar({ width: 80, height: 10, fill: fill });
+    const c = spriteToCanvas(buf, 3);
+    const div = document.createElement('div');
+    div.className = 'card';
+    div.appendChild(c);
+    const lbl = document.createElement('div');
+    lbl.className = 'label';
+    lbl.textContent = `HP ${Math.round(fill * 100)}%`;
+    div.appendChild(lbl);
+    row.appendChild(div);
+  });
+
+  // Mana bar
+  const mana = SE.generateManaBar({ width: 80, height: 10, fill: 0.6 });
+  const manaDiv = document.createElement('div');
+  manaDiv.className = 'card';
+  manaDiv.appendChild(spriteToCanvas(mana, 3));
+  const manaLbl = document.createElement('div');
+  manaLbl.className = 'label';
+  manaLbl.textContent = 'Mana 60%';
+  manaDiv.appendChild(manaLbl);
+  row.appendChild(manaDiv);
+
+  // XP bar
+  const xp = SE.generateXPBar({ width: 80, height: 8, fill: 0.35 });
+  const xpDiv = document.createElement('div');
+  xpDiv.className = 'card';
+  xpDiv.appendChild(spriteToCanvas(xp, 3));
+  const xpLbl = document.createElement('div');
+  xpLbl.className = 'label';
+  xpLbl.textContent = 'XP 35%';
+  xpDiv.appendChild(xpLbl);
+  row.appendChild(xpDiv);
+
+  container.appendChild(row);
+
+  // Inventory slots
+  h = document.createElement('h3');
+  h.textContent = 'Inventory Slots';
+  container.appendChild(h);
+  const invRow = document.createElement('div');
+  invRow.className = 'grid';
+  invRow.appendChild(makeCard(spriteToCanvas(SE.generateInventorySlot({ size: 32, empty: true }), 3), 'empty'));
+  invRow.appendChild(makeCard(spriteToCanvas(SE.generateInventorySlot({ size: 32, empty: false }), 3), 'filled'));
+  invRow.appendChild(makeCard(spriteToCanvas(SE.generateInventorySlot({ size: 32, highlight: true }), 3), 'highlight'));
+  container.appendChild(invRow);
+
+  // Buttons
+  h = document.createElement('h3');
+  h.textContent = 'Buttons';
+  container.appendChild(h);
+  const btnRow = document.createElement('div');
+  btnRow.className = 'grid';
+  btnRow.appendChild(makeCard(spriteToCanvas(SE.generateButton({ width: 48, height: 20 }), 3), 'normal'));
+  btnRow.appendChild(makeCard(spriteToCanvas(SE.generateButton({ width: 48, height: 20, pressed: true }), 3), 'pressed'));
+  btnRow.appendChild(makeCard(spriteToCanvas(SE.generateButton({ width: 48, height: 20, color: [60, 140, 80] }), 3), 'green'));
+  container.appendChild(btnRow);
+
+  // Damage numbers
+  h = document.createElement('h3');
+  h.textContent = 'Damage Numbers';
+  container.appendChild(h);
+  const dmgRow = document.createElement('div');
+  dmgRow.className = 'grid';
+  dmgRow.appendChild(makeCard(spriteToCanvas(SE.generateDamageNumber({ size: 32 }), 3), 'normal'));
+  dmgRow.appendChild(makeCard(spriteToCanvas(SE.generateDamageNumber({ size: 32, crit: true }), 3), 'crit'));
+  dmgRow.appendChild(makeCard(spriteToCanvas(SE.generateDamageNumber({ size: 32, color: [0, 200, 80] }), 3), 'heal'));
+  container.appendChild(dmgRow);
+
+  // Dialog box
+  h = document.createElement('h3');
+  h.textContent = 'Dialog Box';
+  container.appendChild(h);
+  const dialog = SE.generateDialogBox({ width: 160, height: 60 });
+  container.appendChild(spriteToCanvas(dialog, 3));
+
+  // Pixel font
+  h = document.createElement('h2');
+  h.textContent = 'Pixel Font';
+  container.appendChild(h);
+  const textGrid = document.createElement('div');
+  textGrid.className = 'grid';
+  const t1 = SE.renderText('UNDRAL', { color: [255, 220, 160], scale: 2, shadow: true });
+  textGrid.appendChild(makeCard(spriteToCanvas(t1, 3), 'title'));
+  const t2 = SE.renderText('Hello World!', { color: [200, 200, 200], scale: 1 });
+  textGrid.appendChild(makeCard(spriteToCanvas(t2, 3), 'text'));
+  const t3 = SE.renderText('HP: 42/100', { color: [220, 60, 60], scale: 1, shadow: true });
+  textGrid.appendChild(makeCard(spriteToCanvas(t3, 3), 'hp'));
+  const t4 = SE.renderNumber(9999, { color: [255, 215, 0], scale: 2 });
+  textGrid.appendChild(makeCard(spriteToCanvas(t4, 3), 'gold'));
+  container.appendChild(textGrid);
+}
+
+// ======================= MINIMAP =======================
+function buildMinimap() {
+  const container = document.getElementById('tab-minimap');
+
+  let h = document.createElement('h2');
+  h.textContent = 'Minimap Icons';
+  container.appendChild(h);
+
+  const icons = ['player', 'enemy', 'item', 'door', 'stairs', 'loot', 'trap', 'boss'];
+  const grid = document.createElement('div');
+  grid.className = 'grid';
+  icons.forEach(icon => {
+    const buf = SE.generateMinimapIcon({ icon: icon, size: 8 });
+    grid.appendChild(makeCard(spriteToCanvas(buf, 8), icon));
+  });
+  container.appendChild(grid);
+}
+
+// ======================= SCENE =======================
+function buildScene() {
+  const container = document.getElementById('tab-scene');
+
+  let h = document.createElement('h2');
+  h.textContent = 'Scene Composition';
+  container.appendChild(h);
+
+  const TILE_S = 16;
+  const COLS = 12;
+  const ROWS = 8;
+  const SW = COLS * TILE_S;
+  const SH = ROWS * TILE_S;
+
+  // Build tile grid
+  const tileMap = [];
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      let kind = 'stone_floor';
+      if (r === 0 || r === ROWS - 1 || c === 0 || c === COLS - 1) kind = 'stone_wall';
+      else if (r === 3 && c === 5) kind = 'lava_floor';
+      else if (r === 2 && c === 8) kind = 'crystal_floor';
+      else if (r === 5 && c === 3) kind = 'water_pool';
+      else if (r === 1 && c === 6) kind = 'wood_door';
+      tileMap.push(SE.generateTile({ seed: r * COLS + c, size: TILE_S, kind: kind }));
+    }
+  }
+
+  // Entities
+  const player = SE.generateSprite({ seed: 1, size: 16, weapon: 'sword', shield: true });
+  const enemy1 = SE.generateEnemy({ seed: 10, size: 16, kind: 'insect' });
+  const enemy2 = SE.generateEnemy({ seed: 20, size: 16, kind: 'slime' });
+  const item1 = SE.generateItem({ seed: 30, size: 16, kind: 'chest' });
+  const item2 = SE.generateItem({ seed: 40, size: 16, kind: 'torch' });
+  const loot = SE.generateLootMarker({ seed: 50, size: 16, kind: 'skull' });
+
+  const entities = [
+    { sprite: player,  x: 4 * TILE_S, y: 4 * TILE_S },
+    { sprite: enemy1,  x: 7 * TILE_S, y: 3 * TILE_S },
+    { sprite: enemy2,  x: 9 * TILE_S, y: 5 * TILE_S },
+    { sprite: item1,   x: 2 * TILE_S, y: 2 * TILE_S },
+    { sprite: item2,   x: 10 * TILE_S, y: 1 * TILE_S },
+    { sprite: loot,    x: 6 * TILE_S, y: 6 * TILE_S },
+  ];
+
+  const shadows = entities.map(e => ({
+    sprite: SE.generateShadow(e.sprite.width, 0.3),
+    x: e.x, y: e.y + e.sprite.height - 4,
+  }));
+
+  // Scene without darkness
+  const scene = SE.renderScene(SW, SH, {
+    tiles: tileMap,
+    tileSize: TILE_S,
+    tilesPerRow: COLS,
+    tilesPerCol: ROWS,
+    entities: entities,
+    shadows: shadows,
+  });
+
+  const sceneDiv = document.createElement('div');
+  sceneDiv.className = 'scene-container';
+  const h3a = document.createElement('h3');
+  h3a.textContent = 'Without Darkness';
+  sceneDiv.appendChild(h3a);
+  sceneDiv.appendChild(spriteToCanvas(scene, 4));
+  container.appendChild(sceneDiv);
+
+  // Scene with darkness
+  const lights = [
+    { x: 4.5 * TILE_S, y: 4.5 * TILE_S, radius: 50, intensity: 1.0, color: [255, 220, 160] },
+    { x: 10.5 * TILE_S, y: 1.5 * TILE_S, radius: 30, intensity: 0.8, color: [255, 180, 80] },
+    { x: 5.5 * TILE_S, y: 3.5 * TILE_S, radius: 20, intensity: 0.6, color: [200, 60, 20] },
+  ];
+  const darkness = SE.generateDarknessOverlay(SW, SH, lights, 0.02);
+
+  const darkScene = SE.renderScene(SW, SH, {
+    tiles: tileMap,
+    tileSize: TILE_S,
+    tilesPerRow: COLS,
+    tilesPerCol: ROWS,
+    entities: entities,
+    shadows: shadows,
+    darkness: darkness,
+  });
+
+  const darkDiv = document.createElement('div');
+  darkDiv.className = 'scene-container';
+  const h3b = document.createElement('h3');
+  h3b.textContent = 'With Darkness + Light Sources';
+  darkDiv.appendChild(h3b);
+  darkDiv.appendChild(spriteToCanvas(darkScene, 4));
+  container.appendChild(darkDiv);
+
+  // Darkness only overlay
+  const h3c = document.createElement('h3');
+  h3c.textContent = 'Darkness Overlay (isolated)';
+  container.appendChild(h3c);
+  container.appendChild(spriteToCanvas(darkness, 4));
+}
+
+// ---- Start ----
+buildAllTabs();
+</script>
+</body>
+</html>
