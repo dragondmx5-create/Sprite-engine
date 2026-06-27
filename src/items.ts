@@ -447,25 +447,43 @@ export function buildItem(config: ItemConfig, s: number, phase = 0, amp = 1): Pa
   const rng = new RNG(config.seed ?? 0);
   const kind = config.kind ?? 'mushroom';
   const color = config.color ?? defaultColor(rng, kind);
-  switch (kind) {
-    case 'crystal':    return buildCrystal(rng, s, color, phase, amp);
-    case 'dagger':     return buildDagger(rng, s, color, phase, amp);
-    case 'torch':      return buildTorch(rng, s, color, phase, amp);
-    case 'potion':     return buildPotion(rng, s, color, phase, amp);
-    case 'coin':       return buildCoin(rng, s, color, phase, amp);
-    case 'rune':       return buildRune(rng, s, color, phase, amp);
-    case 'chest':      return buildChest(rng, s, color, phase, amp);
-    case 'key':        return buildKey(rng, s, color, phase, amp);
-    case 'scroll':     return buildScroll(rng, s, color, phase, amp);
-    case 'meat':       return buildMeat(rng, s, color, phase, amp);
-    case 'lantern':    return buildLantern(rng, s, color, phase, amp);
-    case 'ore':        return buildOre(rng, s, color, phase, amp);
-    case 'firestone':  return buildFirestone(rng, s, color, phase, amp);
-    case 'bone_shard': return buildBoneShard(rng, s, color, phase, amp);
-    case 'fish':       return buildFish(rng, s, color, phase, amp);
-    case 'mushroom':
-    default:           return buildMushroom(rng, s, color, phase, amp);
+
+  const bodyParts = (() => {
+    switch (kind) {
+      case 'crystal':    return buildCrystal(rng, s, color, phase, amp);
+      case 'dagger':     return buildDagger(rng, s, color, phase, amp);
+      case 'torch':      return buildTorch(rng, s, color, phase, amp);
+      case 'potion':     return buildPotion(rng, s, color, phase, amp);
+      case 'coin':       return buildCoin(rng, s, color, phase, amp);
+      case 'rune':       return buildRune(rng, s, color, phase, amp);
+      case 'chest':      return buildChest(rng, s, color, phase, amp);
+      case 'key':        return buildKey(rng, s, color, phase, amp);
+      case 'scroll':     return buildScroll(rng, s, color, phase, amp);
+      case 'meat':       return buildMeat(rng, s, color, phase, amp);
+      case 'lantern':    return buildLantern(rng, s, color, phase, amp);
+      case 'ore':        return buildOre(rng, s, color, phase, amp);
+      case 'firestone':  return buildFirestone(rng, s, color, phase, amp);
+      case 'bone_shard': return buildBoneShard(rng, s, color, phase, amp);
+      case 'fish':       return buildFish(rng, s, color, phase, amp);
+      case 'mushroom':
+      default:           return buildMushroom(rng, s, color, phase, amp);
+    }
+  })();
+
+  // Ground shadow for items that sit on the ground
+  if (kind !== 'lantern') {
+    const shadowMat = MATERIALS.bone([28, 26, 22]);
+    const shadow: Part = {
+      material: shadowMat,
+      roundness: 0.05,
+      sdf: ellipse(s * 0.5, s * 0.86, s * 0.14, s * 0.035),
+      bbox: [Math.floor(s * 0.5 - s * 0.14 - 2), Math.floor(s * 0.86 - s * 0.035 - 2),
+             Math.ceil(s * 0.5 + s * 0.14 + 2), Math.ceil(s * 0.86 + s * 0.035 + 2)],
+    };
+    return [shadow, ...bodyParts];
   }
+
+  return bodyParts;
 }
 
 /** Names of the built-in item kinds. */

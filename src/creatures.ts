@@ -604,20 +604,39 @@ export function buildCreature(config: CreatureConfig, s: number, phase = 0, amp 
   const kind = config.kind ?? 'insect';
   const color = config.color ?? defaultColor(rng, kind);
   const alerted = config.alerted ?? false;
-  switch (kind) {
-    case 'worm':           return buildWorm(rng, s, color, alerted, phase, amp);
-    case 'crawler':        return buildCrawler(rng, s, color, alerted, phase, amp);
-    case 'fire_elemental': return buildFireElemental(rng, s, color, alerted, phase, amp);
-    case 'shadow':         return buildShadow(rng, s, color, alerted, phase, amp);
-    case 'burrower':       return buildBurrower(rng, s, color, alerted, phase, amp);
-    case 'bat':            return buildBat(rng, s, color, alerted, phase, amp);
-    case 'slime':          return buildSlime(rng, s, color, alerted, phase, amp);
-    case 'undead':         return buildUndead(rng, s, color, alerted, phase, amp);
-    case 'golem':          return buildGolem(rng, s, color, alerted, phase, amp);
-    case 'ghost':          return buildGhost(rng, s, color, alerted, phase, amp);
-    case 'insect':
-    default:               return buildInsect(rng, s, color, alerted, phase, amp);
+
+  const bodyParts = ((): Part[] => {
+    switch (kind) {
+      case 'worm':           return buildWorm(rng, s, color, alerted, phase, amp);
+      case 'crawler':        return buildCrawler(rng, s, color, alerted, phase, amp);
+      case 'fire_elemental': return buildFireElemental(rng, s, color, alerted, phase, amp);
+      case 'shadow':         return buildShadow(rng, s, color, alerted, phase, amp);
+      case 'burrower':       return buildBurrower(rng, s, color, alerted, phase, amp);
+      case 'bat':            return buildBat(rng, s, color, alerted, phase, amp);
+      case 'slime':          return buildSlime(rng, s, color, alerted, phase, amp);
+      case 'undead':         return buildUndead(rng, s, color, alerted, phase, amp);
+      case 'golem':          return buildGolem(rng, s, color, alerted, phase, amp);
+      case 'ghost':          return buildGhost(rng, s, color, alerted, phase, amp);
+      case 'insect':
+      default:               return buildInsect(rng, s, color, alerted, phase, amp);
+    }
+  })();
+
+  // Add ground shadow for grounded creatures (3/4 perspective feel)
+  const grounded = kind === 'insect' || kind === 'crawler' || kind === 'slime' || kind === 'undead' || kind === 'golem';
+  if (grounded) {
+    const shadowMat = MATERIALS.bone([28, 26, 22]);
+    const shadow: Part = {
+      material: shadowMat,
+      roundness: 0.05,
+      sdf: ellipse(s * 0.5, s * 0.88, s * 0.16, s * 0.04),
+      bbox: [Math.floor(s * 0.5 - s * 0.16 - 2), Math.floor(s * 0.88 - s * 0.04 - 2),
+             Math.ceil(s * 0.5 + s * 0.16 + 2), Math.ceil(s * 0.88 + s * 0.04 + 2)],
+    };
+    return [shadow, ...bodyParts];
   }
+
+  return bodyParts;
 }
 
 /** Names of the built-in creature kinds. */

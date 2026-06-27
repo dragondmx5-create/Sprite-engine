@@ -11,7 +11,7 @@ import { RNG } from './rng';
 import { MATERIALS } from './materials';
 import { Part, roundedBox, circle, capsule, ellipse } from './shapes';
 
-export type TileKind = 'stone_floor' | 'dirt_floor' | 'stone_wall' | 'crystal_floor' | 'wood_door' | 'lava_floor' | 'ice_floor' | 'moss_floor' | 'spike_trap' | 'stairs_down' | 'stairs_up' | 'cracked_wall' | 'pit' | 'water_pool' | 'underground_river' | 'stalagmite' | 'cobweb' | 'barrel' | 'chain' | 'bone_pile' | 'shop_counter' | 'iron_gate' | 'torch_bracket' | 'altar' | 'anvil' | 'bed' | 'table' | 'bookshelf' | 'pillar' | 'fountain';
+export type TileKind = 'stone_floor' | 'dirt_floor' | 'stone_wall' | 'crystal_floor' | 'wood_door' | 'lava_floor' | 'ice_floor' | 'moss_floor' | 'spike_trap' | 'stairs_down' | 'stairs_up' | 'cracked_wall' | 'pit' | 'water_pool' | 'underground_river' | 'stalagmite' | 'cobweb' | 'barrel' | 'chain' | 'bone_pile' | 'shop_counter' | 'iron_gate' | 'torch_bracket' | 'altar' | 'anvil' | 'bed' | 'table' | 'bookshelf' | 'pillar' | 'fountain' | 'tree' | 'pine_tree' | 'dead_tree' | 'house' | 'ruins' | 'fence';
 
 export interface TileConfig {
   kind?: TileKind;
@@ -899,6 +899,173 @@ function buildFountain(rng: RNG, s: number): Part[] {
   return parts;
 }
 
+// ---- trees, buildings, fences (3/4 perspective tall props) ------------------
+
+function buildTree(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5;
+  // Ground shadow
+  pushEllipse(parts, MATERIALS.bone([28, 26, 22]), cx + s * 0.02, s * 0.88, s * 0.20, s * 0.05, 0.05);
+  // Trunk — visible vertical face with bark texture
+  const trunkCol: RGB = [82 + rng.jitter(8), 58 + rng.jitter(6), 38 + rng.jitter(5)];
+  const trunk = MATERIALS.leather(trunkCol);
+  const trunkDark = MATERIALS.leather([trunkCol[0] * 0.7, trunkCol[1] * 0.7, trunkCol[2] * 0.65] as RGB);
+  pushCapsule(parts, trunk, cx, s * 0.85, cx - s * 0.01, s * 0.42, s * 0.06, 0.4);
+  // Bark detail
+  pushCapsule(parts, trunkDark, cx - s * 0.03, s * 0.78, cx - s * 0.02, s * 0.55, Math.max(1, s * 0.01), 0.15);
+  pushCapsule(parts, trunkDark, cx + s * 0.02, s * 0.72, cx + s * 0.03, s * 0.50, Math.max(1, s * 0.008), 0.12);
+  // Canopy — layered ellipses for leafy dome shape (3/4 view: see front + top)
+  const leafCol: RGB = [42 + rng.jitter(12), 95 + rng.jitter(15), 38 + rng.jitter(10)];
+  const leaf = MATERIALS.flesh(leafCol);
+  const leafLight: RGB = [leafCol[0] + 20, leafCol[1] + 25, leafCol[2] + 15];
+  const leafDark: RGB = [leafCol[0] * 0.65, leafCol[1] * 0.7, leafCol[2] * 0.6];
+  // Back layer (shadow mass)
+  pushEllipse(parts, MATERIALS.flesh(leafDark), cx, s * 0.35, s * 0.28, s * 0.22, 0.3);
+  // Main canopy dome
+  pushEllipse(parts, leaf, cx, s * 0.30, s * 0.30, s * 0.24, 0.4);
+  // Top highlight — lit from above
+  pushEllipse(parts, MATERIALS.flesh(leafLight), cx - s * 0.04, s * 0.18, s * 0.18, s * 0.12, 0.25);
+  // Front leaf clusters for depth
+  pushCircle(parts, leaf, cx - s * 0.14 + rng.jitter(s * 0.03), s * 0.38, s * 0.09, 0.3);
+  pushCircle(parts, leaf, cx + s * 0.12 + rng.jitter(s * 0.03), s * 0.34, s * 0.08, 0.28);
+  return parts;
+}
+
+function buildPineTree(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5;
+  // Ground shadow
+  pushEllipse(parts, MATERIALS.bone([28, 26, 22]), cx, s * 0.90, s * 0.16, s * 0.04, 0.05);
+  // Trunk
+  const trunkCol: RGB = [75 + rng.jitter(6), 52 + rng.jitter(5), 35 + rng.jitter(4)];
+  pushCapsule(parts, MATERIALS.leather(trunkCol), cx, s * 0.88, cx, s * 0.50, s * 0.04, 0.35);
+  // Tiered needle layers (triangle silhouette) — wider at bottom, narrow at top
+  const needleCol: RGB = [28 + rng.jitter(8), 72 + rng.jitter(10), 32 + rng.jitter(8)];
+  const needle = MATERIALS.flesh(needleCol);
+  const needleDark = MATERIALS.flesh([needleCol[0] * 0.7, needleCol[1] * 0.72, needleCol[2] * 0.65] as RGB);
+  const needleLight: RGB = [needleCol[0] + 15, needleCol[1] + 20, needleCol[2] + 10];
+  // Three tiers bottom to top
+  pushEllipse(parts, needleDark, cx, s * 0.58, s * 0.26, s * 0.10, 0.25);
+  pushEllipse(parts, needle, cx, s * 0.55, s * 0.24, s * 0.12, 0.3);
+  pushEllipse(parts, needleDark, cx, s * 0.38, s * 0.18, s * 0.10, 0.25);
+  pushEllipse(parts, needle, cx, s * 0.35, s * 0.17, s * 0.11, 0.3);
+  pushEllipse(parts, needle, cx, s * 0.18, s * 0.10, s * 0.10, 0.3);
+  // Top highlight
+  pushEllipse(parts, MATERIALS.flesh(needleLight), cx - s * 0.02, s * 0.14, s * 0.06, s * 0.06, 0.2);
+  return parts;
+}
+
+function buildDeadTree(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5;
+  // Ground shadow
+  pushEllipse(parts, MATERIALS.bone([28, 26, 22]), cx, s * 0.88, s * 0.16, s * 0.04, 0.05);
+  // Trunk — gnarled, dark
+  const barkCol: RGB = [55 + rng.jitter(6), 42 + rng.jitter(5), 32 + rng.jitter(4)];
+  const bark = MATERIALS.leather(barkCol);
+  pushCapsule(parts, bark, cx + s * 0.02, s * 0.86, cx - s * 0.02, s * 0.32, s * 0.055, 0.35);
+  // Branches — bare, angular
+  pushCapsule(parts, bark, cx - s * 0.02, s * 0.40, cx - s * 0.22, s * 0.18, Math.max(1, s * 0.02), 0.3);
+  pushCapsule(parts, bark, cx, s * 0.35, cx + s * 0.20, s * 0.14, Math.max(1, s * 0.018), 0.28);
+  pushCapsule(parts, bark, cx - s * 0.22, s * 0.18, cx - s * 0.28, s * 0.10, Math.max(1, s * 0.01), 0.2);
+  pushCapsule(parts, bark, cx + s * 0.20, s * 0.14, cx + s * 0.26, s * 0.08, Math.max(1, s * 0.01), 0.2);
+  // Small branch stub
+  pushCapsule(parts, bark, cx + s * 0.04, s * 0.55, cx + s * 0.12, s * 0.48, Math.max(1, s * 0.012), 0.25);
+  return parts;
+}
+
+function buildHouse(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5;
+  // Ground shadow
+  pushEllipse(parts, MATERIALS.bone([25, 24, 20]), cx + s * 0.02, s * 0.92, s * 0.24, s * 0.05, 0.05);
+  // Front wall — stone/plaster face (3/4 view: see front + side edge)
+  const wallCol: RGB = [155 + rng.jitter(12), 140 + rng.jitter(10), 118 + rng.jitter(8)];
+  const wallDark: RGB = [wallCol[0] * 0.7, wallCol[1] * 0.7, wallCol[2] * 0.68];
+  const wall = MATERIALS.bone(wallCol);
+  // Side edge (darker, gives depth)
+  pushBox(parts, MATERIALS.bone(wallDark), cx + s * 0.38, s * 0.60, s * 0.06, s * 0.28, s * 0.01, 0.18);
+  // Main front face
+  pushBox(parts, wall, cx - s * 0.04, s * 0.60, s * 0.34, s * 0.28, s * 0.01, 0.2);
+  // Door
+  const doorCol: RGB = [95 + rng.jitter(8), 65 + rng.jitter(6), 42 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.leather(doorCol), cx - s * 0.08, s * 0.72, s * 0.08, s * 0.14, s * 0.01, 0.25);
+  // Door handle
+  pushCircle(parts, MATERIALS.gold([190, 170, 70]), cx - s * 0.02, s * 0.72, Math.max(1, s * 0.012), 0.5);
+  // Window
+  pushBox(parts, MATERIALS.glass([80, 120, 160]), cx + s * 0.14, s * 0.52, s * 0.06, s * 0.06, s * 0.008, 0.3);
+  pushBox(parts, MATERIALS.leather([60, 45, 30]), cx + s * 0.14, s * 0.52, s * 0.07, s * 0.003, s * 0.002, 0.2);
+  pushBox(parts, MATERIALS.leather([60, 45, 30]), cx + s * 0.14, s * 0.52, s * 0.003, s * 0.07, s * 0.002, 0.2);
+  // Roof — angled top surface visible from 3/4 view
+  const roofCol: RGB = [130 + rng.jitter(10), 55 + rng.jitter(8), 35 + rng.jitter(5)];
+  const roof = MATERIALS.leather(roofCol);
+  const roofLight: RGB = [roofCol[0] + 20, roofCol[1] + 15, roofCol[2] + 10];
+  // Roof front face
+  pushBox(parts, roof, cx - s * 0.04, s * 0.28, s * 0.38, s * 0.06, s * 0.01, 0.2);
+  // Roof top slope (lighter, seen from above)
+  pushBox(parts, MATERIALS.leather(roofLight), cx - s * 0.04, s * 0.20, s * 0.36, s * 0.04, s * 0.01, 0.15);
+  // Roof overhang shadow on wall
+  pushBox(parts, MATERIALS.bone([wallCol[0] * 0.6, wallCol[1] * 0.6, wallCol[2] * 0.58] as RGB),
+    cx - s * 0.04, s * 0.36, s * 0.35, s * 0.01, s * 0.004, 0.08);
+  return parts;
+}
+
+function buildRuins(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5;
+  // Floor rubble base
+  const rubbleCol: RGB = [78 + rng.jitter(8), 72 + rng.jitter(6), 64 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(rubbleCol), cx, s * 0.5, s * 0.48, s * 0.48, s * 0.01, 0.1);
+  // Broken wall segments — irregular heights
+  const wallCol: RGB = [90 + rng.jitter(10), 82 + rng.jitter(8), 72 + rng.jitter(6)];
+  const wallMat = MATERIALS.bone(wallCol);
+  // Left broken wall (tall)
+  pushBox(parts, wallMat, s * 0.15, s * 0.42, s * 0.12, s * 0.30, s * 0.01, 0.2);
+  pushBox(parts, MATERIALS.bone([wallCol[0] * 0.7, wallCol[1] * 0.7, wallCol[2] * 0.68] as RGB),
+    s * 0.15, s * 0.14, s * 0.12, s * 0.02, s * 0.008, 0.15);
+  // Right broken wall (shorter)
+  pushBox(parts, wallMat, s * 0.82, s * 0.56, s * 0.10, s * 0.22, s * 0.01, 0.18);
+  pushBox(parts, MATERIALS.bone([wallCol[0] * 0.7, wallCol[1] * 0.7, wallCol[2] * 0.68] as RGB),
+    s * 0.82, s * 0.36, s * 0.10, s * 0.02, s * 0.008, 0.15);
+  // Rubble stones on ground
+  for (let i = 0; i < 4; i++) {
+    const rx = s * (0.25 + rng.float() * 0.5);
+    const ry = s * (0.60 + rng.float() * 0.28);
+    const rr = s * (0.03 + rng.float() * 0.025);
+    const j = rng.jitter(8);
+    pushCircle(parts, MATERIALS.bone([wallCol[0] * 0.85 + j, wallCol[1] * 0.85 + j, wallCol[2] * 0.82 + j] as RGB),
+      rx, ry, rr, 0.2);
+  }
+  // Crack on left wall
+  pushCapsule(parts, MATERIALS.bone([35, 32, 28]), s * 0.12 + rng.jitter(s * 0.03), s * 0.30,
+    s * 0.18 + rng.jitter(s * 0.03), s * 0.55, Math.max(1, s * 0.006), 0.1);
+  return parts;
+}
+
+function buildFence(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  // Floor base
+  floorBase(parts, rng, s);
+  // Shadow behind fence
+  pushEllipse(parts, MATERIALS.bone([30, 28, 24]), s * 0.5, s * 0.82, s * 0.46, s * 0.04, 0.05);
+  // Fence posts and rails — 3/4 view shows front face
+  const woodCol: RGB = [105 + rng.jitter(10), 78 + rng.jitter(8), 52 + rng.jitter(6)];
+  const wood = MATERIALS.leather(woodCol);
+  const woodDark = MATERIALS.leather([woodCol[0] * 0.75, woodCol[1] * 0.75, woodCol[2] * 0.7] as RGB);
+  // Three vertical posts
+  for (let i = 0; i < 3; i++) {
+    const px = s * (0.15 + i * 0.35);
+    pushCapsule(parts, wood, px, s * 0.80, px, s * 0.30, s * 0.03, 0.3);
+    // Post top cap
+    pushCircle(parts, MATERIALS.leather([woodCol[0] + 12, woodCol[1] + 10, woodCol[2] + 8] as RGB),
+      px, s * 0.28, s * 0.035, 0.25);
+  }
+  // Horizontal rails
+  pushCapsule(parts, woodDark, s * 0.10, s * 0.45, s * 0.90, s * 0.45, s * 0.02, 0.25);
+  pushCapsule(parts, woodDark, s * 0.10, s * 0.62, s * 0.90, s * 0.62, s * 0.02, 0.25);
+  return parts;
+}
+
 // ---- public API -------------------------------------------------------------
 
 export function buildTile(config: TileConfig, s: number): Part[] {
@@ -933,9 +1100,15 @@ export function buildTile(config: TileConfig, s: number): Part[] {
     case 'bookshelf':        return buildBookshelf(rng, s);
     case 'pillar':           return buildPillar(rng, s);
     case 'fountain':         return buildFountain(rng, s);
+    case 'tree':             return buildTree(rng, s);
+    case 'pine_tree':        return buildPineTree(rng, s);
+    case 'dead_tree':        return buildDeadTree(rng, s);
+    case 'house':            return buildHouse(rng, s);
+    case 'ruins':            return buildRuins(rng, s);
+    case 'fence':            return buildFence(rng, s);
     case 'stone_floor':
     default:                 return buildStoneFloor(rng, s);
   }
 }
 
-export const TILE_KINDS: TileKind[] = ['stone_floor', 'dirt_floor', 'stone_wall', 'crystal_floor', 'wood_door', 'lava_floor', 'ice_floor', 'moss_floor', 'spike_trap', 'stairs_down', 'stairs_up', 'cracked_wall', 'pit', 'water_pool', 'underground_river', 'stalagmite', 'cobweb', 'barrel', 'chain', 'bone_pile', 'shop_counter', 'iron_gate', 'torch_bracket', 'altar', 'anvil', 'bed', 'table', 'bookshelf', 'pillar', 'fountain'];
+export const TILE_KINDS: TileKind[] = ['stone_floor', 'dirt_floor', 'stone_wall', 'crystal_floor', 'wood_door', 'lava_floor', 'ice_floor', 'moss_floor', 'spike_trap', 'stairs_down', 'stairs_up', 'cracked_wall', 'pit', 'water_pool', 'underground_river', 'stalagmite', 'cobweb', 'barrel', 'chain', 'bone_pile', 'shop_counter', 'iron_gate', 'torch_bracket', 'altar', 'anvil', 'bed', 'table', 'bookshelf', 'pillar', 'fountain', 'tree', 'pine_tree', 'dead_tree', 'house', 'ruins', 'fence'];

@@ -1856,31 +1856,50 @@ var SpriteEngine = (() => {
     const kind = config.kind ?? "insect";
     const color = config.color ?? defaultColor2(rng, kind);
     const alerted = config.alerted ?? false;
-    switch (kind) {
-      case "worm":
-        return buildWorm(rng, s, color, alerted, phase, amp);
-      case "crawler":
-        return buildCrawler(rng, s, color, alerted, phase, amp);
-      case "fire_elemental":
-        return buildFireElemental(rng, s, color, alerted, phase, amp);
-      case "shadow":
-        return buildShadow(rng, s, color, alerted, phase, amp);
-      case "burrower":
-        return buildBurrower(rng, s, color, alerted, phase, amp);
-      case "bat":
-        return buildBat(rng, s, color, alerted, phase, amp);
-      case "slime":
-        return buildSlime(rng, s, color, alerted, phase, amp);
-      case "undead":
-        return buildUndead(rng, s, color, alerted, phase, amp);
-      case "golem":
-        return buildGolem(rng, s, color, alerted, phase, amp);
-      case "ghost":
-        return buildGhost(rng, s, color, alerted, phase, amp);
-      case "insect":
-      default:
-        return buildInsect(rng, s, color, alerted, phase, amp);
+    const bodyParts = (() => {
+      switch (kind) {
+        case "worm":
+          return buildWorm(rng, s, color, alerted, phase, amp);
+        case "crawler":
+          return buildCrawler(rng, s, color, alerted, phase, amp);
+        case "fire_elemental":
+          return buildFireElemental(rng, s, color, alerted, phase, amp);
+        case "shadow":
+          return buildShadow(rng, s, color, alerted, phase, amp);
+        case "burrower":
+          return buildBurrower(rng, s, color, alerted, phase, amp);
+        case "bat":
+          return buildBat(rng, s, color, alerted, phase, amp);
+        case "slime":
+          return buildSlime(rng, s, color, alerted, phase, amp);
+        case "undead":
+          return buildUndead(rng, s, color, alerted, phase, amp);
+        case "golem":
+          return buildGolem(rng, s, color, alerted, phase, amp);
+        case "ghost":
+          return buildGhost(rng, s, color, alerted, phase, amp);
+        case "insect":
+        default:
+          return buildInsect(rng, s, color, alerted, phase, amp);
+      }
+    })();
+    const grounded = kind === "insect" || kind === "crawler" || kind === "slime" || kind === "undead" || kind === "golem";
+    if (grounded) {
+      const shadowMat = MATERIALS.bone([28, 26, 22]);
+      const shadow = {
+        material: shadowMat,
+        roundness: 0.05,
+        sdf: ellipse(s * 0.5, s * 0.88, s * 0.16, s * 0.04),
+        bbox: [
+          Math.floor(s * 0.5 - s * 0.16 - 2),
+          Math.floor(s * 0.88 - s * 0.04 - 2),
+          Math.ceil(s * 0.5 + s * 0.16 + 2),
+          Math.ceil(s * 0.88 + s * 0.04 + 2)
+        ]
+      };
+      return [shadow, ...bodyParts];
     }
+    return bodyParts;
   }
   var CREATURE_KINDS = ["insect", "worm", "crawler", "fire_elemental", "shadow", "burrower", "bat", "slime", "undead", "golem", "ghost"];
 
@@ -2303,41 +2322,59 @@ var SpriteEngine = (() => {
     const rng = new RNG(config.seed ?? 0);
     const kind = config.kind ?? "mushroom";
     const color = config.color ?? defaultColor3(rng, kind);
-    switch (kind) {
-      case "crystal":
-        return buildCrystal(rng, s, color, phase, amp);
-      case "dagger":
-        return buildDagger(rng, s, color, phase, amp);
-      case "torch":
-        return buildTorch(rng, s, color, phase, amp);
-      case "potion":
-        return buildPotion(rng, s, color, phase, amp);
-      case "coin":
-        return buildCoin(rng, s, color, phase, amp);
-      case "rune":
-        return buildRune(rng, s, color, phase, amp);
-      case "chest":
-        return buildChest(rng, s, color, phase, amp);
-      case "key":
-        return buildKey(rng, s, color, phase, amp);
-      case "scroll":
-        return buildScroll(rng, s, color, phase, amp);
-      case "meat":
-        return buildMeat(rng, s, color, phase, amp);
-      case "lantern":
-        return buildLantern(rng, s, color, phase, amp);
-      case "ore":
-        return buildOre(rng, s, color, phase, amp);
-      case "firestone":
-        return buildFirestone(rng, s, color, phase, amp);
-      case "bone_shard":
-        return buildBoneShard(rng, s, color, phase, amp);
-      case "fish":
-        return buildFish(rng, s, color, phase, amp);
-      case "mushroom":
-      default:
-        return buildMushroom(rng, s, color, phase, amp);
+    const bodyParts = (() => {
+      switch (kind) {
+        case "crystal":
+          return buildCrystal(rng, s, color, phase, amp);
+        case "dagger":
+          return buildDagger(rng, s, color, phase, amp);
+        case "torch":
+          return buildTorch(rng, s, color, phase, amp);
+        case "potion":
+          return buildPotion(rng, s, color, phase, amp);
+        case "coin":
+          return buildCoin(rng, s, color, phase, amp);
+        case "rune":
+          return buildRune(rng, s, color, phase, amp);
+        case "chest":
+          return buildChest(rng, s, color, phase, amp);
+        case "key":
+          return buildKey(rng, s, color, phase, amp);
+        case "scroll":
+          return buildScroll(rng, s, color, phase, amp);
+        case "meat":
+          return buildMeat(rng, s, color, phase, amp);
+        case "lantern":
+          return buildLantern(rng, s, color, phase, amp);
+        case "ore":
+          return buildOre(rng, s, color, phase, amp);
+        case "firestone":
+          return buildFirestone(rng, s, color, phase, amp);
+        case "bone_shard":
+          return buildBoneShard(rng, s, color, phase, amp);
+        case "fish":
+          return buildFish(rng, s, color, phase, amp);
+        case "mushroom":
+        default:
+          return buildMushroom(rng, s, color, phase, amp);
+      }
+    })();
+    if (kind !== "lantern") {
+      const shadowMat = MATERIALS.bone([28, 26, 22]);
+      const shadow = {
+        material: shadowMat,
+        roundness: 0.05,
+        sdf: ellipse(s * 0.5, s * 0.86, s * 0.14, s * 0.035),
+        bbox: [
+          Math.floor(s * 0.5 - s * 0.14 - 2),
+          Math.floor(s * 0.86 - s * 0.035 - 2),
+          Math.ceil(s * 0.5 + s * 0.14 + 2),
+          Math.ceil(s * 0.86 + s * 0.035 + 2)
+        ]
+      };
+      return [shadow, ...bodyParts];
     }
+    return bodyParts;
   }
   var ITEM_KINDS = ["mushroom", "crystal", "dagger", "torch", "potion", "coin", "rune", "chest", "key", "scroll", "meat", "lantern", "ore", "firestone", "bone_shard", "fish"];
 
@@ -3573,6 +3610,169 @@ var SpriteEngine = (() => {
     pushCapsule3(parts, MATERIALS.glass(rippleCol), s * 0.5, s * 0.52 + r1 * 0.5, s * 0.5 - r1, s * 0.52, t, 0.15);
     return parts;
   }
+  function buildTree(rng, s) {
+    const parts = [];
+    const cx = s * 0.5;
+    pushEllipse3(parts, MATERIALS.bone([28, 26, 22]), cx + s * 0.02, s * 0.88, s * 0.2, s * 0.05, 0.05);
+    const trunkCol = [82 + rng.jitter(8), 58 + rng.jitter(6), 38 + rng.jitter(5)];
+    const trunk = MATERIALS.leather(trunkCol);
+    const trunkDark = MATERIALS.leather([trunkCol[0] * 0.7, trunkCol[1] * 0.7, trunkCol[2] * 0.65]);
+    pushCapsule3(parts, trunk, cx, s * 0.85, cx - s * 0.01, s * 0.42, s * 0.06, 0.4);
+    pushCapsule3(parts, trunkDark, cx - s * 0.03, s * 0.78, cx - s * 0.02, s * 0.55, Math.max(1, s * 0.01), 0.15);
+    pushCapsule3(parts, trunkDark, cx + s * 0.02, s * 0.72, cx + s * 0.03, s * 0.5, Math.max(1, s * 8e-3), 0.12);
+    const leafCol = [42 + rng.jitter(12), 95 + rng.jitter(15), 38 + rng.jitter(10)];
+    const leaf = MATERIALS.flesh(leafCol);
+    const leafLight = [leafCol[0] + 20, leafCol[1] + 25, leafCol[2] + 15];
+    const leafDark = [leafCol[0] * 0.65, leafCol[1] * 0.7, leafCol[2] * 0.6];
+    pushEllipse3(parts, MATERIALS.flesh(leafDark), cx, s * 0.35, s * 0.28, s * 0.22, 0.3);
+    pushEllipse3(parts, leaf, cx, s * 0.3, s * 0.3, s * 0.24, 0.4);
+    pushEllipse3(parts, MATERIALS.flesh(leafLight), cx - s * 0.04, s * 0.18, s * 0.18, s * 0.12, 0.25);
+    pushCircle3(parts, leaf, cx - s * 0.14 + rng.jitter(s * 0.03), s * 0.38, s * 0.09, 0.3);
+    pushCircle3(parts, leaf, cx + s * 0.12 + rng.jitter(s * 0.03), s * 0.34, s * 0.08, 0.28);
+    return parts;
+  }
+  function buildPineTree(rng, s) {
+    const parts = [];
+    const cx = s * 0.5;
+    pushEllipse3(parts, MATERIALS.bone([28, 26, 22]), cx, s * 0.9, s * 0.16, s * 0.04, 0.05);
+    const trunkCol = [75 + rng.jitter(6), 52 + rng.jitter(5), 35 + rng.jitter(4)];
+    pushCapsule3(parts, MATERIALS.leather(trunkCol), cx, s * 0.88, cx, s * 0.5, s * 0.04, 0.35);
+    const needleCol = [28 + rng.jitter(8), 72 + rng.jitter(10), 32 + rng.jitter(8)];
+    const needle = MATERIALS.flesh(needleCol);
+    const needleDark = MATERIALS.flesh([needleCol[0] * 0.7, needleCol[1] * 0.72, needleCol[2] * 0.65]);
+    const needleLight = [needleCol[0] + 15, needleCol[1] + 20, needleCol[2] + 10];
+    pushEllipse3(parts, needleDark, cx, s * 0.58, s * 0.26, s * 0.1, 0.25);
+    pushEllipse3(parts, needle, cx, s * 0.55, s * 0.24, s * 0.12, 0.3);
+    pushEllipse3(parts, needleDark, cx, s * 0.38, s * 0.18, s * 0.1, 0.25);
+    pushEllipse3(parts, needle, cx, s * 0.35, s * 0.17, s * 0.11, 0.3);
+    pushEllipse3(parts, needle, cx, s * 0.18, s * 0.1, s * 0.1, 0.3);
+    pushEllipse3(parts, MATERIALS.flesh(needleLight), cx - s * 0.02, s * 0.14, s * 0.06, s * 0.06, 0.2);
+    return parts;
+  }
+  function buildDeadTree(rng, s) {
+    const parts = [];
+    const cx = s * 0.5;
+    pushEllipse3(parts, MATERIALS.bone([28, 26, 22]), cx, s * 0.88, s * 0.16, s * 0.04, 0.05);
+    const barkCol = [55 + rng.jitter(6), 42 + rng.jitter(5), 32 + rng.jitter(4)];
+    const bark = MATERIALS.leather(barkCol);
+    pushCapsule3(parts, bark, cx + s * 0.02, s * 0.86, cx - s * 0.02, s * 0.32, s * 0.055, 0.35);
+    pushCapsule3(parts, bark, cx - s * 0.02, s * 0.4, cx - s * 0.22, s * 0.18, Math.max(1, s * 0.02), 0.3);
+    pushCapsule3(parts, bark, cx, s * 0.35, cx + s * 0.2, s * 0.14, Math.max(1, s * 0.018), 0.28);
+    pushCapsule3(parts, bark, cx - s * 0.22, s * 0.18, cx - s * 0.28, s * 0.1, Math.max(1, s * 0.01), 0.2);
+    pushCapsule3(parts, bark, cx + s * 0.2, s * 0.14, cx + s * 0.26, s * 0.08, Math.max(1, s * 0.01), 0.2);
+    pushCapsule3(parts, bark, cx + s * 0.04, s * 0.55, cx + s * 0.12, s * 0.48, Math.max(1, s * 0.012), 0.25);
+    return parts;
+  }
+  function buildHouse(rng, s) {
+    const parts = [];
+    const cx = s * 0.5;
+    pushEllipse3(parts, MATERIALS.bone([25, 24, 20]), cx + s * 0.02, s * 0.92, s * 0.24, s * 0.05, 0.05);
+    const wallCol = [155 + rng.jitter(12), 140 + rng.jitter(10), 118 + rng.jitter(8)];
+    const wallDark = [wallCol[0] * 0.7, wallCol[1] * 0.7, wallCol[2] * 0.68];
+    const wall = MATERIALS.bone(wallCol);
+    pushBox2(parts, MATERIALS.bone(wallDark), cx + s * 0.38, s * 0.6, s * 0.06, s * 0.28, s * 0.01, 0.18);
+    pushBox2(parts, wall, cx - s * 0.04, s * 0.6, s * 0.34, s * 0.28, s * 0.01, 0.2);
+    const doorCol = [95 + rng.jitter(8), 65 + rng.jitter(6), 42 + rng.jitter(5)];
+    pushBox2(parts, MATERIALS.leather(doorCol), cx - s * 0.08, s * 0.72, s * 0.08, s * 0.14, s * 0.01, 0.25);
+    pushCircle3(parts, MATERIALS.gold([190, 170, 70]), cx - s * 0.02, s * 0.72, Math.max(1, s * 0.012), 0.5);
+    pushBox2(parts, MATERIALS.glass([80, 120, 160]), cx + s * 0.14, s * 0.52, s * 0.06, s * 0.06, s * 8e-3, 0.3);
+    pushBox2(parts, MATERIALS.leather([60, 45, 30]), cx + s * 0.14, s * 0.52, s * 0.07, s * 3e-3, s * 2e-3, 0.2);
+    pushBox2(parts, MATERIALS.leather([60, 45, 30]), cx + s * 0.14, s * 0.52, s * 3e-3, s * 0.07, s * 2e-3, 0.2);
+    const roofCol = [130 + rng.jitter(10), 55 + rng.jitter(8), 35 + rng.jitter(5)];
+    const roof = MATERIALS.leather(roofCol);
+    const roofLight = [roofCol[0] + 20, roofCol[1] + 15, roofCol[2] + 10];
+    pushBox2(parts, roof, cx - s * 0.04, s * 0.28, s * 0.38, s * 0.06, s * 0.01, 0.2);
+    pushBox2(parts, MATERIALS.leather(roofLight), cx - s * 0.04, s * 0.2, s * 0.36, s * 0.04, s * 0.01, 0.15);
+    pushBox2(
+      parts,
+      MATERIALS.bone([wallCol[0] * 0.6, wallCol[1] * 0.6, wallCol[2] * 0.58]),
+      cx - s * 0.04,
+      s * 0.36,
+      s * 0.35,
+      s * 0.01,
+      s * 4e-3,
+      0.08
+    );
+    return parts;
+  }
+  function buildRuins(rng, s) {
+    const parts = [];
+    const cx = s * 0.5;
+    const rubbleCol = [78 + rng.jitter(8), 72 + rng.jitter(6), 64 + rng.jitter(5)];
+    pushBox2(parts, MATERIALS.bone(rubbleCol), cx, s * 0.5, s * 0.48, s * 0.48, s * 0.01, 0.1);
+    const wallCol = [90 + rng.jitter(10), 82 + rng.jitter(8), 72 + rng.jitter(6)];
+    const wallMat = MATERIALS.bone(wallCol);
+    pushBox2(parts, wallMat, s * 0.15, s * 0.42, s * 0.12, s * 0.3, s * 0.01, 0.2);
+    pushBox2(
+      parts,
+      MATERIALS.bone([wallCol[0] * 0.7, wallCol[1] * 0.7, wallCol[2] * 0.68]),
+      s * 0.15,
+      s * 0.14,
+      s * 0.12,
+      s * 0.02,
+      s * 8e-3,
+      0.15
+    );
+    pushBox2(parts, wallMat, s * 0.82, s * 0.56, s * 0.1, s * 0.22, s * 0.01, 0.18);
+    pushBox2(
+      parts,
+      MATERIALS.bone([wallCol[0] * 0.7, wallCol[1] * 0.7, wallCol[2] * 0.68]),
+      s * 0.82,
+      s * 0.36,
+      s * 0.1,
+      s * 0.02,
+      s * 8e-3,
+      0.15
+    );
+    for (let i = 0; i < 4; i++) {
+      const rx = s * (0.25 + rng.float() * 0.5);
+      const ry = s * (0.6 + rng.float() * 0.28);
+      const rr = s * (0.03 + rng.float() * 0.025);
+      const j = rng.jitter(8);
+      pushCircle3(
+        parts,
+        MATERIALS.bone([wallCol[0] * 0.85 + j, wallCol[1] * 0.85 + j, wallCol[2] * 0.82 + j]),
+        rx,
+        ry,
+        rr,
+        0.2
+      );
+    }
+    pushCapsule3(
+      parts,
+      MATERIALS.bone([35, 32, 28]),
+      s * 0.12 + rng.jitter(s * 0.03),
+      s * 0.3,
+      s * 0.18 + rng.jitter(s * 0.03),
+      s * 0.55,
+      Math.max(1, s * 6e-3),
+      0.1
+    );
+    return parts;
+  }
+  function buildFence(rng, s) {
+    const parts = [];
+    floorBase(parts, rng, s);
+    pushEllipse3(parts, MATERIALS.bone([30, 28, 24]), s * 0.5, s * 0.82, s * 0.46, s * 0.04, 0.05);
+    const woodCol = [105 + rng.jitter(10), 78 + rng.jitter(8), 52 + rng.jitter(6)];
+    const wood = MATERIALS.leather(woodCol);
+    const woodDark = MATERIALS.leather([woodCol[0] * 0.75, woodCol[1] * 0.75, woodCol[2] * 0.7]);
+    for (let i = 0; i < 3; i++) {
+      const px = s * (0.15 + i * 0.35);
+      pushCapsule3(parts, wood, px, s * 0.8, px, s * 0.3, s * 0.03, 0.3);
+      pushCircle3(
+        parts,
+        MATERIALS.leather([woodCol[0] + 12, woodCol[1] + 10, woodCol[2] + 8]),
+        px,
+        s * 0.28,
+        s * 0.035,
+        0.25
+      );
+    }
+    pushCapsule3(parts, woodDark, s * 0.1, s * 0.45, s * 0.9, s * 0.45, s * 0.02, 0.25);
+    pushCapsule3(parts, woodDark, s * 0.1, s * 0.62, s * 0.9, s * 0.62, s * 0.02, 0.25);
+    return parts;
+  }
   function buildTile(config, s) {
     const rng = new RNG(config.seed ?? 0);
     switch (config.kind ?? "stone_floor") {
@@ -3634,12 +3834,24 @@ var SpriteEngine = (() => {
         return buildPillar(rng, s);
       case "fountain":
         return buildFountain(rng, s);
+      case "tree":
+        return buildTree(rng, s);
+      case "pine_tree":
+        return buildPineTree(rng, s);
+      case "dead_tree":
+        return buildDeadTree(rng, s);
+      case "house":
+        return buildHouse(rng, s);
+      case "ruins":
+        return buildRuins(rng, s);
+      case "fence":
+        return buildFence(rng, s);
       case "stone_floor":
       default:
         return buildStoneFloor(rng, s);
     }
   }
-  var TILE_KINDS = ["stone_floor", "dirt_floor", "stone_wall", "crystal_floor", "wood_door", "lava_floor", "ice_floor", "moss_floor", "spike_trap", "stairs_down", "stairs_up", "cracked_wall", "pit", "water_pool", "underground_river", "stalagmite", "cobweb", "barrel", "chain", "bone_pile", "shop_counter", "iron_gate", "torch_bracket", "altar", "anvil", "bed", "table", "bookshelf", "pillar", "fountain"];
+  var TILE_KINDS = ["stone_floor", "dirt_floor", "stone_wall", "crystal_floor", "wood_door", "lava_floor", "ice_floor", "moss_floor", "spike_trap", "stairs_down", "stairs_up", "cracked_wall", "pit", "water_pool", "underground_river", "stalagmite", "cobweb", "barrel", "chain", "bone_pile", "shop_counter", "iron_gate", "torch_bracket", "altar", "anvil", "bed", "table", "bookshelf", "pillar", "fountain", "tree", "pine_tree", "dead_tree", "house", "ruins", "fence"];
 
   // src/field.ts
   function edt1d(f, n, out) {
