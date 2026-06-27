@@ -90,6 +90,8 @@ npx esbuild src/index.ts --bundle --format=iife --global-name=SpriteEngine --out
 ```ts
 // Character
 generateSprite({ seed, size, supersample, weapon, shield, facing, outfit, hairStyle, palette })
+//   outfit: { torso, armor, belt, hat:'none'|'cap'|'hat'|'hood', cape, coat, boots }
+//   hairStyle: 'short'|'long'|'spiky'|'bun'|'bald'|'flowing'|'ponytail'
 generateAnimation(config, 'walk'|'idle'|'attack'|'hit'|'death')
 
 // Enemies

@@ -93,12 +93,14 @@ export interface SpriteConfig {
     torso?: 'cloth' | 'leather'; // default 'cloth'
     armor?: boolean;             // metal chestplate + pauldrons. default false
     belt?: boolean;              // leather belt. default true
-    hat?: 'none' | 'cap' | 'hat'; // headwear. default 'none'
+    hat?: 'none' | 'cap' | 'hat' | 'hood'; // headwear. default 'none'
     cape?: boolean;              // flowing cloak behind the body. default false
+    coat?: boolean;              // long coat extending past waist. default false
+    boots?: boolean;             // tall boots on legs. default false
   };
 
   /** Hairstyle. Default 'short' (the original look). 'bald' draws no hair. */
-  hairStyle?: 'short' | 'long' | 'spiky' | 'bun' | 'bald';
+  hairStyle?: 'short' | 'long' | 'spiky' | 'bun' | 'bald' | 'flowing' | 'ponytail';
 
   /** Weapon held in the right hand. Follows arm rotation during animations. */
   weapon?: 'none' | 'dagger' | 'sword' | 'axe' | 'staff';

@@ -201,6 +201,25 @@ for (const name of ['hit', 'death']) {
   check('caped back deterministic', same(capedBack, generateSprite({ seed: 'hero', size: 40, outfit: { cape: true }, facing: 'back' })));
 }
 
+// --- 1e2c) coat, boots, hood, new hair styles ------------------------------
+{
+  const base = generateSprite({ seed: 'hero', size: 40 });
+  const coated = generateSprite({ seed: 'hero', size: 40, outfit: { coat: true } });
+  check('coat changes sprite', !same(base, coated));
+  const booted = generateSprite({ seed: 'hero', size: 40, outfit: { boots: true } });
+  check('boots changes sprite', !same(base, booted));
+  const hooded = generateSprite({ seed: 'hero', size: 40, outfit: { hat: 'hood' } });
+  check('hood changes sprite', !same(base, hooded));
+  for (const hair of ['flowing', 'ponytail'] as const) {
+    const h = generateSprite({ seed: 'hero', size: 40, hairStyle: hair });
+    check(`hair ${hair} changes sprite`, !same(base, h));
+    check(`hair ${hair} deterministic`, same(h, generateSprite({ seed: 'hero', size: 40, hairStyle: hair })));
+  }
+  // full combo: coat + boots + hood
+  const combo = generateSprite({ seed: 'hero', size: 40, outfit: { coat: true, boots: true, hat: 'hood', cape: true }, weapon: 'staff' });
+  check('coat+boots+hood+staff generates', combo.data.some((v, i) => i % 4 === 3 && v > 128));
+}
+
 // --- 1e3) projectiles + sparkle -------------------------------------------
 {
   for (const kind of ['arrow', 'fireball', 'magic_bolt'] as const) {
@@ -269,6 +288,13 @@ for (const kind of ITEM_KINDS) previews.push({ name: `item_${kind}`, sprite: gen
 for (const facing of ['front', 'back', 'left', 'right'] as const) previews.push({ name: `face_${facing}`, sprite: generateSprite({ seed: 'hero', size: 48, supersample: 2, facing }) });
 // weapons
 for (const weapon of ['dagger', 'sword', 'axe', 'staff'] as const) previews.push({ name: `weapon_${weapon}`, sprite: generateSprite({ seed: 'hero', size: 48, supersample: 2, weapon }) });
+// outfits
+previews.push({ name: 'outfit_coat', sprite: generateSprite({ seed: 'hero', size: 48, supersample: 2, outfit: { coat: true } }) });
+previews.push({ name: 'outfit_boots', sprite: generateSprite({ seed: 'hero', size: 48, supersample: 2, outfit: { boots: true } }) });
+previews.push({ name: 'outfit_hood', sprite: generateSprite({ seed: 'hero', size: 48, supersample: 2, outfit: { hat: 'hood' } }) });
+previews.push({ name: 'outfit_full', sprite: generateSprite({ seed: 'hero', size: 48, supersample: 2, outfit: { coat: true, boots: true, hat: 'hood', cape: true }, weapon: 'staff' }) });
+// hair styles
+for (const hair of ['flowing', 'ponytail'] as const) previews.push({ name: `hair_${hair}`, sprite: generateSprite({ seed: 'hero', size: 48, supersample: 2, hairStyle: hair }) });
 // tiles
 for (const kind of TILE_KINDS) previews.push({ name: `tile_${kind}`, sprite: generateTile({ kind, seed: kind, size: 20, supersample: 2 }) });
 // effects

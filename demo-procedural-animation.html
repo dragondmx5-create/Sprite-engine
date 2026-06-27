@@ -43,6 +43,8 @@
   <div id="gallery"></div>
 <script>"use strict";
 "use strict";
+<script>"use strict";
+"use strict";
 var SpriteEngine = (() => {
   var __defProp = Object.defineProperty;
   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -530,6 +532,8 @@ var SpriteEngine = (() => {
     const hasArmor = outfit.armor ?? false;
     const hasBelt = outfit.belt ?? true;
     const hat = outfit.hat ?? "none";
+    const hasCoat = outfit.coat ?? false;
+    const hasBoots = outfit.boots ?? false;
     const headScale = (body.headScale ?? 1) * (1 + rng.jitter(0.04));
     const bodyWidth = (body.bodyWidth ?? 1) * (1 + rng.jitter(0.05));
     const limbLen = (body.limbLength ?? 1) * (1 + rng.jitter(0.05));
@@ -613,15 +617,25 @@ var SpriteEngine = (() => {
       box(M.cape, cx, (capeTop + capeBot) / 2, torsoHw * 1.45, (capeBot - capeTop) / 2, s * 0.03, 0.5, xUpper);
     };
     if (drawCapeEarly) placeCape();
-    if (hairStyle !== "bald" && (hat === "none" || hat === "cap")) {
-      const back = hairStyle === "long" ? headHh * 1.35 : headHh * 0.95;
-      box(M.hair, cx, headCy - headHh * 0.18 + (hairStyle === "long" ? headHh * 0.2 : 0), headHw * 1.06, back, headCorner * 0.9, 0.45, xHead());
+    const hairHidden = hat === "hat" || hat === "hood";
+    if (hairStyle !== "bald" && !hairHidden) {
+      const isLong = hairStyle === "long" || hairStyle === "flowing";
+      const back = isLong ? headHh * 1.35 : headHh * 0.95;
+      box(M.hair, cx, headCy - headHh * 0.18 + (isLong ? headHh * 0.2 : 0), headHw * 1.06, back, headCorner * 0.9, 0.45, xHead());
     }
     for (const dir of [-1, 1]) {
       const lx = cx + dir * legSpread;
       const ang = dir < 0 ? pose.legL : pose.legR;
       box(M.legs, lx, legCy, legHw, legHh, legHw * 0.45, 0.4, xLeg(ang, lx, hipY));
-      box(M.leather, lx + dir * legHw * 0.15, legCy + legHh + s * 0.012, legHw * 1.05, s * 0.022, s * 0.012, 0.45, xLeg(ang, lx, hipY));
+      if (hasBoots) {
+        const bootTop = legCy + legHh * 0.15;
+        const bootBot = legCy + legHh + s * 0.018;
+        const bootHh = (bootBot - bootTop) / 2;
+        box(M.leather, lx, (bootTop + bootBot) / 2, legHw * 1.08, bootHh, legHw * 0.4, 0.45, xLeg(ang, lx, hipY));
+        box(M.leather, lx, bootBot, legHw * 1.12, s * 0.01, s * 6e-3, 0.35, xLeg(ang, lx, hipY));
+      } else {
+        box(M.leather, lx + dir * legHw * 0.15, legCy + legHh + s * 0.012, legHw * 1.05, s * 0.022, s * 0.012, 0.45, xLeg(ang, lx, hipY));
+      }
     }
     for (const dir of [-1, 1]) {
       const ax = cx + dir * armX;
@@ -631,6 +645,15 @@ var SpriteEngine = (() => {
     }
     box(M.torso, cx, torsoCy, torsoHw, torsoHh, s * 0.028, 0.4, xUpper);
     if (hasBelt) box(M.leather, cx, torsoBot - s * 0.03, torsoHw * 1.02, s * 0.02, s * 0.01, 0.4, xUpper);
+    if (hasCoat) {
+      const coatTop = torsoTop;
+      const coatBot = legCy + legHh * 0.35;
+      const coatHh = (coatBot - coatTop) / 2;
+      const coatCy = (coatTop + coatBot) / 2;
+      box(M.torso, cx, coatCy, torsoHw * 1.15, coatHh, s * 0.03, 0.4, xUpper);
+      box(M.torso, cx, torsoTop + s * 0.01, torsoHw * 0.65, s * 0.025, s * 0.015, 0.5, xUpper);
+      box(M.torso, cx, coatBot - s * 0.01, torsoHw * 1.28, s * 0.014, s * 8e-3, 0.35, xUpper);
+    }
     if (hasArmor) {
       box(M.metal, cx, torsoTop + torsoHh * 0.62, torsoHw * 0.95, torsoHh * 0.6, s * 0.03, 0.55, xUpper);
       for (const dir of [-1, 1]) {
@@ -648,7 +671,7 @@ var SpriteEngine = (() => {
       const eyeMat = { ...M.skin, name: "eye", base: [40, 34, 44], specStrength: 0.7, roughness: 0.3 };
       for (const dir of [-1, 1]) box(eyeMat, cx + shift + dir * eyeDx, eyeY, ew, eh, ew * 0.5, 0.4, xHead());
     }
-    const showHair = hairStyle !== "bald" && (hat === "none" || hat === "cap");
+    const showHair = hairStyle !== "bald" && !hairHidden;
     if (showHair && facing === "back") {
       box(M.hair, cx, headCy + headHh * 0.04, headHw * 0.96, headHh * 0.9, headCorner * 0.85, 0.42, xHead());
     } else if (showHair) {
@@ -681,6 +704,23 @@ var SpriteEngine = (() => {
         for (const dir of [-1, 1]) {
           box(M.hair, cx + dir * headHw * 0.92, headCy + headHh * 0.55, headHw * 0.22, headHh * 0.95, headHw * 0.18, 0.45, xHead());
         }
+      } else if (hairStyle === "flowing") {
+        box(M.hair, cx, headCy + headHh * 0.6, headHw * 1.12, headHh * 1.6, headHw * 0.3, 0.5, xHead());
+        for (const dir of [-1, 1]) {
+          box(M.hair, cx + dir * headHw * 0.85, headCy + headHh * 0.3, headHw * 0.26, headHh * 1.1, headHw * 0.2, 0.5, xHead());
+        }
+      } else if (hairStyle === "ponytail") {
+        box(M.hair, cx, headCy - headHh * 0.85, headHw * 0.34, headHh * 0.32, headHw * 0.3, 0.7, xHead());
+        place(
+          M.hair,
+          capsule(cx + headHw * 0.1, headCy - headHh * 0.7, cx + headHw * 0.5, headCy + headHh * 0.6, headHw * 0.18),
+          cx - headHw * 0.2,
+          headCy - headHh * 1,
+          cx + headHw * 0.8,
+          headCy + headHh * 0.9,
+          0.5,
+          xHead()
+        );
       }
     }
     if (hat === "cap") {
@@ -689,6 +729,11 @@ var SpriteEngine = (() => {
     } else if (hat === "hat") {
       box(M.hat, cx, headCy - headHh * 0.78, headHw * 0.72, headHh * 0.5, headHw * 0.3, 0.45, xHead());
       box(M.hat, cx, headCy - headHh * 0.42, headHw * 1.55, headHh * 0.16, headHh * 0.12, 0.4, xHead());
+    } else if (hat === "hood") {
+      box(M.cape, cx, headCy - headHh * 0.3, headHw * 1.18, headHh * 0.9, headHw * 0.7, 0.6, xHead());
+      for (const dir of [-1, 1]) {
+        box(M.cape, cx + dir * headHw * 0.85, headCy + headHh * 0.2, headHw * 0.28, headHh * 0.65, headHw * 0.2, 0.5, xHead());
+      }
     }
     if (hasCape && facing === "back") placeCape();
     const weapon = config.weapon ?? "none";

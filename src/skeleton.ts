@@ -80,6 +80,8 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
   const hasArmor = outfit.armor ?? false;
   const hasBelt = outfit.belt ?? true;
   const hat = outfit.hat ?? 'none';
+  const hasCoat = outfit.coat ?? false;
+  const hasBoots = outfit.boots ?? false;
 
   const headScale = (body.headScale ?? 1) * (1 + rng.jitter(0.04));
   const bodyWidth = (body.bodyWidth ?? 1) * (1 + rng.jitter(0.05));
@@ -188,9 +190,11 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
   if (drawCapeEarly) placeCape();
 
   // 1) HAIR BACK — crowns the head (behind it). Part of the head group.
-  if (hairStyle !== 'bald' && (hat === 'none' || hat === 'cap')) {
-    const back = hairStyle === 'long' ? headHh * 1.35 : headHh * 0.95;
-    box(M.hair, cx, headCy - headHh * 0.18 + (hairStyle === 'long' ? headHh * 0.2 : 0), headHw * 1.06, back, headCorner * 0.9, 0.45, xHead());
+  const hairHidden = hat === 'hat' || hat === 'hood';
+  if (hairStyle !== 'bald' && !hairHidden) {
+    const isLong = hairStyle === 'long' || hairStyle === 'flowing';
+    const back = isLong ? headHh * 1.35 : headHh * 0.95;
+    box(M.hair, cx, headCy - headHh * 0.18 + (isLong ? headHh * 0.2 : 0), headHw * 1.06, back, headCorner * 0.9, 0.45, xHead());
   }
 
   // 2) LEGS / trousers + boots — swing about the hip.
@@ -198,7 +202,17 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
     const lx = cx + dir * legSpread;
     const ang = dir < 0 ? pose.legL : pose.legR;
     box(M.legs, lx, legCy, legHw, legHh, legHw * 0.45, 0.4, xLeg(ang, lx, hipY));
-    box(M.leather, lx + dir * legHw * 0.15, legCy + legHh + s * 0.012, legHw * 1.05, s * 0.022, s * 0.012, 0.45, xLeg(ang, lx, hipY));
+    if (hasBoots) {
+      // tall boots cover the lower 60% of the leg
+      const bootTop = legCy + legHh * 0.15;
+      const bootBot = legCy + legHh + s * 0.018;
+      const bootHh = (bootBot - bootTop) / 2;
+      box(M.leather, lx, (bootTop + bootBot) / 2, legHw * 1.08, bootHh, legHw * 0.4, 0.45, xLeg(ang, lx, hipY));
+      // boot sole
+      box(M.leather, lx, bootBot, legHw * 1.12, s * 0.01, s * 0.006, 0.35, xLeg(ang, lx, hipY));
+    } else {
+      box(M.leather, lx + dir * legHw * 0.15, legCy + legHh + s * 0.012, legHw * 1.05, s * 0.022, s * 0.012, 0.45, xLeg(ang, lx, hipY));
+    }
   }
 
   // 3) ARMS + hands — swing about the shoulder; follow torso lean.
@@ -214,6 +228,19 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
 
   // 5) BELT.
   if (hasBelt) box(M.leather, cx, torsoBot - s * 0.03, torsoHw * 1.02, s * 0.02, s * 0.01, 0.4, xUpper);
+
+  // 5b) COAT — extends the torso down over the upper legs, flared at the hem.
+  if (hasCoat) {
+    const coatTop = torsoTop;
+    const coatBot = legCy + legHh * 0.35;
+    const coatHh = (coatBot - coatTop) / 2;
+    const coatCy = (coatTop + coatBot) / 2;
+    box(M.torso, cx, coatCy, torsoHw * 1.15, coatHh, s * 0.03, 0.4, xUpper);
+    // collar
+    box(M.torso, cx, torsoTop + s * 0.01, torsoHw * 0.65, s * 0.025, s * 0.015, 0.5, xUpper);
+    // coat hem flare
+    box(M.torso, cx, coatBot - s * 0.01, torsoHw * 1.28, s * 0.014, s * 0.008, 0.35, xUpper);
+  }
 
   // 6) CHESTPLATE + pauldrons (optional). Pauldrons stay on the shoulders.
   if (hasArmor) {
@@ -242,7 +269,7 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
 
   // 9) HAIR FRONT — chunky fringe across the forehead. When facing away, the
   // back of the head reads as a full hair mass covering the (hidden) face.
-  const showHair = hairStyle !== 'bald' && (hat === 'none' || hat === 'cap');
+  const showHair = hairStyle !== 'bald' && !hairHidden;
   if (showHair && facing === 'back') {
     box(M.hair, cx, headCy + headHh * 0.04, headHw * 0.96, headHh * 0.9, headCorner * 0.85, 0.42, xHead());
   } else if (showHair) {
@@ -272,6 +299,19 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
       for (const dir of [-1, 1]) {
         box(M.hair, cx + dir * headHw * 0.92, headCy + headHh * 0.55, headHw * 0.22, headHh * 0.95, headHw * 0.18, 0.45, xHead());
       }
+    } else if (hairStyle === 'flowing') {
+      // long feminine hair — wide curtain flowing past the shoulders
+      box(M.hair, cx, headCy + headHh * 0.6, headHw * 1.12, headHh * 1.6, headHw * 0.3, 0.5, xHead());
+      // soft side locks framing the face
+      for (const dir of [-1, 1]) {
+        box(M.hair, cx + dir * headHw * 0.85, headCy + headHh * 0.3, headHw * 0.26, headHh * 1.1, headHw * 0.2, 0.5, xHead());
+      }
+    } else if (hairStyle === 'ponytail') {
+      // high ponytail — a tied knot at the crown, tail falling behind
+      box(M.hair, cx, headCy - headHh * 0.85, headHw * 0.34, headHh * 0.32, headHw * 0.3, 0.7, xHead());
+      // the tail sweeping down-right
+      place(M.hair, capsule(cx + headHw * 0.1, headCy - headHh * 0.7, cx + headHw * 0.5, headCy + headHh * 0.6, headHw * 0.18),
+        cx - headHw * 0.2, headCy - headHh * 1.0, cx + headHw * 0.8, headCy + headHh * 0.9, 0.5, xHead());
     }
   }
 
@@ -282,6 +322,13 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
   } else if (hat === 'hat') {
     box(M.hat, cx, headCy - headHh * 0.78, headHw * 0.72, headHh * 0.5, headHw * 0.3, 0.45, xHead());
     box(M.hat, cx, headCy - headHh * 0.42, headHw * 1.55, headHh * 0.16, headHh * 0.12, 0.4, xHead());
+  } else if (hat === 'hood') {
+    // a soft hood wrapping over the head and draping past the ears
+    box(M.cape, cx, headCy - headHh * 0.3, headHw * 1.18, headHh * 0.9, headHw * 0.7, 0.6, xHead());
+    // hood drape sides
+    for (const dir of [-1, 1]) {
+      box(M.cape, cx + dir * headHw * 0.85, headCy + headHh * 0.2, headHw * 0.28, headHh * 0.65, headHw * 0.2, 0.5, xHead());
+    }
   }
 
   // 10b) CAPE for back-facing — drawn after hair/hat so it covers the body.
