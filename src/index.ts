@@ -14,6 +14,8 @@ import type { SpriteBuffer, SpriteConfig } from './types';
 import {
   generateAnimation, packSpriteSheet, listAnimations,
   generateEnemyAnimation, listEnemyAnimations, ENEMY_CLIPS,
+  generateItemAnimation, listItemAnimations, ITEM_CLIPS,
+  generateEffectAnimation, listEffectAnimations, EFFECT_CLIPS,
   type AnimationResult,
 } from './animation';
 
@@ -36,8 +38,10 @@ export {
   generateShadow, generateSlashEffect, generateImpactEffect,
   generateProjectile, generateSparkle,
   flashSprite, tintSprite, applyStatusEffect,
+  buildSlashEffect, buildImpactEffect, buildSparkleEffect,
+  buildFireballEffect, buildMagicBoltEffect, buildEffect,
 } from './effects';
-export type { StatusEffect, VFXConfig, ProjectileKind, ProjectileConfig } from './effects';
+export type { StatusEffect, VFXConfig, ProjectileKind, ProjectileConfig, EffectKind, EffectConfig } from './effects';
 
 // ---- Minimap ---------------------------------------------------------------
 export { generateMinimapIcon, MINIMAP_ICONS } from './minimap';
@@ -48,6 +52,10 @@ export { generateAnimation, packSpriteSheet, listAnimations };
 export type { AnimationResult };
 // Procedural enemy animation (IK + springs):
 export { generateEnemyAnimation, listEnemyAnimations, ENEMY_CLIPS };
+// Procedural item animation (phase-driven):
+export { generateItemAnimation, listItemAnimations, ITEM_CLIPS };
+// Procedural effect animation (VFX):
+export { generateEffectAnimation, listEffectAnimations, EFFECT_CLIPS };
 // IK + secondary-motion toolkit (for authoring custom procedural motion):
 export { solveTwoBone, fabrik } from './anim/ik';
 export type { Pt } from './anim/ik';

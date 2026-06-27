@@ -41,18 +41,18 @@ src/
   engine.ts     — resolveRenderOpts + renderParts + generateSprite/Enemy/Item/Tile
   skeleton.ts   — character body builder (head, torso, arms, legs, hair, outfit, weapons, shield)
   creatures.ts  — enemy builders: insect (IK legs), worm (sine spine), crawler (IK + claws)
-  items.ts      — loot builders: 10 kinds (mushroom, crystal, dagger, torch, potion, coin, rune, chest, key, scroll)
+  items.ts      — loot builders: 10 kinds, all phase-animated (mushroom, crystal, dagger, torch, potion, coin, rune, chest, key, scroll)
   tiles.ts      — dungeon tile builders: 8 kinds covering 5 UNDRAL layers
-  effects.ts    — VFX: slash, impact, projectiles, sparkle, shadow, flash, tint, status effects
+  effects.ts    — VFX: slash, impact, projectiles, sparkle, shadow, flash, tint, status effects + phase-driven builders
   minimap.ts    — tiny colored icons (4-8px, direct pixel fill)
   pose.ts       — keyframe animation clips (idle, walk, attack, hit, death) + pose interpolation
-  animation.ts  — frame generation, enemy procedural animation (IK+springs), spritesheet packing
+  animation.ts  — frame generation, enemy/item/effect procedural animation, spritesheet packing
   anim/ik.ts    — solveTwoBone (analytic) + FABRIK (iterative N-link)
   anim/spring.ts — secondary motion: damp, lag, squash, wave, pulse, smooth
   index.ts      — public API surface + DOM helpers (toCanvas, toImageData, etc.)
 
 test/
-  content.ts    — 64 checks: determinism, back-compat, perf, PNG previews
+  content.ts    — 102 checks: determinism, back-compat, item/effect animations, perf, PNG previews
   driver.ts     — basic determinism + perf + character previews
   anim.ts       — animation determinism, stability, spritesheet output
 ```
@@ -81,6 +81,9 @@ npx esbuild src/index.ts --bundle --format=iife --global-name=SpriteEngine --out
 - Default palette saturation: cloth 0.62-0.92, hair 0.55-0.90. Vivid, not washed.
 - Head uses high corner radius (0.72 * headHw) for round pixel-art look, not boxy.
 - All content builders (creatures, items, tiles) need a `default` case in `defaultColor()`.
+- Item/enemy/effect builders take `(phase: 0..1, amp: 0..1)` for animation. Pure function of phase — no state.
+- Item animations: mushroom sways, crystal pulses, dagger glint slides, torch flame flickers, potion glows, coin spins, rune strokes pulse in sequence, chest lid opens, key pendulums, scroll seal pulses.
+- Effect animations: slash arc sweeps in, impact rays expand, sparkle rotates+pulses, fireball breathes+corona, magic bolt crackles.
 
 ## API quick reference
 
@@ -93,15 +96,17 @@ generateAnimation(config, 'walk'|'idle'|'attack'|'hit'|'death')
 generateEnemy({ seed, size, kind: 'insect'|'worm'|'crawler', alerted })
 generateEnemyAnimation(config, 'move'|'idle')
 
-// Items
+// Items (all phase-animated: sway, spin, glow, flicker, etc.)
 generateItem({ seed, size, kind: 'mushroom'|'crystal'|'dagger'|'torch'|'potion'|'coin'|'rune'|'chest'|'key'|'scroll' })
+generateItemAnimation(config, 'idle'|'active'|'pickup')
 
 // Tiles
 generateTile({ seed, size, kind: 'stone_floor'|'dirt_floor'|'stone_wall'|'crystal_floor'|'wood_door'|'lava_floor'|'ice_floor'|'moss_floor' })
 
-// Effects
+// Effects (static one-shot + animated)
 generateSlashEffect({ size, color }), generateImpactEffect(), generateProjectile({ kind }), generateSparkle()
 generateShadow(size, opacity), flashSprite(buf), tintSprite(buf, color, amount), applyStatusEffect(buf, effect, phase)
+generateEffectAnimation({ kind: 'slash'|'impact'|'sparkle'|'fireball'|'magic_bolt', size, color })
 
 // Minimap
 generateMinimapIcon({ icon: 'player'|'enemy'|'item'|'door'|'stairs', size })

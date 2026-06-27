@@ -16,6 +16,7 @@ import { circle, capsule } from './shapes';
 import { MATERIALS } from './materials';
 import { resolveRenderOpts, renderParts } from './engine';
 import { clamp255 } from './color';
+import { wave } from './anim/spring';
 
 export type StatusEffect = 'poison' | 'frozen' | 'burning';
 export type ProjectileKind = 'arrow' | 'fireball' | 'magic_bolt';
@@ -211,6 +212,157 @@ export function generateSparkle(config: VFXConfig = {}): SpriteBuffer {
   parts.push({ material: MATERIALS.ember([255, 255, 255]), roundness: 1.0, sdf: circle(cx, cy, cr),
     bbox: [Math.floor(cx - cr - 2), Math.floor(cy - cr - 2), Math.ceil(cx + cr + 2), Math.ceil(cy + cr + 2)] });
   return renderParts(parts, opts);
+}
+
+// =============================================================================
+// Phase-driven effect BUILDERS — return Part[] for use in animation loops.
+// Same contract as creatures/items: pure function of (config, s, phase, amp).
+// =============================================================================
+
+export type EffectKind = 'slash' | 'impact' | 'sparkle' | 'fireball' | 'magic_bolt';
+
+export interface EffectConfig {
+  kind?: EffectKind;
+  size?: number;
+  color?: RGB;
+  supersample?: number;
+}
+
+/** Build slash arc parts — arc sweeps in over phase. */
+export function buildSlashEffect(s: number, color: RGB, phase: number, amp: number): Part[] {
+  const parts: Part[] = [];
+  const mat = MATERIALS.glass(color);
+  const core = MATERIALS.ember([255, 255, 240]);
+  const cx = s * 0.45, cy = s * 0.5;
+  const r = s * 0.35;
+  const segs = 5;
+  const a0 = -Math.PI * 0.65, a1 = Math.PI * 0.25;
+  const visibleSegs = Math.ceil(segs * phase * amp + (1 - amp) * segs);
+  for (let i = 0; i < visibleSegs && i < segs; i++) {
+    const t0 = a0 + (a1 - a0) * (i / segs);
+    const t1 = a0 + (a1 - a0) * ((i + 1) / segs);
+    const ax = cx + Math.cos(t0) * r, ay = cy + Math.sin(t0) * r;
+    const bx = cx + Math.cos(t1) * r, by = cy + Math.sin(t1) * r;
+    const fade = 1 - i / segs * 0.3;
+    const w = s * 0.03 * fade;
+    parts.push({
+      material: mat, roundness: 0.9, sdf: capsule(ax, ay, bx, by, w),
+      bbox: [Math.floor(Math.min(ax, bx) - w - 2), Math.floor(Math.min(ay, by) - w - 2),
+             Math.ceil(Math.max(ax, bx) + w + 2), Math.ceil(Math.max(ay, by) + w + 2)],
+    });
+    const wc = s * 0.014 * fade;
+    parts.push({
+      material: core, roundness: 0.9, sdf: capsule(ax, ay, bx, by, wc),
+      bbox: [Math.floor(Math.min(ax, bx) - wc - 2), Math.floor(Math.min(ay, by) - wc - 2),
+             Math.ceil(Math.max(ax, bx) + wc + 2), Math.ceil(Math.max(ay, by) + wc + 2)],
+    });
+  }
+  return parts;
+}
+
+/** Build impact burst parts — rays expand outward over phase. */
+export function buildImpactEffect(s: number, color: RGB, phase: number, amp: number): Part[] {
+  const parts: Part[] = [];
+  const mat = MATERIALS.ember(color);
+  const cx = s * 0.5, cy = s * 0.5;
+  const rays = 6;
+  const expand = (0.3 + 0.7 * phase) * amp + (1 - amp);
+  const fade = 1 - phase * 0.6;
+  for (let i = 0; i < rays; i++) {
+    const a = (i / rays) * Math.PI * 2 + 0.2;
+    const len = s * (0.24 + (i % 2) * 0.1) * expand;
+    const bx = cx + Math.cos(a) * len, by = cy + Math.sin(a) * len;
+    const r = Math.max(1, s * 0.022 * fade);
+    parts.push({
+      material: mat, roundness: 0.8, sdf: capsule(cx, cy, bx, by, r),
+      bbox: [Math.floor(Math.min(cx, bx) - r - 2), Math.floor(Math.min(cy, by) - r - 2),
+             Math.ceil(Math.max(cx, bx) + r + 2), Math.ceil(Math.max(cy, by) + r + 2)],
+    });
+  }
+  const cr = Math.max(1, s * 0.055 * fade);
+  parts.push({
+    material: MATERIALS.ember([255, 255, 230]), roundness: 1.0, sdf: circle(cx, cy, cr),
+    bbox: [Math.floor(cx - cr - 2), Math.floor(cy - cr - 2), Math.ceil(cx + cr + 2), Math.ceil(cy + cr + 2)],
+  });
+  return parts;
+}
+
+/** Build sparkle parts — arms rotate and size pulses. */
+export function buildSparkleEffect(s: number, color: RGB, phase: number, amp: number): Part[] {
+  const parts: Part[] = [];
+  const mat = MATERIALS.ember(color);
+  const cx = s * 0.5, cy = s * 0.5;
+  const rot = phase * Math.PI * 0.5 * amp;
+  const pulse = 1 + 0.2 * wave(phase, 2) * amp;
+  const r = Math.max(1, s * 0.025 * pulse);
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI + Math.PI / 8 + rot;
+    const len = s * (i % 2 === 0 ? 0.3 : 0.18) * pulse;
+    const ax = cx + Math.cos(a) * len, ay = cy + Math.sin(a) * len;
+    const bx = cx - Math.cos(a) * len, by = cy - Math.sin(a) * len;
+    parts.push({ material: mat, roundness: 0.8, sdf: capsule(ax, ay, bx, by, r),
+      bbox: [Math.floor(Math.min(ax, bx) - r - 2), Math.floor(Math.min(ay, by) - r - 2),
+             Math.ceil(Math.max(ax, bx) + r + 2), Math.ceil(Math.max(ay, by) + r + 2)] });
+  }
+  const cr = Math.max(1, s * 0.045 * pulse);
+  parts.push({ material: MATERIALS.ember([255, 255, 255]), roundness: 1.0, sdf: circle(cx, cy, cr),
+    bbox: [Math.floor(cx - cr - 2), Math.floor(cy - cr - 2), Math.ceil(cx + cr + 2), Math.ceil(cy + cr + 2)] });
+  return parts;
+}
+
+/** Build fireball parts — pulsing glow, flickering corona. */
+export function buildFireballEffect(s: number, color: RGB, phase: number, amp: number): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5, cy = s * 0.5;
+  const breathe = 1 + wave(phase, 3) * 0.12 * amp;
+  const flick = wave(phase, 5) * s * 0.015 * amp;
+  const r = s * 0.14 * breathe, ri = s * 0.07 * breathe;
+  parts.push({ material: MATERIALS.ember(color), roundness: 1.0, sdf: circle(cx + flick, cy, r),
+    bbox: [Math.floor(cx + flick - r - 2), Math.floor(cy - r - 2), Math.ceil(cx + flick + r + 2), Math.ceil(cy + r + 2)] });
+  parts.push({ material: MATERIALS.ember([255, 240, 180]), roundness: 1.0, sdf: circle(cx + flick * 0.3, cy, ri),
+    bbox: [Math.floor(cx + flick * 0.3 - ri - 2), Math.floor(cy - ri - 2), Math.ceil(cx + flick * 0.3 + ri + 2), Math.ceil(cy + ri + 2)] });
+  // corona wisps
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2 + phase * Math.PI * 2;
+    const wr = s * 0.04;
+    const wx = cx + Math.cos(a) * r * 0.85, wy = cy + Math.sin(a) * r * 0.85;
+    parts.push({ material: MATERIALS.ember([255, 200, 80]), roundness: 1.0, sdf: circle(wx, wy, Math.max(1, wr)),
+      bbox: [Math.floor(wx - wr - 2), Math.floor(wy - wr - 2), Math.ceil(wx + wr + 2), Math.ceil(wy + wr + 2)] });
+  }
+  return parts;
+}
+
+/** Build magic bolt parts — energy crackle, pulsing core. */
+export function buildMagicBoltEffect(s: number, color: RGB, phase: number, amp: number): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5, cy = s * 0.5;
+  const pulse = 1 + wave(phase, 2) * 0.15 * amp;
+  const ro = Math.max(1.5, s * 0.05 * pulse), ri = Math.max(1, s * 0.025 * pulse);
+  parts.push({ material: MATERIALS.ember(color), roundness: 0.8, sdf: capsule(cx - s * 0.2, cy, cx + s * 0.2, cy, ro),
+    bbox: [Math.floor(cx - s * 0.24), Math.floor(cy - ro - 2), Math.ceil(cx + s * 0.24), Math.ceil(cy + ro + 2)] });
+  parts.push({ material: MATERIALS.ember([200, 180, 255]), roundness: 0.8, sdf: capsule(cx - s * 0.1, cy, cx + s * 0.1, cy, ri),
+    bbox: [Math.floor(cx - s * 0.12), Math.floor(cy - ri - 2), Math.ceil(cx + s * 0.12), Math.ceil(cy + ri + 2)] });
+  // crackle arcs around the bolt
+  for (let i = 0; i < 2; i++) {
+    const offset = wave(phase, 3, i * 0.5) * s * 0.06 * amp;
+    const cr = Math.max(1, s * 0.015);
+    const ex = cx + (i === 0 ? -s * 0.12 : s * 0.12);
+    parts.push({ material: MATERIALS.ember([230, 220, 255]), roundness: 0.9, sdf: capsule(ex, cy + offset, ex + s * 0.06, cy - offset, cr),
+      bbox: [Math.floor(ex - cr - 2), Math.floor(cy - Math.abs(offset) - cr - 2),
+             Math.ceil(ex + s * 0.06 + cr + 2), Math.ceil(cy + Math.abs(offset) + cr + 2)] });
+  }
+  return parts;
+}
+
+/** Build effect parts by kind. */
+export function buildEffect(kind: EffectKind, s: number, color: RGB, phase: number, amp: number): Part[] {
+  switch (kind) {
+    case 'slash':      return buildSlashEffect(s, color, phase, amp);
+    case 'impact':     return buildImpactEffect(s, color, phase, amp);
+    case 'sparkle':    return buildSparkleEffect(s, color, phase, amp);
+    case 'fireball':   return buildFireballEffect(s, color, phase, amp);
+    case 'magic_bolt': return buildMagicBoltEffect(s, color, phase, amp);
+  }
 }
 
 // =============================================================================

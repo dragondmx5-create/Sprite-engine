@@ -45,6 +45,8 @@
   <div id="gallery"></div>
 
 <script>"use strict";
+<script>"use strict";
+"use strict";
 var SpriteEngine = (() => {
   var __defProp = Object.defineProperty;
   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -71,9 +73,11 @@ var SpriteEngine = (() => {
     CLIPS: () => CLIPS,
     CREATURE_KINDS: () => CREATURE_KINDS,
     DEATH: () => DEATH,
+    EFFECT_CLIPS: () => EFFECT_CLIPS,
     ENEMY_CLIPS: () => ENEMY_CLIPS,
     HIT: () => HIT,
     IDLE: () => IDLE,
+    ITEM_CLIPS: () => ITEM_CLIPS,
     ITEM_KINDS: () => ITEM_KINDS,
     MATERIALS: () => MATERIALS,
     MINIMAP_ICONS: () => MINIMAP_ICONS,
@@ -83,16 +87,24 @@ var SpriteEngine = (() => {
     animationToCanvases: () => animationToCanvases,
     applyStatusEffect: () => applyStatusEffect,
     buildCreature: () => buildCreature,
+    buildEffect: () => buildEffect,
+    buildFireballEffect: () => buildFireballEffect,
+    buildImpactEffect: () => buildImpactEffect,
     buildItem: () => buildItem,
+    buildMagicBoltEffect: () => buildMagicBoltEffect,
+    buildSlashEffect: () => buildSlashEffect,
+    buildSparkleEffect: () => buildSparkleEffect,
     buildTile: () => buildTile,
     damp: () => damp,
     fabrik: () => fabrik,
     flashSprite: () => flashSprite,
     generateAnimation: () => generateAnimation,
+    generateEffectAnimation: () => generateEffectAnimation,
     generateEnemy: () => generateEnemy,
     generateEnemyAnimation: () => generateEnemyAnimation,
     generateImpactEffect: () => generateImpactEffect,
     generateItem: () => generateItem,
+    generateItemAnimation: () => generateItemAnimation,
     generateMinimapIcon: () => generateMinimapIcon,
     generateProjectile: () => generateProjectile,
     generateShadow: () => generateShadow,
@@ -104,7 +116,9 @@ var SpriteEngine = (() => {
     generateTile: () => generateTile,
     lag: () => lag,
     listAnimations: () => listAnimations,
+    listEffectAnimations: () => listEffectAnimations,
     listEnemyAnimations: () => listEnemyAnimations,
+    listItemAnimations: () => listItemAnimations,
     packSpriteSheet: () => packSpriteSheet,
     pulse: () => pulse,
     samplePose: () => samplePose,
@@ -1091,6 +1105,7 @@ var SpriteEngine = (() => {
   var CREATURE_KINDS = ["insect", "worm", "crawler"];
 
   // src/items.ts
+  var PI2 = Math.PI;
   function pushEllipse2(parts, mat, cx, cy, rx, ry, roundness) {
     parts.push({
       material: mat,
@@ -1174,44 +1189,45 @@ var SpriteEngine = (() => {
         return j([180, 180, 180], 0.1);
     }
   }
-  function buildMushroom(rng, s, color) {
+  function buildMushroom(rng, s, color, phase, amp) {
     const parts = [];
     const cx = s * 0.5;
+    const sway = wave(phase, 1) * s * 0.012 * amp;
     const stem = MATERIALS.flesh([224, 212, 190]);
     const cap = MATERIALS.flesh(color);
     const spot = MATERIALS.bone([238, 232, 214]);
-    pushCapsule2(parts, stem, cx - s * 0.02, s * 0.78, cx, s * 0.52, s * 0.07, 1);
+    pushCapsule2(parts, stem, cx - s * 0.02, s * 0.78, cx + sway, s * 0.52, s * 0.07, 1);
     const capCy = s * 0.46, capRx = s * 0.26, capRy = s * 0.18;
-    pushEllipse2(parts, cap, cx, capCy, capRx, capRy, 1);
-    pushEllipse2(parts, cap, cx, capCy + capRy * 0.55, capRx * 0.92, capRy * 0.4, 1);
+    pushEllipse2(parts, cap, cx + sway, capCy, capRx, capRy, 1);
+    pushEllipse2(parts, cap, cx + sway, capCy + capRy * 0.55, capRx * 0.92, capRy * 0.4, 1);
     const n = 3;
     for (let i = 0; i < n; i++) {
       const a = rng.range(-1, 1) * 0.9;
-      const sx = cx + a * capRx * 0.7;
+      const sx = cx + sway + a * capRx * 0.7;
       const sy = capCy - capRy * 0.2 + rng.jitter(capRy * 0.3);
       pushCircle2(parts, spot, sx, sy, s * (0.03 + rng.range(0, 0.015)), 0.8);
     }
     return parts;
   }
-  function buildCrystal(rng, s, color) {
+  function buildCrystal(rng, s, color, phase, amp) {
     const parts = [];
     const cx = s * 0.5, baseY = s * 0.74;
+    const pulse2 = 0.5 + 0.5 * wave(phase, 1);
+    const glow = pulse2 * amp;
+    const hiColor = [
+      Math.min(255, color[0] + 60 + 40 * glow),
+      Math.min(255, color[1] + 60 + 40 * glow),
+      Math.min(255, color[2] + 60 + 40 * glow)
+    ];
     const gem = MATERIALS.gem(color);
     const gemDim = MATERIALS.gem([color[0] * 0.7, color[1] * 0.72, color[2] * 0.78]);
     pushRotBox(parts, gemDim, cx - s * 0.13, baseY - s * 0.12, s * 0.05, s * 0.16, s * 0.02, -0.35 + rng.jitter(0.1), 0.9);
     pushRotBox(parts, gemDim, cx + s * 0.14, baseY - s * 0.1, s * 0.045, s * 0.14, s * 0.02, 0.4 + rng.jitter(0.1), 0.9);
     pushRotBox(parts, gem, cx + s * 0.01, baseY - s * 0.18, s * 0.07, s * 0.24, s * 0.025, rng.jitter(0.12), 0.9);
-    pushCircle2(
-      parts,
-      MATERIALS.gem([Math.min(255, color[0] + 60), Math.min(255, color[1] + 60), Math.min(255, color[2] + 60)]),
-      cx + s * 0.01,
-      baseY - s * 0.36,
-      s * 0.03,
-      0.8
-    );
+    pushCircle2(parts, MATERIALS.gem(hiColor), cx + s * 0.01, baseY - s * 0.36, s * (0.03 + 0.01 * glow), 0.8);
     return parts;
   }
-  function buildDagger(rng, s, color) {
+  function buildDagger(rng, s, color, phase, amp) {
     const parts = [];
     const cx = s * 0.5;
     const steel = MATERIALS.metal(color);
@@ -1223,9 +1239,11 @@ var SpriteEngine = (() => {
     pushBox(parts, guard, cx, s * 0.66, s * 0.16, s * 0.03, s * 0.015, 0.6);
     pushCapsule2(parts, grip, cx, s * 0.7, cx, s * 0.84, s * 0.035, 1);
     pushCircle2(parts, pommel, cx, s * 0.87, s * 0.045, 0.85);
+    const glintY = s * (0.14 + 0.4 * ((phase * amp + 0.5) % 1));
+    pushCircle2(parts, MATERIALS.metal([230, 240, 255]), cx + s * 0.03, glintY, Math.max(1, s * 0.014), 0.5);
     return parts;
   }
-  function buildTorch(rng, s, color) {
+  function buildTorch(rng, s, color, phase, amp) {
     const parts = [];
     const cx = s * 0.5;
     const grip = MATERIALS.leather([86, 58, 40]);
@@ -1234,12 +1252,15 @@ var SpriteEngine = (() => {
     const flameHi = MATERIALS.ember([255, 235, 140]);
     pushCapsule2(parts, grip, cx, s * 0.86, cx, s * 0.48, s * 0.04, 1);
     pushCircle2(parts, head, cx, s * 0.46, s * 0.07, 0.9);
-    const fy = s * 0.3, flick = rng.jitter(s * 0.02);
-    pushEllipse2(parts, flame, cx + flick, fy, s * 0.1, s * 0.16, 1);
-    pushEllipse2(parts, flameHi, cx + flick * 0.5, fy + s * 0.02, s * 0.05, s * 0.1, 1);
+    const seedFlick = rng.jitter(s * 0.02);
+    const flick = seedFlick + wave(phase, 3) * s * 0.025 * amp;
+    const breathe = 1 + wave(phase, 2) * 0.12 * amp;
+    const fy = s * 0.3 + wave(phase, 1.5) * s * 0.015 * amp;
+    pushEllipse2(parts, flame, cx + flick, fy, s * 0.1 * breathe, s * 0.16 * breathe, 1);
+    pushEllipse2(parts, flameHi, cx + flick * 0.4, fy + s * 0.02, s * 0.05, s * 0.1 * breathe, 1);
     return parts;
   }
-  function buildPotion(rng, s, color) {
+  function buildPotion(rng, s, color, phase, amp) {
     const parts = [];
     const cx = s * 0.5;
     const glass = MATERIALS.glass([200, 220, 230]);
@@ -1248,96 +1269,131 @@ var SpriteEngine = (() => {
     pushEllipse2(parts, liquid, cx, s * 0.62, s * 0.18, s * 0.16, 1);
     pushCircle2(parts, glass, cx, s * 0.6, s * 0.21, 1);
     pushBox(parts, glass, cx, s * 0.36, s * 0.07, s * 0.1, s * 0.03, 0.8);
-    pushCircle2(parts, MATERIALS.glass([255, 255, 255]), cx - s * 0.08, s * 0.52, s * 0.03, 0.7);
+    const glow = 0.5 + 0.5 * wave(phase, 1.5);
+    const glowAmt = 0.5 + 0.5 * glow * amp;
+    const liqGlow = [
+      Math.min(255, color[0] * glowAmt),
+      Math.min(255, color[1] * glowAmt),
+      Math.min(255, color[2] * glowAmt)
+    ];
+    pushEllipse2(parts, MATERIALS.ember(liqGlow), cx, s * 0.64, s * 0.14, s * 0.1, 1);
+    const glintAngle = phase * PI2 * 2;
+    const glintX = cx + Math.cos(glintAngle) * s * 0.1;
+    const glintY = s * 0.52 + Math.sin(glintAngle) * s * 0.06;
+    pushCircle2(parts, MATERIALS.glass([255, 255, 255]), glintX, glintY, Math.max(1, s * 0.025), 0.7);
     pushBox(parts, cork, cx, s * 0.26, s * 0.06, s * 0.05, s * 0.02, 0.9);
     return parts;
   }
-  function buildCoin(rng, s, color) {
+  function buildCoin(rng, s, color, phase, amp) {
     const parts = [];
     const cx = s * 0.5, cy = s * 0.54;
     const gold = MATERIALS.gold(color);
     const goldDim = MATERIALS.gold([color[0] * 0.78, color[1] * 0.78, color[2] * 0.7]);
-    pushEllipse2(parts, goldDim, cx + s * 0.05, cy + s * 0.06, s * 0.2, s * 0.16, 1);
-    pushEllipse2(parts, gold, cx, cy, s * 0.21, s * 0.17, 1);
-    pushEllipse2(parts, goldDim, cx, cy, s * 0.13, s * 0.1, 1);
-    pushCircle2(parts, MATERIALS.gold([255, 240, 190]), cx - s * 0.07, cy - s * 0.05, s * 0.03, 0.7);
+    const spin = Math.cos(phase * PI2 * 2) * amp;
+    const rxScale = 0.6 + 0.4 * Math.abs(spin);
+    pushEllipse2(parts, goldDim, cx + s * 0.05, cy + s * 0.06, s * 0.2 * rxScale, s * 0.16, 1);
+    pushEllipse2(parts, gold, cx, cy, s * 0.21 * rxScale, s * 0.17, 1);
+    pushEllipse2(parts, goldDim, cx, cy, s * 0.13 * rxScale, s * 0.1, 1);
+    const glintX = cx + s * 0.12 * spin;
+    pushCircle2(parts, MATERIALS.gold([255, 240, 190]), glintX, cy - s * 0.05, Math.max(1, s * 0.03), 0.7);
     return parts;
   }
-  function buildRune(rng, s, color) {
+  function buildRune(rng, s, color, phase, amp) {
     const parts = [];
     const cx = s * 0.5, cy = s * 0.52;
     const stone = MATERIALS.bone([70, 66, 74]);
-    const glow = MATERIALS.ember(color);
     pushBox(parts, stone, cx, cy, s * 0.18, s * 0.24, s * 0.05, 0.85);
     const strokes = 3 + Math.floor(rng.float() * 3);
     for (let i = 0; i < strokes; i++) {
       const ax = cx + rng.jitter(s * 0.09), ay = cy + rng.jitter(s * 0.14);
       const bx = cx + rng.jitter(s * 0.09), by = cy + rng.jitter(s * 0.14);
-      pushCapsule2(parts, glow, ax, ay, bx, by, Math.max(1, s * 0.014), 0.7);
+      const strokePhase = (phase + i / strokes) % 1;
+      const bright = 0.5 + 0.5 * wave(strokePhase, 1) * amp;
+      const glowColor = [
+        Math.min(255, color[0] * (0.6 + 0.6 * bright)),
+        Math.min(255, color[1] * (0.6 + 0.6 * bright)),
+        Math.min(255, color[2] * (0.6 + 0.6 * bright))
+      ];
+      pushCapsule2(parts, MATERIALS.ember(glowColor), ax, ay, bx, by, Math.max(1, s * 0.014), 0.7);
     }
     return parts;
   }
-  function buildChest(rng, s, color) {
+  function buildChest(rng, s, color, phase, amp) {
     const parts = [];
     const cx = s * 0.5;
     const wood = MATERIALS.leather(color);
     const band = MATERIALS.metal([115, 105, 88]);
     const clasp = MATERIALS.gold([220, 190, 80]);
+    const open = (0.5 + 0.5 * wave(phase, 0.5)) * amp;
+    const lidLift = open * s * 0.08;
     pushBox(parts, wood, cx, s * 0.58, s * 0.24, s * 0.18, s * 0.03, 0.3);
-    pushBox(parts, wood, cx, s * 0.38, s * 0.24, s * 0.08, s * 0.04, 0.4);
-    pushBox(parts, band, cx, s * 0.45, s * 0.26, s * 0.014, s * 7e-3, 0.35);
+    pushBox(parts, wood, cx, s * 0.38 - lidLift, s * 0.24, s * 0.08, s * 0.04, 0.4);
+    pushBox(parts, band, cx, s * 0.45 - lidLift, s * 0.26, s * 0.014, s * 7e-3, 0.35);
     pushBox(parts, band, cx, s * 0.68, s * 0.26, s * 0.014, s * 7e-3, 0.35);
+    if (open > 0.3) {
+      const glowAmt = (open - 0.3) / 0.7;
+      pushEllipse2(parts, MATERIALS.ember([255, 220, 100]), cx, s * 0.48, s * 0.16 * glowAmt, s * 0.04, 1);
+    }
     pushCircle2(parts, clasp, cx, s * 0.52, s * 0.024, 0.6);
     return parts;
   }
-  function buildKey(rng, s, color) {
+  function buildKey(rng, s, color, phase, amp) {
     const parts = [];
     const cx = s * 0.5;
     const gold = MATERIALS.gold(color);
-    pushCircle2(parts, gold, cx, s * 0.3, s * 0.08, 0.7);
-    pushCircle2(parts, MATERIALS.bone([30, 28, 26]), cx, s * 0.3, s * 0.04, 0.5);
-    pushCapsule2(parts, gold, cx, s * 0.38, cx, s * 0.72, s * 0.02, 0.6);
-    pushBox(parts, gold, cx + s * 0.04, s * 0.67, s * 0.035, s * 0.018, s * 6e-3, 0.5);
-    pushBox(parts, gold, cx + s * 0.04, s * 0.74, s * 0.028, s * 0.018, s * 6e-3, 0.5);
+    const sway = wave(phase, 1) * s * 0.015 * amp;
+    pushCircle2(parts, gold, cx + sway * 0.3, s * 0.3, s * 0.08, 0.7);
+    pushCircle2(parts, MATERIALS.bone([30, 28, 26]), cx + sway * 0.3, s * 0.3, s * 0.04, 0.5);
+    pushCapsule2(parts, gold, cx + sway * 0.3, s * 0.38, cx + sway, s * 0.72, s * 0.02, 0.6);
+    pushBox(parts, gold, cx + s * 0.04 + sway, s * 0.67, s * 0.035, s * 0.018, s * 6e-3, 0.5);
+    pushBox(parts, gold, cx + s * 0.04 + sway, s * 0.74, s * 0.028, s * 0.018, s * 6e-3, 0.5);
+    const glintY = s * (0.38 + 0.3 * ((phase * amp + 0.5) % 1));
+    pushCircle2(parts, MATERIALS.gold([255, 248, 210]), cx + sway * 0.6, glintY, Math.max(1, s * 0.012), 0.6);
     return parts;
   }
-  function buildScroll(rng, s, color) {
+  function buildScroll(rng, s, color, phase, amp) {
     const parts = [];
     const cx = s * 0.5;
     const parch = MATERIALS.bone(color);
-    const seal = MATERIALS.ember([180, 50, 40]);
-    pushBox(parts, parch, cx, s * 0.52, s * 0.14, s * 0.22, s * 0.025, 0.35);
-    pushCapsule2(parts, parch, cx - s * 0.15, s * 0.3, cx + s * 0.15, s * 0.3, s * 0.032, 0.7);
-    pushCapsule2(parts, parch, cx - s * 0.15, s * 0.74, cx + s * 0.15, s * 0.74, s * 0.032, 0.7);
-    pushCircle2(parts, seal, cx, s * 0.52, s * 0.028, 0.6);
+    const breathe = 1 + wave(phase, 1) * 0.02 * amp;
+    pushBox(parts, parch, cx, s * 0.52, s * 0.14 * breathe, s * 0.22, s * 0.025, 0.35);
+    pushCapsule2(parts, parch, cx - s * 0.15 * breathe, s * 0.3, cx + s * 0.15 * breathe, s * 0.3, s * 0.032, 0.7);
+    pushCapsule2(parts, parch, cx - s * 0.15 * breathe, s * 0.74, cx + s * 0.15 * breathe, s * 0.74, s * 0.032, 0.7);
+    const sealPulse = 0.5 + 0.5 * wave(phase, 1.5) * amp;
+    const sealColor = [
+      Math.min(255, 180 + 60 * sealPulse),
+      Math.min(255, 50 + 30 * sealPulse),
+      Math.min(255, 40 + 20 * sealPulse)
+    ];
+    pushCircle2(parts, MATERIALS.ember(sealColor), cx, s * 0.52, s * (0.028 + 6e-3 * sealPulse), 0.6);
     return parts;
   }
-  function buildItem(config, s) {
+  function buildItem(config, s, phase = 0, amp = 1) {
     const rng = new RNG(config.seed ?? 0);
     const kind = config.kind ?? "mushroom";
     const color = config.color ?? defaultColor3(rng, kind);
     switch (kind) {
       case "crystal":
-        return buildCrystal(rng, s, color);
+        return buildCrystal(rng, s, color, phase, amp);
       case "dagger":
-        return buildDagger(rng, s, color);
+        return buildDagger(rng, s, color, phase, amp);
       case "torch":
-        return buildTorch(rng, s, color);
+        return buildTorch(rng, s, color, phase, amp);
       case "potion":
-        return buildPotion(rng, s, color);
+        return buildPotion(rng, s, color, phase, amp);
       case "coin":
-        return buildCoin(rng, s, color);
+        return buildCoin(rng, s, color, phase, amp);
       case "rune":
-        return buildRune(rng, s, color);
+        return buildRune(rng, s, color, phase, amp);
       case "chest":
-        return buildChest(rng, s, color);
+        return buildChest(rng, s, color, phase, amp);
       case "key":
-        return buildKey(rng, s, color);
+        return buildKey(rng, s, color, phase, amp);
       case "scroll":
-        return buildScroll(rng, s, color);
+        return buildScroll(rng, s, color, phase, amp);
       case "mushroom":
       default:
-        return buildMushroom(rng, s, color);
+        return buildMushroom(rng, s, color, phase, amp);
     }
   }
   var ITEM_KINDS = ["mushroom", "crystal", "dagger", "torch", "potion", "coin", "rune", "chest", "key", "scroll"];
@@ -1805,62 +1861,6 @@ var SpriteEngine = (() => {
     }
   }
 
-  // src/animation.ts
-  function generateAnimation(config, animationName) {
-    const clip = CLIPS[animationName];
-    if (!clip) {
-      throw new Error(`Unknown animation "${animationName}". Available: ${Object.keys(CLIPS).join(", ")}`);
-    }
-    const opts = resolveRenderOpts(config);
-    const frames = [];
-    for (let i = 0; i < clip.frames; i++) {
-      const phase = clip.loop ? i / clip.frames : clip.frames > 1 ? i / (clip.frames - 1) : 0;
-      const pose = samplePose(clip, phase);
-      const parts = buildSkeleton(config, opts.W, pose);
-      frames.push(renderParts(parts, opts));
-    }
-    return { name: clip.name, frames, frameCount: clip.frames, fps: clip.fps, loop: clip.loop };
-  }
-  function listAnimations() {
-    return Object.keys(CLIPS);
-  }
-  var ENEMY_CLIPS = {
-    idle: { name: "idle", fps: 8, loop: true, frames: 8, amp: 0.4 },
-    move: { name: "move", fps: 12, loop: true, frames: 8, amp: 1 }
-  };
-  function generateEnemyAnimation(config, animationName) {
-    const clip = ENEMY_CLIPS[animationName];
-    if (!clip) {
-      throw new Error(`Unknown enemy animation "${animationName}". Available: ${Object.keys(ENEMY_CLIPS).join(", ")}`);
-    }
-    const opts = resolveRenderOpts(config);
-    const frames = [];
-    for (let i = 0; i < clip.frames; i++) {
-      const phase = i / clip.frames;
-      const parts = buildCreature(config, opts.W, phase, clip.amp);
-      frames.push(renderParts(parts, opts));
-    }
-    return { name: clip.name, frames, frameCount: clip.frames, fps: clip.fps, loop: clip.loop };
-  }
-  function listEnemyAnimations() {
-    return Object.keys(ENEMY_CLIPS);
-  }
-  function packSpriteSheet(frames) {
-    if (frames.length === 0) return { width: 0, height: 0, data: new Uint8ClampedArray(0) };
-    const fw = frames[0].width, fh = frames[0].height, n = frames.length;
-    const W = fw * n;
-    const data = new Uint8ClampedArray(W * fh * 4);
-    for (let i = 0; i < n; i++) {
-      const f = frames[i];
-      for (let y = 0; y < fh; y++) {
-        const srcRow = y * fw * 4;
-        const dstRow = (y * W + i * fw) * 4;
-        data.set(f.data.subarray(srcRow, srcRow + fw * 4), dstRow);
-      }
-    }
-    return { width: W, height: fh, data };
-  }
-
   // src/effects.ts
   function generateShadow(size, opacity = 0.4) {
     const w = size;
@@ -2076,6 +2076,194 @@ var SpriteEngine = (() => {
     });
     return renderParts(parts, opts);
   }
+  function buildSlashEffect(s, color, phase, amp) {
+    const parts = [];
+    const mat = MATERIALS.glass(color);
+    const core = MATERIALS.ember([255, 255, 240]);
+    const cx = s * 0.45, cy = s * 0.5;
+    const r = s * 0.35;
+    const segs = 5;
+    const a0 = -Math.PI * 0.65, a1 = Math.PI * 0.25;
+    const visibleSegs = Math.ceil(segs * phase * amp + (1 - amp) * segs);
+    for (let i = 0; i < visibleSegs && i < segs; i++) {
+      const t0 = a0 + (a1 - a0) * (i / segs);
+      const t1 = a0 + (a1 - a0) * ((i + 1) / segs);
+      const ax = cx + Math.cos(t0) * r, ay = cy + Math.sin(t0) * r;
+      const bx = cx + Math.cos(t1) * r, by = cy + Math.sin(t1) * r;
+      const fade = 1 - i / segs * 0.3;
+      const w = s * 0.03 * fade;
+      parts.push({
+        material: mat,
+        roundness: 0.9,
+        sdf: capsule(ax, ay, bx, by, w),
+        bbox: [
+          Math.floor(Math.min(ax, bx) - w - 2),
+          Math.floor(Math.min(ay, by) - w - 2),
+          Math.ceil(Math.max(ax, bx) + w + 2),
+          Math.ceil(Math.max(ay, by) + w + 2)
+        ]
+      });
+      const wc = s * 0.014 * fade;
+      parts.push({
+        material: core,
+        roundness: 0.9,
+        sdf: capsule(ax, ay, bx, by, wc),
+        bbox: [
+          Math.floor(Math.min(ax, bx) - wc - 2),
+          Math.floor(Math.min(ay, by) - wc - 2),
+          Math.ceil(Math.max(ax, bx) + wc + 2),
+          Math.ceil(Math.max(ay, by) + wc + 2)
+        ]
+      });
+    }
+    return parts;
+  }
+  function buildImpactEffect(s, color, phase, amp) {
+    const parts = [];
+    const mat = MATERIALS.ember(color);
+    const cx = s * 0.5, cy = s * 0.5;
+    const rays = 6;
+    const expand = (0.3 + 0.7 * phase) * amp + (1 - amp);
+    const fade = 1 - phase * 0.6;
+    for (let i = 0; i < rays; i++) {
+      const a = i / rays * Math.PI * 2 + 0.2;
+      const len = s * (0.24 + i % 2 * 0.1) * expand;
+      const bx = cx + Math.cos(a) * len, by = cy + Math.sin(a) * len;
+      const r = Math.max(1, s * 0.022 * fade);
+      parts.push({
+        material: mat,
+        roundness: 0.8,
+        sdf: capsule(cx, cy, bx, by, r),
+        bbox: [
+          Math.floor(Math.min(cx, bx) - r - 2),
+          Math.floor(Math.min(cy, by) - r - 2),
+          Math.ceil(Math.max(cx, bx) + r + 2),
+          Math.ceil(Math.max(cy, by) + r + 2)
+        ]
+      });
+    }
+    const cr = Math.max(1, s * 0.055 * fade);
+    parts.push({
+      material: MATERIALS.ember([255, 255, 230]),
+      roundness: 1,
+      sdf: circle(cx, cy, cr),
+      bbox: [Math.floor(cx - cr - 2), Math.floor(cy - cr - 2), Math.ceil(cx + cr + 2), Math.ceil(cy + cr + 2)]
+    });
+    return parts;
+  }
+  function buildSparkleEffect(s, color, phase, amp) {
+    const parts = [];
+    const mat = MATERIALS.ember(color);
+    const cx = s * 0.5, cy = s * 0.5;
+    const rot = phase * Math.PI * 0.5 * amp;
+    const pulse2 = 1 + 0.2 * wave(phase, 2) * amp;
+    const r = Math.max(1, s * 0.025 * pulse2);
+    for (let i = 0; i < 4; i++) {
+      const a = i / 4 * Math.PI + Math.PI / 8 + rot;
+      const len = s * (i % 2 === 0 ? 0.3 : 0.18) * pulse2;
+      const ax = cx + Math.cos(a) * len, ay = cy + Math.sin(a) * len;
+      const bx = cx - Math.cos(a) * len, by = cy - Math.sin(a) * len;
+      parts.push({
+        material: mat,
+        roundness: 0.8,
+        sdf: capsule(ax, ay, bx, by, r),
+        bbox: [
+          Math.floor(Math.min(ax, bx) - r - 2),
+          Math.floor(Math.min(ay, by) - r - 2),
+          Math.ceil(Math.max(ax, bx) + r + 2),
+          Math.ceil(Math.max(ay, by) + r + 2)
+        ]
+      });
+    }
+    const cr = Math.max(1, s * 0.045 * pulse2);
+    parts.push({
+      material: MATERIALS.ember([255, 255, 255]),
+      roundness: 1,
+      sdf: circle(cx, cy, cr),
+      bbox: [Math.floor(cx - cr - 2), Math.floor(cy - cr - 2), Math.ceil(cx + cr + 2), Math.ceil(cy + cr + 2)]
+    });
+    return parts;
+  }
+  function buildFireballEffect(s, color, phase, amp) {
+    const parts = [];
+    const cx = s * 0.5, cy = s * 0.5;
+    const breathe = 1 + wave(phase, 3) * 0.12 * amp;
+    const flick = wave(phase, 5) * s * 0.015 * amp;
+    const r = s * 0.14 * breathe, ri = s * 0.07 * breathe;
+    parts.push({
+      material: MATERIALS.ember(color),
+      roundness: 1,
+      sdf: circle(cx + flick, cy, r),
+      bbox: [Math.floor(cx + flick - r - 2), Math.floor(cy - r - 2), Math.ceil(cx + flick + r + 2), Math.ceil(cy + r + 2)]
+    });
+    parts.push({
+      material: MATERIALS.ember([255, 240, 180]),
+      roundness: 1,
+      sdf: circle(cx + flick * 0.3, cy, ri),
+      bbox: [Math.floor(cx + flick * 0.3 - ri - 2), Math.floor(cy - ri - 2), Math.ceil(cx + flick * 0.3 + ri + 2), Math.ceil(cy + ri + 2)]
+    });
+    for (let i = 0; i < 3; i++) {
+      const a = i / 3 * Math.PI * 2 + phase * Math.PI * 2;
+      const wr = s * 0.04;
+      const wx = cx + Math.cos(a) * r * 0.85, wy = cy + Math.sin(a) * r * 0.85;
+      parts.push({
+        material: MATERIALS.ember([255, 200, 80]),
+        roundness: 1,
+        sdf: circle(wx, wy, Math.max(1, wr)),
+        bbox: [Math.floor(wx - wr - 2), Math.floor(wy - wr - 2), Math.ceil(wx + wr + 2), Math.ceil(wy + wr + 2)]
+      });
+    }
+    return parts;
+  }
+  function buildMagicBoltEffect(s, color, phase, amp) {
+    const parts = [];
+    const cx = s * 0.5, cy = s * 0.5;
+    const pulse2 = 1 + wave(phase, 2) * 0.15 * amp;
+    const ro = Math.max(1.5, s * 0.05 * pulse2), ri = Math.max(1, s * 0.025 * pulse2);
+    parts.push({
+      material: MATERIALS.ember(color),
+      roundness: 0.8,
+      sdf: capsule(cx - s * 0.2, cy, cx + s * 0.2, cy, ro),
+      bbox: [Math.floor(cx - s * 0.24), Math.floor(cy - ro - 2), Math.ceil(cx + s * 0.24), Math.ceil(cy + ro + 2)]
+    });
+    parts.push({
+      material: MATERIALS.ember([200, 180, 255]),
+      roundness: 0.8,
+      sdf: capsule(cx - s * 0.1, cy, cx + s * 0.1, cy, ri),
+      bbox: [Math.floor(cx - s * 0.12), Math.floor(cy - ri - 2), Math.ceil(cx + s * 0.12), Math.ceil(cy + ri + 2)]
+    });
+    for (let i = 0; i < 2; i++) {
+      const offset = wave(phase, 3, i * 0.5) * s * 0.06 * amp;
+      const cr = Math.max(1, s * 0.015);
+      const ex = cx + (i === 0 ? -s * 0.12 : s * 0.12);
+      parts.push({
+        material: MATERIALS.ember([230, 220, 255]),
+        roundness: 0.9,
+        sdf: capsule(ex, cy + offset, ex + s * 0.06, cy - offset, cr),
+        bbox: [
+          Math.floor(ex - cr - 2),
+          Math.floor(cy - Math.abs(offset) - cr - 2),
+          Math.ceil(ex + s * 0.06 + cr + 2),
+          Math.ceil(cy + Math.abs(offset) + cr + 2)
+        ]
+      });
+    }
+    return parts;
+  }
+  function buildEffect(kind, s, color, phase, amp) {
+    switch (kind) {
+      case "slash":
+        return buildSlashEffect(s, color, phase, amp);
+      case "impact":
+        return buildImpactEffect(s, color, phase, amp);
+      case "sparkle":
+        return buildSparkleEffect(s, color, phase, amp);
+      case "fireball":
+        return buildFireballEffect(s, color, phase, amp);
+      case "magic_bolt":
+        return buildMagicBoltEffect(s, color, phase, amp);
+    }
+  }
   function flashSprite(sprite) {
     const data = new Uint8ClampedArray(sprite.data);
     for (let i = 0; i < data.length; i += 4) {
@@ -2108,6 +2296,118 @@ var SpriteEngine = (() => {
       case "burning":
         return tintSprite(sprite, [255, 110, 30], 0.18 + 0.14 * Math.sin(phase * Math.PI * 2));
     }
+  }
+
+  // src/animation.ts
+  function generateAnimation(config, animationName) {
+    const clip = CLIPS[animationName];
+    if (!clip) {
+      throw new Error(`Unknown animation "${animationName}". Available: ${Object.keys(CLIPS).join(", ")}`);
+    }
+    const opts = resolveRenderOpts(config);
+    const frames = [];
+    for (let i = 0; i < clip.frames; i++) {
+      const phase = clip.loop ? i / clip.frames : clip.frames > 1 ? i / (clip.frames - 1) : 0;
+      const pose = samplePose(clip, phase);
+      const parts = buildSkeleton(config, opts.W, pose);
+      frames.push(renderParts(parts, opts));
+    }
+    return { name: clip.name, frames, frameCount: clip.frames, fps: clip.fps, loop: clip.loop };
+  }
+  function listAnimations() {
+    return Object.keys(CLIPS);
+  }
+  var ENEMY_CLIPS = {
+    idle: { name: "idle", fps: 8, loop: true, frames: 8, amp: 0.4 },
+    move: { name: "move", fps: 12, loop: true, frames: 8, amp: 1 }
+  };
+  function generateEnemyAnimation(config, animationName) {
+    const clip = ENEMY_CLIPS[animationName];
+    if (!clip) {
+      throw new Error(`Unknown enemy animation "${animationName}". Available: ${Object.keys(ENEMY_CLIPS).join(", ")}`);
+    }
+    const opts = resolveRenderOpts(config);
+    const frames = [];
+    for (let i = 0; i < clip.frames; i++) {
+      const phase = i / clip.frames;
+      const parts = buildCreature(config, opts.W, phase, clip.amp);
+      frames.push(renderParts(parts, opts));
+    }
+    return { name: clip.name, frames, frameCount: clip.frames, fps: clip.fps, loop: clip.loop };
+  }
+  function listEnemyAnimations() {
+    return Object.keys(ENEMY_CLIPS);
+  }
+  var ITEM_CLIPS = {
+    idle: { name: "idle", fps: 8, loop: true, frames: 8, amp: 0.4 },
+    active: { name: "active", fps: 10, loop: true, frames: 8, amp: 1 },
+    pickup: { name: "pickup", fps: 12, loop: false, frames: 6, amp: 1 }
+  };
+  function generateItemAnimation(config, animationName) {
+    const clip = ITEM_CLIPS[animationName];
+    if (!clip) {
+      throw new Error(`Unknown item animation "${animationName}". Available: ${Object.keys(ITEM_CLIPS).join(", ")}`);
+    }
+    const opts = resolveRenderOpts(config);
+    const frames = [];
+    for (let i = 0; i < clip.frames; i++) {
+      const phase = clip.loop ? i / clip.frames : clip.frames > 1 ? i / (clip.frames - 1) : 0;
+      const parts = buildItem(config, opts.W, phase, clip.amp);
+      frames.push(renderParts(parts, opts));
+    }
+    return { name: clip.name, frames, frameCount: clip.frames, fps: clip.fps, loop: clip.loop };
+  }
+  function listItemAnimations() {
+    return Object.keys(ITEM_CLIPS);
+  }
+  var EFFECT_CLIPS = {
+    slash: { name: "slash", fps: 16, loop: false, frames: 6, amp: 1 },
+    impact: { name: "impact", fps: 16, loop: false, frames: 5, amp: 1 },
+    sparkle: { name: "sparkle", fps: 10, loop: true, frames: 8, amp: 1 },
+    fireball: { name: "fireball", fps: 12, loop: true, frames: 8, amp: 1 },
+    magic_bolt: { name: "magic_bolt", fps: 12, loop: true, frames: 8, amp: 1 }
+  };
+  var DEFAULT_EFFECT_COLORS = {
+    slash: [255, 240, 200],
+    impact: [255, 220, 100],
+    sparkle: [255, 255, 200],
+    fireball: [255, 140, 40],
+    magic_bolt: [120, 80, 255]
+  };
+  function generateEffectAnimation(config, animationName) {
+    const kind = config.kind ?? "slash";
+    const clipName = animationName ?? kind;
+    const clip = EFFECT_CLIPS[clipName];
+    if (!clip) {
+      throw new Error(`Unknown effect animation "${clipName}". Available: ${Object.keys(EFFECT_CLIPS).join(", ")}`);
+    }
+    const color = config.color ?? DEFAULT_EFFECT_COLORS[kind];
+    const opts = resolveRenderOpts({ size: config.size ?? 32, supersample: config.supersample ?? 2, outline: false, quantize: false });
+    const frames = [];
+    for (let i = 0; i < clip.frames; i++) {
+      const phase = clip.loop ? i / clip.frames : clip.frames > 1 ? i / (clip.frames - 1) : 0;
+      const parts = buildEffect(kind, opts.W, color, phase, clip.amp);
+      frames.push(renderParts(parts, opts));
+    }
+    return { name: clip.name, frames, frameCount: clip.frames, fps: clip.fps, loop: clip.loop };
+  }
+  function listEffectAnimations() {
+    return Object.keys(EFFECT_CLIPS);
+  }
+  function packSpriteSheet(frames) {
+    if (frames.length === 0) return { width: 0, height: 0, data: new Uint8ClampedArray(0) };
+    const fw = frames[0].width, fh = frames[0].height, n = frames.length;
+    const W = fw * n;
+    const data = new Uint8ClampedArray(W * fh * 4);
+    for (let i = 0; i < n; i++) {
+      const f = frames[i];
+      for (let y = 0; y < fh; y++) {
+        const srcRow = y * fw * 4;
+        const dstRow = (y * W + i * fw) * 4;
+        data.set(f.data.subarray(srcRow, srcRow + fw * 4), dstRow);
+      }
+    }
+    return { width: W, height: fh, data };
   }
 
   // src/minimap.ts
@@ -2206,10 +2506,6 @@ var SpriteEngine = (() => {
   return __toCommonJS(index_exports);
 })();
 </script>
-<script>
-const { generateSprite, generateEnemy, generateItem, generateTile, generateAnimation,
-        generateShadow, generateSlashEffect, generateImpactEffect,
-        generateProjectile, generateSparkle,
         flashSprite, tintSprite, applyStatusEffect, generateMinimapIcon,
         CREATURE_KINDS, ITEM_KINDS, TILE_KINDS, MINIMAP_ICONS } = SpriteEngine;
 

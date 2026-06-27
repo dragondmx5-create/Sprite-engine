@@ -8,6 +8,7 @@ import { writeFileSync, mkdirSync } from 'fs';
 import {
   generateSprite, generateEnemy, generateItem, generateTile,
   generateEnemyAnimation, generateAnimation,
+  generateItemAnimation, generateEffectAnimation,
   CREATURE_KINDS, ITEM_KINDS, TILE_KINDS, MINIMAP_ICONS,
   solveTwoBone, fabrik,
   generateShadow, generateSlashEffect, generateImpactEffect,
@@ -225,6 +226,27 @@ check('tile seed varies', !same(
 for (const icon of MINIMAP_ICONS) {
   const ic = generateMinimapIcon({ icon, size: 6 });
   check(`minimap ${icon} generates`, ic.width === 6 && ic.height === 6 && ic.data.some((v, i) => i % 4 === 3 && v > 0));
+}
+
+// --- 1h) item animations: phase-driven, deterministic -----------------------
+{
+  for (const kind of ITEM_KINDS) {
+    const anim = generateItemAnimation({ kind, seed: kind, size: 32, supersample: 2 }, 'idle');
+    check(`item anim ${kind} idle generates`, anim.frames.length === 8 && anim.frames[0].width === 32);
+    check(`item anim ${kind} frames differ`, !same(anim.frames[0], anim.frames[2]));
+  }
+  const a = generateItemAnimation({ kind: 'torch', seed: 'det', size: 32 }, 'active');
+  const b = generateItemAnimation({ kind: 'torch', seed: 'det', size: 32 }, 'active');
+  check('item anim deterministic', same(a.frames[3], b.frames[3]));
+}
+
+// --- 1i) effect animations: VFX animate correctly ---------------------------
+{
+  for (const kind of ['slash', 'impact', 'sparkle', 'fireball', 'magic_bolt'] as const) {
+    const anim = generateEffectAnimation({ kind, size: 24 });
+    check(`effect anim ${kind} generates`, anim.frames.length > 0 && anim.frames[0].width === 24);
+    check(`effect anim ${kind} frames differ`, !same(anim.frames[0], anim.frames[Math.min(2, anim.frames.length - 1)]));
+  }
 }
 
 // --- 2) perf: a creature/item should generate in a few ms -------------------

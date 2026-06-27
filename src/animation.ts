@@ -19,9 +19,12 @@
 // =============================================================================
 
 import type { SpriteBuffer, SpriteConfig } from './types';
+import type { RGB } from './types';
 import { resolveRenderOpts, renderParts } from './engine';
 import { buildSkeleton } from './skeleton';
 import { buildCreature, type CreatureConfig } from './creatures';
+import { buildItem, type ItemConfig } from './items';
+import { buildEffect, type EffectKind, type EffectConfig } from './effects';
 import { CLIPS, samplePose } from './pose';
 
 export interface AnimationResult {
@@ -99,6 +102,91 @@ export function generateEnemyAnimation(
 /** List the built-in enemy animation names. */
 export function listEnemyAnimations(): string[] {
   return Object.keys(ENEMY_CLIPS);
+}
+
+// =============================================================================
+// Item animation. Same phase-driven pattern as enemies.
+// =============================================================================
+
+export interface ItemClip { name: string; fps: number; loop: boolean; frames: number; amp: number; }
+
+export const ITEM_CLIPS: Record<string, ItemClip> = {
+  idle:   { name: 'idle',   fps: 8,  loop: true,  frames: 8,  amp: 0.4 },
+  active: { name: 'active', fps: 10, loop: true,  frames: 8,  amp: 1.0 },
+  pickup: { name: 'pickup', fps: 12, loop: false, frames: 6,  amp: 1.0 },
+};
+
+/** Generate a procedural item animation ('idle' | 'active' | 'pickup'). */
+export function generateItemAnimation(
+  config: SpriteConfig & ItemConfig, animationName: string,
+): AnimationResult {
+  const clip = ITEM_CLIPS[animationName];
+  if (!clip) {
+    throw new Error(`Unknown item animation "${animationName}". Available: ${Object.keys(ITEM_CLIPS).join(', ')}`);
+  }
+  const opts = resolveRenderOpts(config);
+  const frames: SpriteBuffer[] = [];
+  for (let i = 0; i < clip.frames; i++) {
+    const phase = clip.loop
+      ? i / clip.frames
+      : (clip.frames > 1 ? i / (clip.frames - 1) : 0);
+    const parts = buildItem(config, opts.W, phase, clip.amp);
+    frames.push(renderParts(parts, opts));
+  }
+  return { name: clip.name, frames, frameCount: clip.frames, fps: clip.fps, loop: clip.loop };
+}
+
+/** List the built-in item animation names. */
+export function listItemAnimations(): string[] {
+  return Object.keys(ITEM_CLIPS);
+}
+
+// =============================================================================
+// Effect animation. One-shot VFX (slash, impact, sparkle, fireball, magic_bolt).
+// =============================================================================
+
+export interface EffectClip { name: string; fps: number; loop: boolean; frames: number; amp: number; }
+
+export const EFFECT_CLIPS: Record<string, EffectClip> = {
+  slash:      { name: 'slash',      fps: 16, loop: false, frames: 6,  amp: 1.0 },
+  impact:     { name: 'impact',     fps: 16, loop: false, frames: 5,  amp: 1.0 },
+  sparkle:    { name: 'sparkle',    fps: 10, loop: true,  frames: 8,  amp: 1.0 },
+  fireball:   { name: 'fireball',   fps: 12, loop: true,  frames: 8,  amp: 1.0 },
+  magic_bolt: { name: 'magic_bolt', fps: 12, loop: true,  frames: 8,  amp: 1.0 },
+};
+
+const DEFAULT_EFFECT_COLORS: Record<EffectKind, RGB> = {
+  slash:      [255, 240, 200],
+  impact:     [255, 220, 100],
+  sparkle:    [255, 255, 200],
+  fireball:   [255, 140, 40],
+  magic_bolt: [120, 80, 255],
+};
+
+/** Generate a VFX animation. */
+export function generateEffectAnimation(config: EffectConfig & { size?: number; supersample?: number }, animationName?: string): AnimationResult {
+  const kind = config.kind ?? 'slash';
+  const clipName = animationName ?? kind;
+  const clip = EFFECT_CLIPS[clipName];
+  if (!clip) {
+    throw new Error(`Unknown effect animation "${clipName}". Available: ${Object.keys(EFFECT_CLIPS).join(', ')}`);
+  }
+  const color = config.color ?? DEFAULT_EFFECT_COLORS[kind];
+  const opts = resolveRenderOpts({ size: config.size ?? 32, supersample: config.supersample ?? 2, outline: false, quantize: false });
+  const frames: SpriteBuffer[] = [];
+  for (let i = 0; i < clip.frames; i++) {
+    const phase = clip.loop
+      ? i / clip.frames
+      : (clip.frames > 1 ? i / (clip.frames - 1) : 0);
+    const parts = buildEffect(kind, opts.W, color, phase, clip.amp);
+    frames.push(renderParts(parts, opts));
+  }
+  return { name: clip.name, frames, frameCount: clip.frames, fps: clip.fps, loop: clip.loop };
+}
+
+/** List the built-in effect animation names. */
+export function listEffectAnimations(): string[] {
+  return Object.keys(EFFECT_CLIPS);
 }
 
 /**
