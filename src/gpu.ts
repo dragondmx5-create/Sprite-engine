@@ -2,17 +2,18 @@
 // gpu.ts — WebGPU compute-shader rendering pipeline.
 //
 // Mirrors the CPU pipeline (engine.ts) but runs entirely on the GPU:
-//   1. SDF rasterization   — parallel per-pixel SDF evaluation
+//   1. SDF rasterization   — parallel per-pixel SDF evaluation (CPU, closure-based)
 //   2. Jump Flood EDT      — O(log n) distance transform (replaces F&H)
 //   3. Normal computation  — central differences on distance field
 //   4. Blinn-Phong shading — per-pixel lighting with tone ramp
-//   5. Composite + down    — accumulate parts, box-filter downsample
+//   5. GPU blit            — composite each part's crop into full accumulator
+//   6. Downsample + quant  — box-filter downsample, optional palette quantize
 //
 // Usage:
 //   const gpu = new GPURenderer();
 //   await gpu.init();
 //   const buf = await gpu.renderParts(parts, opts);   // single sprite
-//   const bufs = await gpu.renderBatch(partSets, opts); // N sprites parallel
+//   const bufs = await gpu.renderBatch(partSets, opts); // N sprites sequential
 //   gpu.dispose();
 //
 // Falls back to CPU (engine.ts) when WebGPU is unavailable.
@@ -123,7 +124,6 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 }
 `;
 
-// Combined shade shader with inline tone ramp (WGSL has no nested fn)
 const WGSL_SHADE_COMBINED = /* wgsl */ `
 struct MaterialGPU {
   base_r: f32, base_g: f32, base_b: f32,
@@ -195,6 +195,28 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
   let color = diff + spec_col * spec;
   accum[idx] = vec4(color, 255.0);
+}
+`;
+
+// GPU-side blit: composites a crop-sized buffer into the full accumulator.
+// Opaque overwrite (same as CPU pipeline — later parts fully overwrite earlier ones).
+const WGSL_BLIT = /* wgsl */ `
+@group(0) @binding(0) var<storage, read> crop: array<vec4<f32>>;
+@group(0) @binding(1) var<storage, read_write> accum: array<vec4<f32>>;
+@group(0) @binding(2) var<uniform> params: vec4<u32>; // cropW, cropH, offsetX, offsetY
+@group(0) @binding(3) var<uniform> dims: vec4<u32>;   // fullW, fullH, _, _
+
+@compute @workgroup_size(16, 16)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+  let cw = params.x; let ch = params.y;
+  let ox = params.z; let oy = params.w;
+  let fw = dims.x;
+  if (gid.x >= cw || gid.y >= ch) { return; }
+  let ci = gid.y * cw + gid.x;
+  let pixel = crop[ci];
+  if (pixel.w <= 0.0) { return; }
+  let fi = (oy + gid.y) * fw + (ox + gid.x);
+  accum[fi] = pixel;
 }
 `;
 
@@ -284,6 +306,7 @@ export class GPURenderer {
   private distPipeline: GPUComputePipeline | null = null;
   private normalsPipeline: GPUComputePipeline | null = null;
   private shadePipeline: GPUComputePipeline | null = null;
+  private blitPipeline: GPUComputePipeline | null = null;
   private downsamplePipeline: GPUComputePipeline | null = null;
   private _ready = false;
 
@@ -301,6 +324,7 @@ export class GPURenderer {
       this.distPipeline = this.createPipeline(WGSL_DISTANCE);
       this.normalsPipeline = this.createPipeline(WGSL_NORMALS);
       this.shadePipeline = this.createPipeline(WGSL_SHADE_COMBINED);
+      this.blitPipeline = this.createPipeline(WGSL_BLIT);
       this.downsamplePipeline = this.createPipeline(WGSL_DOWNSAMPLE);
 
       this._ready = true;
@@ -322,14 +346,15 @@ export class GPURenderer {
     return this.device!.createBuffer({ size: alignTo(Math.max(size, 4), 4), usage });
   }
 
-  private uniform(data: ArrayBuffer | ArrayBufferView): GPUBuffer {
-    const bytes = ArrayBuffer.isView(data) ? data.byteLength : data.byteLength;
-    const b = this.buf(bytes, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
-    if (ArrayBuffer.isView(data)) {
-      this.device!.queue.writeBuffer(b, 0, data as unknown as Uint8Array);
-    } else {
-      this.device!.queue.writeBuffer(b, 0, new Uint8Array(data));
-    }
+  private uniform(data: ArrayBufferView): GPUBuffer {
+    const b = this.buf(data.byteLength, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
+    this.device!.queue.writeBuffer(b, 0, data as unknown as Uint8Array);
+    return b;
+  }
+
+  private uniformRaw(data: ArrayBuffer): GPUBuffer {
+    const b = this.buf(data.byteLength, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
+    this.device!.queue.writeBuffer(b, 0, new Uint8Array(data));
     return b;
   }
 
@@ -352,278 +377,276 @@ export class GPURenderer {
     const rawH = { x: L.x + V.x, y: L.y + V.y, z: L.z + V.z };
     const H_v = normalizeVec3(rawH);
 
-    for (let pi = 0; pi < gpuParts.length; pi++) {
-      const gp = gpuParts[pi];
-      const [bx0, by0, bx1, by1] = gp.bbox;
-      const cx0 = Math.max(0, (bx0 | 0) - 1);
-      const cy0 = Math.max(0, (by0 | 0) - 1);
-      const cx1 = Math.min(W, (bx1 | 0) + 2);
-      const cy1 = Math.min(H, (by1 | 0) + 2);
-      const cw = cx1 - cx0, ch = cy1 - cy0;
-      if (cw <= 0 || ch <= 0) continue;
-      const cpx = cw * ch;
+    // Pre-build the light uniform (shared across all parts)
+    const lightData = new ArrayBuffer(48);
+    const lightFloats = new Float32Array(lightData, 0, 8);
+    lightFloats[0] = L.x; lightFloats[1] = L.y; lightFloats[2] = L.z;
+    lightFloats[3] = opts.light.ambient;
+    lightFloats[4] = H_v.x; lightFloats[5] = H_v.y; lightFloats[6] = H_v.z;
+    lightFloats[7] = 0;
+    // w, h filled per-part below
 
-      // -- SDF rasterize on cropped region (CPU; GPU handles EDT+normals+shade) --
-      const maskBuf = this.buf(cpx * 4, RW | GPUBufferUsage.COPY_DST);
-      device.queue.writeBuffer(maskBuf, 0, new Uint32Array(cpx));
+    const fullDimsU = this.uniform(new Uint32Array([W, H, 0, 0]));
 
-      // Rasterize SDF on crop region (CPU for now, GPU for the heavy stages)
-      const maskData = new Uint32Array(cpx);
-      for (let y = 0; y < ch; y++) {
-        for (let x = 0; x < cw; x++) {
-          if (parts[pi].sdf(cx0 + x + 0.5, cy0 + y + 0.5) < 0) maskData[y * cw + x] = 1;
-        }
-      }
-      device.queue.writeBuffer(maskBuf, 0, maskData);
+    const partBuffers: GPUBuffer[] = [accumBuf, fullDimsU];
 
-      // -- JFA init --
-      const jfaA = this.buf(cpx * 8, RW | GPUBufferUsage.COPY_DST);
-      const jfaB = this.buf(cpx * 8, RW);
-      const jfaDims = this.uniform(new Uint32Array([cw, ch, 0, 0]));
+    try {
+      for (let pi = 0; pi < gpuParts.length; pi++) {
+        const gp = gpuParts[pi];
+        const [bx0, by0, bx1, by1] = gp.bbox;
+        const cx0 = Math.max(0, (bx0 | 0) - 1);
+        const cy0 = Math.max(0, (by0 | 0) - 1);
+        const cx1 = Math.min(W, (bx1 | 0) + 2);
+        const cy1 = Math.min(H, (by1 | 0) + 2);
+        const cw = cx1 - cx0, ch = cy1 - cy0;
+        if (cw <= 0 || ch <= 0) continue;
+        const cpx = cw * ch;
+        const wgX = Math.ceil(cw / 16), wgY = Math.ceil(ch / 16);
 
-      let enc = device.createCommandEncoder();
-      {
-        const bg = device.createBindGroup({
-          layout: this.jfaInitPipeline!.getBindGroupLayout(0),
-          entries: [
-            { binding: 0, resource: { buffer: maskBuf } },
-            { binding: 1, resource: { buffer: jfaA } },
-            { binding: 2, resource: { buffer: jfaDims } },
-          ],
-        });
-        const pass = enc.beginComputePass();
-        pass.setPipeline(this.jfaInitPipeline!);
-        pass.setBindGroup(0, bg);
-        pass.dispatchWorkgroups(Math.ceil(cw / 16), Math.ceil(ch / 16));
-        pass.end();
-      }
-      device.queue.submit([enc.finish()]);
-
-      // -- JFA steps --
-      const maxDim = Math.max(cw, ch);
-      let step = 1;
-      while (step < maxDim) step *= 2;
-      let src = jfaA, dst = jfaB;
-      while (step >= 1) {
-        const stepU = this.uniform(new Uint32Array([cw, ch, step, 0]));
-        enc = device.createCommandEncoder();
-        const bg = device.createBindGroup({
-          layout: this.jfaStepPipeline!.getBindGroupLayout(0),
-          entries: [
-            { binding: 0, resource: { buffer: src } },
-            { binding: 1, resource: { buffer: dst } },
-            { binding: 2, resource: { buffer: stepU } },
-          ],
-        });
-        const pass = enc.beginComputePass();
-        pass.setPipeline(this.jfaStepPipeline!);
-        pass.setBindGroup(0, bg);
-        pass.dispatchWorkgroups(Math.ceil(cw / 16), Math.ceil(ch / 16));
-        pass.end();
-        device.queue.submit([enc.finish()]);
-        stepU.destroy();
-        [src, dst] = [dst, src];
-        step = step >> 1;
-      }
-
-      // -- Distance from JFA --
-      const distBuf = this.buf(cpx * 4, RW);
-      const maxDistBuf = this.buf(4, RW | GPUBufferUsage.COPY_DST);
-      device.queue.writeBuffer(maxDistBuf, 0, new Uint32Array([0]));
-      const distDims = this.uniform(new Uint32Array([cw, ch, 0, 0]));
-
-      enc = device.createCommandEncoder();
-      {
-        const bg = device.createBindGroup({
-          layout: this.distPipeline!.getBindGroupLayout(0),
-          entries: [
-            { binding: 0, resource: { buffer: src } },
-            { binding: 1, resource: { buffer: maskBuf } },
-            { binding: 2, resource: { buffer: distBuf } },
-            { binding: 3, resource: { buffer: maxDistBuf } },
-            { binding: 4, resource: { buffer: distDims } },
-          ],
-        });
-        const pass = enc.beginComputePass();
-        pass.setPipeline(this.distPipeline!);
-        pass.setBindGroup(0, bg);
-        pass.dispatchWorkgroups(Math.ceil(cw / 16), Math.ceil(ch / 16));
-        pass.end();
-      }
-
-      // Read maxDist back
-      const maxDistRead = this.buf(4, GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST);
-      enc.copyBufferToBuffer(maxDistBuf, 0, maxDistRead, 0, 4);
-      device.queue.submit([enc.finish()]);
-      await maxDistRead.mapAsync(GPUMapMode.READ);
-      const maxDistVal = new Uint32Array(maxDistRead.getMappedRange())[0] / 256;
-      maxDistRead.unmap();
-      maxDistRead.destroy();
-
-      if (maxDistVal <= 0) {
-        maskBuf.destroy(); jfaA.destroy(); jfaB.destroy(); jfaDims.destroy();
-        distBuf.destroy(); maxDistBuf.destroy(); distDims.destroy();
-        continue;
-      }
-
-      // -- Normals --
-      const normalsBuf = this.buf(cpx * 16, RW);
-      const pr = gp.roundness;
-      const bevel = Math.max(1.5, pr * maxDistVal);
-      const normParams = this.uniform(new Float32Array([cw, ch, bevel, 0]));
-
-      enc = device.createCommandEncoder();
-      {
-        const bg = device.createBindGroup({
-          layout: this.normalsPipeline!.getBindGroupLayout(0),
-          entries: [
-            { binding: 0, resource: { buffer: distBuf } },
-            { binding: 1, resource: { buffer: maskBuf } },
-            { binding: 2, resource: { buffer: normalsBuf } },
-            { binding: 3, resource: { buffer: normParams } },
-          ],
-        });
-        const pass = enc.beginComputePass();
-        pass.setPipeline(this.normalsPipeline!);
-        pass.setBindGroup(0, bg);
-        pass.dispatchWorkgroups(Math.ceil(cw / 16), Math.ceil(ch / 16));
-        pass.end();
-      }
-      device.queue.submit([enc.finish()]);
-
-      // -- Shade into crop-sized accum, then blit to full accum --
-      const cropAccum = this.buf(cpx * 16, RW | GPUBufferUsage.COPY_DST);
-      device.queue.writeBuffer(cropAccum, 0, new Float32Array(cpx * 4));
-      const mat = gp.material;
-      const matData = new Float32Array([
-        mat.base[0], mat.base[1], mat.base[2], mat.specStrength,
-        mat.roughness, mat.metallic ? 1 : 0, mat.shadowCoolShift, 0,
-      ]);
-      const matBuf = this.uniform(matData);
-      const lightData = new Float32Array(8);
-      lightData[0] = L.x; lightData[1] = L.y; lightData[2] = L.z;
-      lightData[3] = opts.light.ambient;
-      lightData[4] = H_v.x; lightData[5] = H_v.y; lightData[6] = H_v.z;
-      lightData[7] = 0;
-      const lightExtra = new Uint32Array(4);
-      lightExtra[0] = cw; lightExtra[1] = ch;
-      const fullLightData = new ArrayBuffer(48);
-      new Float32Array(fullLightData, 0, 8).set(lightData);
-      new Uint32Array(fullLightData, 32, 4).set(lightExtra);
-      const lightBuf = this.uniform(fullLightData);
-
-      enc = device.createCommandEncoder();
-      {
-        const bg = device.createBindGroup({
-          layout: this.shadePipeline!.getBindGroupLayout(0),
-          entries: [
-            { binding: 0, resource: { buffer: normalsBuf } },
-            { binding: 1, resource: { buffer: maskBuf } },
-            { binding: 2, resource: { buffer: cropAccum } },
-            { binding: 3, resource: { buffer: matBuf } },
-            { binding: 4, resource: { buffer: lightBuf } },
-          ],
-        });
-        const pass = enc.beginComputePass();
-        pass.setPipeline(this.shadePipeline!);
-        pass.setBindGroup(0, bg);
-        pass.dispatchWorkgroups(Math.ceil(cw / 16), Math.ceil(ch / 16));
-        pass.end();
-      }
-      device.queue.submit([enc.finish()]);
-
-      // Read crop accum back and blit into main accum (CPU blit for correctness)
-      const cropRead = this.buf(cpx * 16, GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST);
-      enc = device.createCommandEncoder();
-      enc.copyBufferToBuffer(cropAccum, 0, cropRead, 0, cpx * 16);
-      device.queue.submit([enc.finish()]);
-      await cropRead.mapAsync(GPUMapMode.READ);
-      const cropResult = new Float32Array(new Float32Array(cropRead.getMappedRange()));
-      cropRead.unmap();
-      cropRead.destroy();
-
-      // Blit crop into full-size accum on CPU (upload back)
-      const fullAccumStaging = new Float32Array(pixels * 4);
-      // Read current accum
-      const accumRead = this.buf(pixels * 16, GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST);
-      enc = device.createCommandEncoder();
-      enc.copyBufferToBuffer(accumBuf, 0, accumRead, 0, pixels * 16);
-      device.queue.submit([enc.finish()]);
-      await accumRead.mapAsync(GPUMapMode.READ);
-      fullAccumStaging.set(new Float32Array(accumRead.getMappedRange()));
-      accumRead.unmap();
-      accumRead.destroy();
-
-      for (let y = 0; y < ch; y++) {
-        for (let x = 0; x < cw; x++) {
-          const ci = (y * cw + x) * 4;
-          if (cropResult[ci + 3] > 0) {
-            const fi = ((cy0 + y) * W + (cx0 + x)) * 4;
-            fullAccumStaging[fi] = cropResult[ci];
-            fullAccumStaging[fi + 1] = cropResult[ci + 1];
-            fullAccumStaging[fi + 2] = cropResult[ci + 2];
-            fullAccumStaging[fi + 3] = cropResult[ci + 3];
+        const buffers: GPUBuffer[] = [];
+        try {
+          // -- SDF rasterize (CPU — closures can't run on GPU) --
+          const maskData = new Uint32Array(cpx);
+          for (let y = 0; y < ch; y++) {
+            for (let x = 0; x < cw; x++) {
+              if (parts[pi].sdf(cx0 + x + 0.5, cy0 + y + 0.5) < 0) maskData[y * cw + x] = 1;
+            }
           }
+          const maskBuf = this.buf(cpx * 4, RW | GPUBufferUsage.COPY_DST);
+          device.queue.writeBuffer(maskBuf, 0, maskData);
+          buffers.push(maskBuf);
+
+          // -- JFA init --
+          const jfaA = this.buf(cpx * 8, RW | GPUBufferUsage.COPY_DST);
+          const jfaB = this.buf(cpx * 8, RW);
+          const jfaDims = this.uniform(new Uint32Array([cw, ch, 0, 0]));
+          buffers.push(jfaA, jfaB, jfaDims);
+
+          let enc = device.createCommandEncoder();
+          {
+            const bg = device.createBindGroup({
+              layout: this.jfaInitPipeline!.getBindGroupLayout(0),
+              entries: [
+                { binding: 0, resource: { buffer: maskBuf } },
+                { binding: 1, resource: { buffer: jfaA } },
+                { binding: 2, resource: { buffer: jfaDims } },
+              ],
+            });
+            const pass = enc.beginComputePass();
+            pass.setPipeline(this.jfaInitPipeline!);
+            pass.setBindGroup(0, bg);
+            pass.dispatchWorkgroups(wgX, wgY);
+            pass.end();
+          }
+
+          // -- JFA steps (batched into one encoder) --
+          const maxDim = Math.max(cw, ch);
+          let step = 1;
+          while (step < maxDim) step *= 2;
+          let src = jfaA, dst = jfaB;
+          const jfaStepUniforms: GPUBuffer[] = [];
+          while (step >= 1) {
+            const stepU = this.uniform(new Uint32Array([cw, ch, step, 0]));
+            jfaStepUniforms.push(stepU);
+            const bg = device.createBindGroup({
+              layout: this.jfaStepPipeline!.getBindGroupLayout(0),
+              entries: [
+                { binding: 0, resource: { buffer: src } },
+                { binding: 1, resource: { buffer: dst } },
+                { binding: 2, resource: { buffer: stepU } },
+              ],
+            });
+            const pass = enc.beginComputePass();
+            pass.setPipeline(this.jfaStepPipeline!);
+            pass.setBindGroup(0, bg);
+            pass.dispatchWorkgroups(wgX, wgY);
+            pass.end();
+            [src, dst] = [dst, src];
+            step = step >> 1;
+          }
+          buffers.push(...jfaStepUniforms);
+          device.queue.submit([enc.finish()]);
+
+          // -- Distance from JFA --
+          const distBuf = this.buf(cpx * 4, RW);
+          const maxDistBuf = this.buf(4, RW | GPUBufferUsage.COPY_DST);
+          device.queue.writeBuffer(maxDistBuf, 0, new Uint32Array([0]));
+          const distDims = this.uniform(new Uint32Array([cw, ch, 0, 0]));
+          buffers.push(distBuf, maxDistBuf, distDims);
+
+          enc = device.createCommandEncoder();
+          {
+            const bg = device.createBindGroup({
+              layout: this.distPipeline!.getBindGroupLayout(0),
+              entries: [
+                { binding: 0, resource: { buffer: src } },
+                { binding: 1, resource: { buffer: maskBuf } },
+                { binding: 2, resource: { buffer: distBuf } },
+                { binding: 3, resource: { buffer: maxDistBuf } },
+                { binding: 4, resource: { buffer: distDims } },
+              ],
+            });
+            const pass = enc.beginComputePass();
+            pass.setPipeline(this.distPipeline!);
+            pass.setBindGroup(0, bg);
+            pass.dispatchWorkgroups(wgX, wgY);
+            pass.end();
+          }
+
+          // Read maxDist back (only GPU→CPU readback per part)
+          const maxDistRead = this.buf(4, GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST);
+          buffers.push(maxDistRead);
+          enc.copyBufferToBuffer(maxDistBuf, 0, maxDistRead, 0, 4);
+          device.queue.submit([enc.finish()]);
+          await maxDistRead.mapAsync(GPUMapMode.READ);
+          const maxDistVal = new Uint32Array(maxDistRead.getMappedRange())[0] / 256;
+          maxDistRead.unmap();
+
+          if (maxDistVal <= 0) continue;
+
+          // -- Normals --
+          const normalsBuf = this.buf(cpx * 16, RW);
+          const bevel = Math.max(1.5, gp.roundness * maxDistVal);
+          const normParams = this.uniform(new Float32Array([cw, ch, bevel, 0]));
+          buffers.push(normalsBuf, normParams);
+
+          enc = device.createCommandEncoder();
+          {
+            const bg = device.createBindGroup({
+              layout: this.normalsPipeline!.getBindGroupLayout(0),
+              entries: [
+                { binding: 0, resource: { buffer: distBuf } },
+                { binding: 1, resource: { buffer: maskBuf } },
+                { binding: 2, resource: { buffer: normalsBuf } },
+                { binding: 3, resource: { buffer: normParams } },
+              ],
+            });
+            const pass = enc.beginComputePass();
+            pass.setPipeline(this.normalsPipeline!);
+            pass.setBindGroup(0, bg);
+            pass.dispatchWorkgroups(wgX, wgY);
+            pass.end();
+          }
+
+          // -- Shade into crop-sized buffer --
+          const cropAccum = this.buf(cpx * 16, RW | GPUBufferUsage.COPY_DST);
+          device.queue.writeBuffer(cropAccum, 0, new Float32Array(cpx * 4));
+          buffers.push(cropAccum);
+
+          const mat = gp.material;
+          const matData = new Float32Array([
+            mat.base[0], mat.base[1], mat.base[2], mat.specStrength,
+            mat.roughness, mat.metallic ? 1 : 0, mat.shadowCoolShift, 0,
+          ]);
+          const matBuf = this.uniform(matData);
+          buffers.push(matBuf);
+
+          // Set per-part crop dimensions in the light uniform
+          const perPartLight = new ArrayBuffer(48);
+          new Float32Array(perPartLight, 0, 8).set(lightFloats);
+          new Uint32Array(perPartLight, 32, 4).set(new Uint32Array([cw, ch, 0, 0]));
+          const lightBuf = this.uniformRaw(perPartLight);
+          buffers.push(lightBuf);
+
+          {
+            const bg = device.createBindGroup({
+              layout: this.shadePipeline!.getBindGroupLayout(0),
+              entries: [
+                { binding: 0, resource: { buffer: normalsBuf } },
+                { binding: 1, resource: { buffer: maskBuf } },
+                { binding: 2, resource: { buffer: cropAccum } },
+                { binding: 3, resource: { buffer: matBuf } },
+                { binding: 4, resource: { buffer: lightBuf } },
+              ],
+            });
+            const pass = enc.beginComputePass();
+            pass.setPipeline(this.shadePipeline!);
+            pass.setBindGroup(0, bg);
+            pass.dispatchWorkgroups(wgX, wgY);
+            pass.end();
+          }
+
+          // -- GPU blit: composite crop into full accumulator (no CPU roundtrip) --
+          const blitParams = this.uniform(new Uint32Array([cw, ch, cx0, cy0]));
+          buffers.push(blitParams);
+
+          {
+            const bg = device.createBindGroup({
+              layout: this.blitPipeline!.getBindGroupLayout(0),
+              entries: [
+                { binding: 0, resource: { buffer: cropAccum } },
+                { binding: 1, resource: { buffer: accumBuf } },
+                { binding: 2, resource: { buffer: blitParams } },
+                { binding: 3, resource: { buffer: fullDimsU } },
+              ],
+            });
+            const pass = enc.beginComputePass();
+            pass.setPipeline(this.blitPipeline!);
+            pass.setBindGroup(0, bg);
+            pass.dispatchWorkgroups(wgX, wgY);
+            pass.end();
+          }
+
+          device.queue.submit([enc.finish()]);
+        } finally {
+          for (const b of buffers) b.destroy();
         }
       }
-      device.queue.writeBuffer(accumBuf, 0, fullAccumStaging);
 
-      // Cleanup part buffers
-      maskBuf.destroy(); jfaA.destroy(); jfaB.destroy(); jfaDims.destroy();
-      distBuf.destroy(); maxDistBuf.destroy(); distDims.destroy();
-      normalsBuf.destroy(); normParams.destroy(); cropAccum.destroy();
-      matBuf.destroy(); lightBuf.destroy();
+      // -- Downsample --
+      const outPixels = size * size;
+      const outBuf = this.buf(outPixels * 4, RW);
+      const dsParams = this.uniform(new Uint32Array([size, size, ss, opts.quantize || 0]));
+
+      const enc = device.createCommandEncoder();
+      {
+        const bg = device.createBindGroup({
+          layout: this.downsamplePipeline!.getBindGroupLayout(0),
+          entries: [
+            { binding: 0, resource: { buffer: accumBuf } },
+            { binding: 1, resource: { buffer: outBuf } },
+            { binding: 2, resource: { buffer: dsParams } },
+          ],
+        });
+        const pass = enc.beginComputePass();
+        pass.setPipeline(this.downsamplePipeline!);
+        pass.setBindGroup(0, bg);
+        pass.dispatchWorkgroups(Math.ceil(size / 16), Math.ceil(size / 16));
+        pass.end();
+      }
+
+      const readBuf = this.buf(outPixels * 4, GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST);
+      enc.copyBufferToBuffer(outBuf, 0, readBuf, 0, outPixels * 4);
+      device.queue.submit([enc.finish()]);
+
+      await readBuf.mapAsync(GPUMapMode.READ);
+      const raw = new Uint32Array(readBuf.getMappedRange());
+      const data = new Uint8ClampedArray(outPixels * 4);
+      for (let i = 0; i < outPixels; i++) {
+        const v = raw[i];
+        data[i * 4] = v & 0xFF;
+        data[i * 4 + 1] = (v >> 8) & 0xFF;
+        data[i * 4 + 2] = (v >> 16) & 0xFF;
+        data[i * 4 + 3] = (v >> 24) & 0xFF;
+      }
+      readBuf.unmap();
+
+      outBuf.destroy(); dsParams.destroy(); readBuf.destroy();
+
+      if (opts.outlineColor) applyOutlineGPU(data, size, size, opts.outlineColor);
+
+      return { width: size, height: size, data };
+    } finally {
+      for (const b of partBuffers) b.destroy();
     }
-
-    // -- Downsample --
-    const outPixels = size * size;
-    const outBuf = this.buf(outPixels * 4, RW);
-    const dsParams = this.uniform(new Uint32Array([size, size, ss, opts.quantize || 0]));
-
-    let enc = device.createCommandEncoder();
-    {
-      const bg = device.createBindGroup({
-        layout: this.downsamplePipeline!.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: { buffer: accumBuf } },
-          { binding: 1, resource: { buffer: outBuf } },
-          { binding: 2, resource: { buffer: dsParams } },
-        ],
-      });
-      const pass = enc.beginComputePass();
-      pass.setPipeline(this.downsamplePipeline!);
-      pass.setBindGroup(0, bg);
-      pass.dispatchWorkgroups(Math.ceil(size / 16), Math.ceil(size / 16));
-      pass.end();
-    }
-
-    const readBuf = this.buf(outPixels * 4, GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST);
-    enc.copyBufferToBuffer(outBuf, 0, readBuf, 0, outPixels * 4);
-    device.queue.submit([enc.finish()]);
-
-    await readBuf.mapAsync(GPUMapMode.READ);
-    const raw = new Uint32Array(readBuf.getMappedRange());
-    const data = new Uint8ClampedArray(outPixels * 4);
-    for (let i = 0; i < outPixels; i++) {
-      const v = raw[i];
-      data[i * 4] = v & 0xFF;
-      data[i * 4 + 1] = (v >> 8) & 0xFF;
-      data[i * 4 + 2] = (v >> 16) & 0xFF;
-      data[i * 4 + 3] = (v >> 24) & 0xFF;
-    }
-    readBuf.unmap();
-
-    // Cleanup
-    accumBuf.destroy(); outBuf.destroy(); dsParams.destroy(); readBuf.destroy();
-
-    // Outline (CPU — few pixels, not worth a shader)
-    if (opts.outlineColor) applyOutlineGPU(data, size, size, opts.outlineColor);
-
-    return { width: size, height: size, data };
   }
 
   async renderBatch(partSets: Part[][], opts: RenderOpts): Promise<SpriteBuffer[]> {
-    return Promise.all(partSets.map(parts => this.renderParts(parts, opts)));
+    const results: SpriteBuffer[] = [];
+    for (const parts of partSets) {
+      results.push(await this.renderParts(parts, opts));
+    }
+    return results;
   }
 
   dispose(): void {
@@ -634,15 +657,16 @@ export class GPURenderer {
 }
 
 function applyOutlineGPU(data: Uint8ClampedArray, w: number, h: number, color: RGB): void {
-  const isSolid = (x: number, y: number): boolean =>
-    x >= 0 && x < w && y >= 0 && y < h && data[(y * w + x) * 4 + 3] > 128;
   const snap = new Uint8Array(w * h);
   for (let i = 0; i < w * h; i++) snap[i] = data[i * 4 + 3] > 128 ? 1 : 0;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const i = y * w + x;
       if (snap[i]) continue;
-      if (isSolid(x - 1, y) || isSolid(x + 1, y) || isSolid(x, y - 1) || isSolid(x, y + 1)) {
+      const hasNeighbor =
+        (x > 0 && snap[i - 1]) || (x < w - 1 && snap[i + 1]) ||
+        (y > 0 && snap[i - w]) || (y < h - 1 && snap[i + w]);
+      if (hasNeighbor) {
         const j = i * 4;
         data[j] = color[0]; data[j + 1] = color[1]; data[j + 2] = color[2]; data[j + 3] = 255;
       }
