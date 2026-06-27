@@ -44,8 +44,10 @@ export interface Light {
 export interface SpriteConfig {
   /** Same seed + same config => byte-identical sprite, always. */
   seed?: number | string;
-  /** Logical output size in px (square). Default 64. */
+  /** Logical output width in px. Default 48. */
   size?: number;
+  /** Logical output height in px. Defaults to size (square). */
+  height?: number;
   /** Internal supersample factor for AA + smoother gradients. Default 2. */
   supersample?: number;
 

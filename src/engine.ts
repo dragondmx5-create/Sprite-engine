@@ -30,6 +30,7 @@ const DEFAULT_LIGHT: Light = {
 /** Everything the render loop needs, resolved from a SpriteConfig once. */
 export interface RenderOpts {
   size: number;
+  outH: number;
   ss: number;
   W: number;
   H: number;
@@ -47,6 +48,7 @@ export interface RenderOpts {
  */
 export function resolveRenderOpts(config: SpriteConfig = {}): RenderOpts {
   const size = config.size ?? 48;
+  const outH = config.height ?? size;
   const ss = Math.max(1, Math.floor(config.supersample ?? 1));
   const light: Light = {
     dir: { ...DEFAULT_LIGHT.dir, ...(config.light ?? {}) },
@@ -55,7 +57,7 @@ export function resolveRenderOpts(config: SpriteConfig = {}): RenderOpts {
   const outlineColor: RGB | null =
     config.outline === false ? null : ((config.outline && config.outline.color) || [22, 18, 28]);
   const quantize = config.quantize === false ? 0 : (config.quantize ?? 5);
-  return { size, ss, W: size * ss, H: size * ss, roundness: config.roundness ?? 0.55, light, outlineColor, quantize };
+  return { size, outH, ss, W: size * ss, H: outH * ss, roundness: config.roundness ?? 0.55, light, outlineColor, quantize };
 }
 
 /**
@@ -64,7 +66,7 @@ export function resolveRenderOpts(config: SpriteConfig = {}): RenderOpts {
  * both call it.
  */
 export function renderParts(parts: Part[], opts: RenderOpts): SpriteBuffer {
-  const { size, ss, W, H, roundness, light } = opts;
+  const { size, outH, ss, W, H, roundness, light } = opts;
   const acc = new Float32Array(W * H * 4);
   const out: RGB = [0, 0, 0];
 
@@ -114,9 +116,9 @@ export function renderParts(parts: Part[], opts: RenderOpts): SpriteBuffer {
   }
 
   // ---- Downsample (box filter) → output resolution. Free AA. ------------
-  const data = new Uint8ClampedArray(size * size * 4);
+  const data = new Uint8ClampedArray(size * outH * 4);
   const area = ss * ss;
-  for (let y = 0; y < size; y++) {
+  for (let y = 0; y < outH; y++) {
     for (let x = 0; x < size; x++) {
       let r = 0, g = 0, b = 0, a = 0;
       for (let sy = 0; sy < ss; sy++) {
@@ -137,7 +139,7 @@ export function renderParts(parts: Part[], opts: RenderOpts): SpriteBuffer {
   }
 
   // ---- Optional exterior outline ---------------------------------------
-  if (opts.outlineColor) applyOutline(data, size, size, opts.outlineColor);
+  if (opts.outlineColor) applyOutline(data, size, outH, opts.outlineColor);
 
   // ---- Optional posterize (deterministic => no temporal "boiling") ------
   if (opts.quantize > 1) {
@@ -150,7 +152,7 @@ export function renderParts(parts: Part[], opts: RenderOpts): SpriteBuffer {
     }
   }
 
-  return { width: size, height: size, data };
+  return { width: size, height: outH, data };
 }
 
 /** Static sprite: build the (optionally posed) skeleton, then render it. */
@@ -181,7 +183,7 @@ export function generateItem(config: SpriteConfig & ItemConfig = {}): SpriteBuff
 /** Dungeon tile: build a tile's parts, then run the shared shading pass. */
 export function generateTile(config: SpriteConfig & TileConfig = {}): SpriteBuffer {
   const opts = resolveRenderOpts(config);
-  const parts = buildTile(config, opts.W);
+  const parts = buildTile(config, opts.W, opts.H);
   return renderParts(parts, opts);
 }
 
