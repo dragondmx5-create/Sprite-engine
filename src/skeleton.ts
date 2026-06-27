@@ -20,7 +20,7 @@
 import type { RGB, SpriteConfig } from './types';
 import { RNG } from './rng';
 import { MATERIALS } from './materials';
-import { Part, SDF, roundedBox, capsule, circle, union, rotatedAround, translated } from './shapes';
+import { Part, SDF, roundedBox, capsule, circle, ellipse, union, rotatedAround, translated } from './shapes';
 import { Pose, NEUTRAL_POSE } from './pose';
 
 /** Pick a deterministic default color (HSV-ish) when the user didn't specify one. */
@@ -191,6 +191,16 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
   const box = (mat: Part['material'], bx: number, by: number, hw: number, hh: number, r: number, roundness: number, xf: Xform) =>
     place(mat, roundedBox(bx, by, hw, hh, r), bx - hw, by - hh, bx + hw, by + hh, roundness, xf);
 
+  /** Convenience: place an ellipse centered at (ex,ey). */
+  const placeEllipse = (mat: Part['material'], ex: number, ey: number, rx: number, ry: number, roundness: number, xf: Xform) =>
+    place(mat, ellipse(ex, ey, rx, ry), ex - rx, ey - ry, ex + rx, ey + ry, roundness, xf);
+
+  // -1) GROUND SHADOW — dark ellipse under the character's feet, gives 3/4 depth.
+  const shadowY = legCy + legHh + s * 0.03;
+  const shadowMat = MATERIALS.bone([30, 28, 24]);
+  placeEllipse(shadowMat, cx, shadowY, s * 0.15, s * 0.04, 0.05,
+    { tx: rootX, ty: rootY });
+
   // 0) CAPE — a flowing cloak behind the whole body. Drawn first so everything
   // overlaps it; leans with the torso. Flares slightly toward the hem.
   // Exception: facing='back' → the cape is nearest the viewer, drawn after the body.
@@ -216,15 +226,15 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
     const ang = dir < 0 ? pose.legL : pose.legR;
     box(M.legs, lx, legCy, legHw, legHh, legHw * 0.45, 0.4, xLeg(ang, lx, hipY));
     if (hasBoots) {
-      // tall boots cover the lower 60% of the leg
       const bootTop = legCy + legHh * 0.15;
       const bootBot = legCy + legHh + s * 0.018;
       const bootHh = (bootBot - bootTop) / 2;
       box(M.leather, lx, (bootTop + bootBot) / 2, legHw * 1.08, bootHh, legHw * 0.4, 0.45, xLeg(ang, lx, hipY));
-      // boot sole
-      box(M.leather, lx, bootBot, legHw * 1.12, s * 0.01, s * 0.006, 0.35, xLeg(ang, lx, hipY));
+      // boot sole — wider & flatter for 3/4 footprint
+      placeEllipse(M.leather, lx, bootBot + s * 0.005, legHw * 1.22, s * 0.014, 0.3, xLeg(ang, lx, hipY));
     } else {
-      box(M.leather, lx + dir * legHw * 0.15, legCy + legHh + s * 0.012, legHw * 1.05, s * 0.022, s * 0.012, 0.45, xLeg(ang, lx, hipY));
+      // shoe — wider ellipse for 3/4 footprint look
+      placeEllipse(M.leather, lx + dir * legHw * 0.1, legCy + legHh + s * 0.012, legHw * 1.15, s * 0.022, 0.35, xLeg(ang, lx, hipY));
     }
   }
 
@@ -277,6 +287,20 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
     box(M.accent, cx, torsoTop + torsoHh * 0.2, s * 0.01, torsoHh * 0.6, s * 0.004, 0.3, xUpper);
   }
 
+  // 4e) SHOULDER TOPS — bright ellipse on top of each shoulder for 3/4 depth.
+  {
+    const shoulderTopCol: RGB = [
+      Math.min(255, torsoColor[0] * 1.15),
+      Math.min(255, torsoColor[1] * 1.15),
+      Math.min(255, torsoColor[2] * 1.12),
+    ];
+    const shoulderTopMat = MATERIALS[torsoMatName](shoulderTopCol);
+    for (const dir of [-1, 1]) {
+      const ax = cx + dir * armX;
+      placeEllipse(shoulderTopMat, ax, shoulderY - s * 0.005, armHw * 1.2, armHw * 0.45, 0.35, xUpper);
+    }
+  }
+
   // 5) BELT.
   if (hasBelt) {
     box(M.leather, cx, torsoBot - s * 0.03, torsoHw * 1.02, s * 0.02, s * 0.01, 0.4, xUpper);
@@ -324,11 +348,21 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
   // 7) HEAD.
   box(M.skin, cx, headCy, headHw, headHh, headCorner, 0.52, xHead());
 
+  // 7b) HEAD TOP — bright ellipse on the crown for 3/4 top-down feel.
+  {
+    const headTopCol: RGB = [
+      Math.min(255, col.skin[0] * 1.12),
+      Math.min(255, col.skin[1] * 1.10),
+      Math.min(255, col.skin[2] * 1.08),
+    ];
+    placeEllipse(MATERIALS.skin(headTopCol), cx, headCy - headHh * 0.55, headHw * 0.75, headHh * 0.25, 0.35, xHead());
+  }
+
   // 8) EYES — small dark blocks, low on the face. Skipped when facing away;
   // shifted toward the look direction for a 3/4 profile (geometry only, so
   // animation frames inherit the facing for free).
   if (config.face !== false && facing !== 'back') {
-    const eyeY = headCy + headHh * 0.2;
+    const eyeY = headCy + headHh * 0.30;
     const lookSign = facing === 'left' ? -1 : facing === 'right' ? 1 : 0;
     const eyeDx = lookSign === 0 ? headHw * 0.42 : headHw * 0.26; // closer together in profile
     const shift = lookSign * headHw * 0.3;                        // whole pair leans that way
@@ -343,15 +377,16 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
   if (showHair && facing === 'back') {
     box(M.hair, cx, headCy + headHh * 0.04, headHw * 0.96, headHh * 0.9, headCorner * 0.85, 0.42, xHead());
   } else if (showHair) {
-    const fy = headCy - headHh * 0.52;
+    // 3/4 view: wider cap covers the crown visible from above, sideburns frame face
+    const fy = headCy - headHh * 0.48;
     const fr: SDF = union(
-      roundedBox(cx, fy, headHw * 0.98, headHh * 0.34, headHw * 0.2),
+      roundedBox(cx, fy, headHw * 1.04, headHh * 0.40, headHw * 0.22),
       union(
-        roundedBox(cx - headHw * 0.74, headCy - headHh * 0.12, headHw * 0.28, headHh * 0.5, headHw * 0.18),
-        roundedBox(cx + headHw * 0.74, headCy - headHh * 0.12, headHw * 0.28, headHh * 0.5, headHw * 0.18),
+        roundedBox(cx - headHw * 0.76, headCy - headHh * 0.08, headHw * 0.30, headHh * 0.52, headHw * 0.18),
+        roundedBox(cx + headHw * 0.76, headCy - headHh * 0.08, headHw * 0.30, headHh * 0.52, headHw * 0.18),
       ),
     );
-    place(M.hair, fr, cx - headHw * 1.05, headCy - headHh * 1.0, cx + headHw * 1.05, headCy + headHh * 0.45, 0.4, xHead());
+    place(M.hair, fr, cx - headHw * 1.10, headCy - headHh * 1.0, cx + headHw * 1.10, headCy + headHh * 0.50, 0.4, xHead());
 
     // Style extras (layered over the fringe).
     if (hairStyle === 'spiky') {

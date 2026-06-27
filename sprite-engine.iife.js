@@ -664,6 +664,18 @@ var SpriteEngine = (() => {
       parts.push({ material: mat, roundness, sdf: f, bbox: [Math.floor(minx - 2), Math.floor(miny - 2), Math.ceil(maxx + 2), Math.ceil(maxy + 2)] });
     };
     const box = (mat, bx, by, hw, hh, r, roundness, xf) => place(mat, roundedBox(bx, by, hw, hh, r), bx - hw, by - hh, bx + hw, by + hh, roundness, xf);
+    const placeEllipse = (mat, ex, ey, rx, ry, roundness, xf) => place(mat, ellipse(ex, ey, rx, ry), ex - rx, ey - ry, ex + rx, ey + ry, roundness, xf);
+    const shadowY = legCy + legHh + s * 0.03;
+    const shadowMat = MATERIALS.bone([30, 28, 24]);
+    placeEllipse(
+      shadowMat,
+      cx,
+      shadowY,
+      s * 0.15,
+      s * 0.04,
+      0.05,
+      { tx: rootX, ty: rootY }
+    );
     const drawCapeEarly = hasCape && facing !== "back";
     const placeCape = () => {
       const capeTop = shoulderY + s * 0.01;
@@ -686,9 +698,9 @@ var SpriteEngine = (() => {
         const bootBot = legCy + legHh + s * 0.018;
         const bootHh = (bootBot - bootTop) / 2;
         box(M.leather, lx, (bootTop + bootBot) / 2, legHw * 1.08, bootHh, legHw * 0.4, 0.45, xLeg(ang, lx, hipY));
-        box(M.leather, lx, bootBot, legHw * 1.12, s * 0.01, s * 6e-3, 0.35, xLeg(ang, lx, hipY));
+        placeEllipse(M.leather, lx, bootBot + s * 5e-3, legHw * 1.22, s * 0.014, 0.3, xLeg(ang, lx, hipY));
       } else {
-        box(M.leather, lx + dir * legHw * 0.15, legCy + legHh + s * 0.012, legHw * 1.05, s * 0.022, s * 0.012, 0.45, xLeg(ang, lx, hipY));
+        placeEllipse(M.leather, lx + dir * legHw * 0.1, legCy + legHh + s * 0.012, legHw * 1.15, s * 0.022, 0.35, xLeg(ang, lx, hipY));
       }
     }
     for (const dir of [-1, 1]) {
@@ -725,6 +737,18 @@ var SpriteEngine = (() => {
     if (torsoMat === "vest") {
       box(M.accent, cx, torsoTop + torsoHh * 0.2, s * 0.01, torsoHh * 0.6, s * 4e-3, 0.3, xUpper);
     }
+    {
+      const shoulderTopCol = [
+        Math.min(255, torsoColor[0] * 1.15),
+        Math.min(255, torsoColor[1] * 1.15),
+        Math.min(255, torsoColor[2] * 1.12)
+      ];
+      const shoulderTopMat = MATERIALS[torsoMatName](shoulderTopCol);
+      for (const dir of [-1, 1]) {
+        const ax = cx + dir * armX;
+        placeEllipse(shoulderTopMat, ax, shoulderY - s * 5e-3, armHw * 1.2, armHw * 0.45, 0.35, xUpper);
+      }
+    }
     if (hasBelt) {
       box(M.leather, cx, torsoBot - s * 0.03, torsoHw * 1.02, s * 0.02, s * 0.01, 0.4, xUpper);
       box(M.gold, cx, torsoBot - s * 0.03, s * 0.015, s * 0.015, s * 6e-3, 0.55, xUpper);
@@ -756,8 +780,16 @@ var SpriteEngine = (() => {
       }
     }
     box(M.skin, cx, headCy, headHw, headHh, headCorner, 0.52, xHead());
+    {
+      const headTopCol = [
+        Math.min(255, col.skin[0] * 1.12),
+        Math.min(255, col.skin[1] * 1.1),
+        Math.min(255, col.skin[2] * 1.08)
+      ];
+      placeEllipse(MATERIALS.skin(headTopCol), cx, headCy - headHh * 0.55, headHw * 0.75, headHh * 0.25, 0.35, xHead());
+    }
     if (config.face !== false && facing !== "back") {
-      const eyeY = headCy + headHh * 0.2;
+      const eyeY = headCy + headHh * 0.3;
       const lookSign = facing === "left" ? -1 : facing === "right" ? 1 : 0;
       const eyeDx = lookSign === 0 ? headHw * 0.42 : headHw * 0.26;
       const shift = lookSign * headHw * 0.3;
@@ -769,15 +801,15 @@ var SpriteEngine = (() => {
     if (showHair && facing === "back") {
       box(M.hair, cx, headCy + headHh * 0.04, headHw * 0.96, headHh * 0.9, headCorner * 0.85, 0.42, xHead());
     } else if (showHair) {
-      const fy = headCy - headHh * 0.52;
+      const fy = headCy - headHh * 0.48;
       const fr = union(
-        roundedBox(cx, fy, headHw * 0.98, headHh * 0.34, headHw * 0.2),
+        roundedBox(cx, fy, headHw * 1.04, headHh * 0.4, headHw * 0.22),
         union(
-          roundedBox(cx - headHw * 0.74, headCy - headHh * 0.12, headHw * 0.28, headHh * 0.5, headHw * 0.18),
-          roundedBox(cx + headHw * 0.74, headCy - headHh * 0.12, headHw * 0.28, headHh * 0.5, headHw * 0.18)
+          roundedBox(cx - headHw * 0.76, headCy - headHh * 0.08, headHw * 0.3, headHh * 0.52, headHw * 0.18),
+          roundedBox(cx + headHw * 0.76, headCy - headHh * 0.08, headHw * 0.3, headHh * 0.52, headHw * 0.18)
         )
       );
-      place(M.hair, fr, cx - headHw * 1.05, headCy - headHh * 1, cx + headHw * 1.05, headCy + headHh * 0.45, 0.4, xHead());
+      place(M.hair, fr, cx - headHw * 1.1, headCy - headHh * 1, cx + headHw * 1.1, headCy + headHh * 0.5, 0.4, xHead());
       if (hairStyle === "spiky") {
         for (let k = -2; k <= 2; k++) {
           const sx = cx + k * headHw * 0.42;
