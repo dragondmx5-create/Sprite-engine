@@ -59,6 +59,13 @@ export type { SceneEntity, SceneLayer } from './scene';
 export { generateDarknessOverlay, generateLightGlow, isInDarkness, torchFlicker } from './darkness';
 export type { LightSource } from './darkness';
 
+// ---- GPU accelerated rendering (WebGPU) ------------------------------------
+export { GPURenderer, getGPURenderer, renderPartsGPU, renderBatchGPU } from './gpu';
+
+// ---- SDF descriptors (for GPU pipeline) ------------------------------------
+export { SDF_CIRCLE, SDF_ELLIPSE, SDF_CAPSULE, SDF_ROUNDED_BOX, extractSDFDesc } from './shapes';
+export type { SDFDesc } from './shapes';
+
 // ---- Sprite caching --------------------------------------------------------
 export {
   SpriteCache, globalCache,

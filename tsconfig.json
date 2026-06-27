@@ -9,7 +9,8 @@
     "noImplicitAny": true,
     "declaration": true,
     "outDir": "dist",
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "types": ["@webgpu/types"]
   },
   "include": ["src/**/*.ts"]
 }

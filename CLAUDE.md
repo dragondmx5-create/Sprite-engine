@@ -33,7 +33,7 @@ One pipeline for everything: characters, enemies, items, tiles, effects.
 src/
   types.ts      — SpriteConfig, SpriteBuffer, Material, RGB, Vec3, Light
   rng.ts        — deterministic PRNG (FNV-1a + mulberry32)
-  shapes.ts     — SDF primitives: circle, ellipse, capsule, roundedBox, union, transforms
+  shapes.ts     — SDF primitives: circle, ellipse, capsule, roundedBox, union, transforms + GPU SDF descriptors
   field.ts      — Felzenszwalb-Huttenlocher EDT -> inward distance -> fake normals
   color.ts      — tone ramp (5-stop warm/cool), quantize, smoothstep
   lighting.ts   — Blinn-Phong shading with painterly diffuse ramp
@@ -48,6 +48,7 @@ src/
   minimap.ts    — tiny colored icons (4-8px): player, enemy, item, door, stairs, loot, trap, boss
   darkness.ts   — fog-of-war / lighting system: darkness overlay, light glow, torch flicker, darkness check
   scene.ts      — scene composition: alpha blitting, z-sorted entity rendering, tile grid, camera viewport
+  gpu.ts        — WebGPU compute-shader renderer: JFA EDT, normals, Blinn-Phong, downsample (auto-fallback to CPU)
   cache.ts      — LRU sprite cache: cached wrappers for all generate* functions
   pose.ts       — keyframe animation clips (idle, walk, attack, hit, death) + pose interpolation
   animation.ts  — frame generation, enemy/item/effect procedural animation (+ enemy death/hit/emerge), spritesheet packing
@@ -137,6 +138,14 @@ cachedSprite(config), cachedEnemy(config), cachedItem(config), cachedTile(config
 cachedAnimation(config, name), cachedEnemyAnimation(config, name)
 cachedItemAnimation(config, name), cachedEffectAnimation(config, name)
 globalCache.clear(), globalCache.size
+
+// GPU accelerated rendering (WebGPU, auto-fallback to CPU)
+const gpu = new GPURenderer(); await gpu.init();  // returns false if WebGPU unavailable
+await gpu.renderParts(parts, opts)                 // single sprite on GPU
+await gpu.renderBatch(partSets, opts)              // N sprites in parallel
+await renderPartsGPU(parts, opts)                  // convenience (auto-init singleton)
+await renderBatchGPU(partSets, opts)               // convenience batch
+gpu.dispose()                                      // release GPU resources
 
 // Helpers
 toCanvas(buf), toImageData(buf), packSpriteSheet(frames), generateSpriteSheetCanvas(config, animName)
