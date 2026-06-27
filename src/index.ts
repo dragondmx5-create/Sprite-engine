@@ -43,9 +43,28 @@ export {
 } from './effects';
 export type { StatusEffect, VFXConfig, ProjectileKind, ProjectileConfig, EffectKind, EffectConfig } from './effects';
 
+// ---- Loot / death markers (UNDRAL) -----------------------------------------
+export { generateLootMarker, buildLootMarker, LOOT_MARKER_KINDS } from './loot';
+export type { LootMarkerConfig, LootMarkerKind } from './loot';
+
 // ---- Minimap ---------------------------------------------------------------
 export { generateMinimapIcon, MINIMAP_ICONS } from './minimap';
 export type { MinimapConfig, MinimapIcon } from './minimap';
+
+// ---- Scene composition + z-sorting -----------------------------------------
+export { renderScene, blitOver, createBuffer, isVisible } from './scene';
+export type { SceneEntity, SceneLayer } from './scene';
+
+// ---- Darkness / lighting system (UNDRAL) -----------------------------------
+export { generateDarknessOverlay, generateLightGlow, isInDarkness, torchFlicker } from './darkness';
+export type { LightSource } from './darkness';
+
+// ---- Sprite caching --------------------------------------------------------
+export {
+  SpriteCache, globalCache,
+  cachedSprite, cachedEnemy, cachedItem, cachedTile,
+  cachedAnimation, cachedEnemyAnimation, cachedItemAnimation, cachedEffectAnimation,
+} from './cache';
 
 // ---- Animation API ---------------------------------------------------------
 export { generateAnimation, packSpriteSheet, listAnimations };

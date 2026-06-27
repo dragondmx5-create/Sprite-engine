@@ -40,13 +40,17 @@ src/
   materials.ts  — 12 preset materials: skin, cloth, leather, metal, hair, chitin, flesh, gem, bone, ember, gold, glass
   engine.ts     — resolveRenderOpts + renderParts + generateSprite/Enemy/Item/Tile
   skeleton.ts   — character body builder (head, torso, arms, legs, hair, outfit, weapons, shield)
-  creatures.ts  — enemy builders: insect (IK legs), worm (sine spine), crawler (IK + claws)
-  items.ts      — loot builders: 10 kinds, all phase-animated (mushroom, crystal, dagger, torch, potion, coin, rune, chest, key, scroll)
-  tiles.ts      — dungeon tile builders: 8 kinds covering 5 UNDRAL layers
+  creatures.ts  — enemy builders: 8 kinds (insect, worm, crawler, fire_elemental, shadow, burrower, bat, slime)
+  items.ts      — loot builders: 15 kinds (mushroom, crystal, dagger, torch, potion, coin, rune, chest, key, scroll, meat, lantern, ore, firestone, bone_shard)
+  tiles.ts      — dungeon tile builders: 13 kinds (+ spike_trap, stairs_down, stairs_up, cracked_wall, pit)
   effects.ts    — VFX: slash, impact, projectiles, sparkle, shadow, flash, tint, status effects + phase-driven builders
-  minimap.ts    — tiny colored icons (4-8px, direct pixel fill)
+  loot.ts       — death markers: loot_bag, skull, gravestone, blood_stain
+  minimap.ts    — tiny colored icons (4-8px): player, enemy, item, door, stairs, loot, trap, boss
+  darkness.ts   — fog-of-war / lighting system: darkness overlay, light glow, torch flicker, darkness check
+  scene.ts      — scene composition: alpha blitting, z-sorted entity rendering, tile grid, camera viewport
+  cache.ts      — LRU sprite cache: cached wrappers for all generate* functions
   pose.ts       — keyframe animation clips (idle, walk, attack, hit, death) + pose interpolation
-  animation.ts  — frame generation, enemy/item/effect procedural animation, spritesheet packing
+  animation.ts  — frame generation, enemy/item/effect procedural animation (+ enemy death/hit/emerge), spritesheet packing
   anim/ik.ts    — solveTwoBone (analytic) + FABRIK (iterative N-link)
   anim/spring.ts — secondary motion: damp, lag, squash, wave, pulse, smooth
   index.ts      — public API surface + DOM helpers (toCanvas, toImageData, etc.)
@@ -94,24 +98,45 @@ generateSprite({ seed, size, supersample, weapon, shield, facing, outfit, hairSt
 //   hairStyle: 'short'|'long'|'spiky'|'bun'|'bald'|'flowing'|'ponytail'
 generateAnimation(config, 'walk'|'idle'|'attack'|'hit'|'death')
 
-// Enemies
-generateEnemy({ seed, size, kind: 'insect'|'worm'|'crawler', alerted })
-generateEnemyAnimation(config, 'move'|'idle')
+// Enemies (8 kinds — UNDRAL layer creatures + ambush types)
+generateEnemy({ seed, size, kind: 'insect'|'worm'|'crawler'|'fire_elemental'|'shadow'|'burrower'|'bat'|'slime', alerted })
+generateEnemyAnimation(config, 'move'|'idle'|'death'|'hit'|'emerge')
 
-// Items (all phase-animated: sway, spin, glow, flicker, etc.)
-generateItem({ seed, size, kind: 'mushroom'|'crystal'|'dagger'|'torch'|'potion'|'coin'|'rune'|'chest'|'key'|'scroll' })
+// Items (15 kinds — all phase-animated: sway, spin, glow, flicker, etc.)
+generateItem({ seed, size, kind: 'mushroom'|'crystal'|'dagger'|'torch'|'potion'|'coin'|'rune'|'chest'|'key'|'scroll'|'meat'|'lantern'|'ore'|'firestone'|'bone_shard' })
 generateItemAnimation(config, 'idle'|'active'|'pickup')
 
-// Tiles
-generateTile({ seed, size, kind: 'stone_floor'|'dirt_floor'|'stone_wall'|'crystal_floor'|'wood_door'|'lava_floor'|'ice_floor'|'moss_floor' })
+// Tiles (13 kinds — dungeon floors, walls, doors, traps, navigation)
+generateTile({ seed, size, kind: 'stone_floor'|'dirt_floor'|'stone_wall'|'crystal_floor'|'wood_door'|'lava_floor'|'ice_floor'|'moss_floor'|'spike_trap'|'stairs_down'|'stairs_up'|'cracked_wall'|'pit' })
+
+// Loot / death markers (UNDRAL permadeath drops)
+generateLootMarker({ kind: 'loot_bag'|'skull'|'gravestone'|'blood_stain', seed, size, color })
 
 // Effects (static one-shot + animated)
 generateSlashEffect({ size, color }), generateImpactEffect(), generateProjectile({ kind }), generateSparkle()
 generateShadow(size, opacity), flashSprite(buf), tintSprite(buf, color, amount), applyStatusEffect(buf, effect, phase)
 generateEffectAnimation({ kind: 'slash'|'impact'|'sparkle'|'fireball'|'magic_bolt', size, color })
 
-// Minimap
-generateMinimapIcon({ icon: 'player'|'enemy'|'item'|'door'|'stairs', size })
+// Minimap (8 icon types)
+generateMinimapIcon({ icon: 'player'|'enemy'|'item'|'door'|'stairs'|'loot'|'trap'|'boss', size })
+
+// Scene composition + z-sorting
+renderScene(width, height, { tiles?, entities?, shadows?, effects?, darkness? }, cameraX, cameraY)
+blitOver(dst, src, offsetX, offsetY)   // alpha composite
+createBuffer(width, height)            // empty transparent SpriteBuffer
+isVisible(entity, cameraX, cameraY, viewW, viewH)  // viewport culling
+
+// Darkness / fog-of-war (UNDRAL "darkness = death" mechanic)
+generateDarknessOverlay(width, height, lights, ambientLight)  // black overlay with light holes
+generateLightGlow(width, height, lights)                      // colored light tint layer
+isInDarkness(x, y, lights, ambientLight, threshold)           // point-in-darkness check
+torchFlicker(phase, seed)                                     // deterministic radius wobble
+
+// Sprite caching (LRU, default 512 entries)
+cachedSprite(config), cachedEnemy(config), cachedItem(config), cachedTile(config)
+cachedAnimation(config, name), cachedEnemyAnimation(config, name)
+cachedItemAnimation(config, name), cachedEffectAnimation(config, name)
+globalCache.clear(), globalCache.size
 
 // Helpers
 toCanvas(buf), toImageData(buf), packSpriteSheet(frames), generateSpriteSheetCanvas(config, animName)

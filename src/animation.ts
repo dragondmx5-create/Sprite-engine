@@ -77,8 +77,11 @@ export function listAnimations(): string[] {
 export interface EnemyClip { name: string; fps: number; loop: boolean; frames: number; amp: number; }
 
 export const ENEMY_CLIPS: Record<string, EnemyClip> = {
-  idle: { name: 'idle', fps: 8, loop: true, frames: 8, amp: 0.4 },
-  move: { name: 'move', fps: 12, loop: true, frames: 8, amp: 1.0 },
+  idle:   { name: 'idle',   fps: 8,  loop: true,  frames: 8, amp: 0.4 },
+  move:   { name: 'move',   fps: 12, loop: true,  frames: 8, amp: 1.0 },
+  death:  { name: 'death',  fps: 10, loop: false, frames: 6, amp: 1.0 },
+  hit:    { name: 'hit',    fps: 14, loop: false, frames: 4, amp: 1.0 },
+  emerge: { name: 'emerge', fps: 10, loop: false, frames: 6, amp: 1.0 },
 };
 
 /** Generate a procedural enemy animation ('move' | 'idle'). */

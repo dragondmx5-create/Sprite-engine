@@ -16,7 +16,7 @@ import { RNG } from './rng';
 import { MATERIALS } from './materials';
 import { Part, roundedBox, circle, capsule } from './shapes';
 
-export type TileKind = 'stone_floor' | 'dirt_floor' | 'stone_wall' | 'crystal_floor' | 'wood_door' | 'lava_floor' | 'ice_floor' | 'moss_floor';
+export type TileKind = 'stone_floor' | 'dirt_floor' | 'stone_wall' | 'crystal_floor' | 'wood_door' | 'lava_floor' | 'ice_floor' | 'moss_floor' | 'spike_trap' | 'stairs_down' | 'stairs_up' | 'cracked_wall' | 'pit';
 
 export interface TileConfig {
   kind?: TileKind;
@@ -171,6 +171,81 @@ function buildMossFloor(rng: RNG, s: number): Part[] {
   return parts;
 }
 
+function buildSpikeTrap(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const base: RGB = [78 + rng.jitter(6), 72 + rng.jitter(5), 68 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(base), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.12);
+  const spikeMat = MATERIALS.metal([140, 135, 128]);
+  const cols = 3, rows = 3;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const sx = s * (0.22 + c * 0.28) + rng.jitter(s * 0.02);
+      const sy = s * (0.22 + r * 0.28) + rng.jitter(s * 0.02);
+      const h = s * 0.08 + rng.float() * s * 0.04;
+      pushCapsule(parts, spikeMat, sx, sy + h * 0.5, sx, sy - h * 0.5, Math.max(1, s * 0.016), 0.6);
+    }
+  }
+  return parts;
+}
+
+function buildStairsDown(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const base: RGB = [72 + rng.jitter(6), 68 + rng.jitter(5), 64 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(base), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.15);
+  const step = MATERIALS.bone([base[0] * 0.8, base[1] * 0.8, base[2] * 0.8] as RGB);
+  const dark = MATERIALS.bone([20, 18, 16]);
+  const steps = 4;
+  for (let i = 0; i < steps; i++) {
+    const sy = s * (0.20 + i * 0.16);
+    const sw = s * (0.38 - i * 0.03);
+    pushBox(parts, step, s * 0.5, sy, sw / 2, s * 0.05, s * 0.01, 0.2);
+  }
+  pushBox(parts, dark, s * 0.5, s * 0.82, s * 0.14, s * 0.08, s * 0.02, 0.1);
+  return parts;
+}
+
+function buildStairsUp(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const base: RGB = [72 + rng.jitter(6), 68 + rng.jitter(5), 64 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(base), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.15);
+  const step = MATERIALS.bone([base[0] * 1.1, base[1] * 1.1, base[2] * 1.1] as RGB);
+  const light = MATERIALS.ember([200, 190, 140]);
+  const steps = 4;
+  for (let i = 0; i < steps; i++) {
+    const sy = s * (0.75 - i * 0.16);
+    const sw = s * (0.38 - i * 0.03);
+    pushBox(parts, step, s * 0.5, sy, sw / 2, s * 0.05, s * 0.01, 0.2);
+  }
+  pushCircle(parts, light, s * 0.5, s * 0.14, s * 0.06, 0.8);
+  return parts;
+}
+
+function buildCrackedWall(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const base: RGB = [58 + rng.jitter(8), 54 + rng.jitter(6), 52 + rng.jitter(6)];
+  pushBox(parts, MATERIALS.bone(base), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.28);
+  const crackCol = MATERIALS.bone([base[0] * 0.4, base[1] * 0.4, base[2] * 0.4] as RGB);
+  const cracks = 3 + Math.floor(rng.float() * 3);
+  for (let i = 0; i < cracks; i++) {
+    const ax = s * (0.2 + rng.float() * 0.6), ay = s * (0.15 + rng.float() * 0.7);
+    const bx = ax + rng.jitter(s * 0.2), by = ay + rng.jitter(s * 0.25);
+    pushCapsule(parts, crackCol, ax, ay, bx, by, Math.max(1, s * 0.01), 0.1);
+  }
+  // mortar lines
+  const my = s * (0.35 + rng.jitter(0.05));
+  pushBox(parts, MATERIALS.bone([base[0] * 0.55, base[1] * 0.55, base[2] * 0.55] as RGB), s * 0.5, my, s * 0.44, s * 0.01, s * 0.004, 0.08);
+  return parts;
+}
+
+function buildPit(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const edge: RGB = [68 + rng.jitter(6), 62 + rng.jitter(5), 58 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(edge), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.12);
+  pushCircle(parts, MATERIALS.bone([15, 12, 10]), s * 0.5, s * 0.5, s * 0.30, 0.1);
+  pushCircle(parts, MATERIALS.bone([edge[0] * 0.7, edge[1] * 0.7, edge[2] * 0.7] as RGB), s * 0.5, s * 0.5, s * 0.32, 0.15);
+  return parts;
+}
+
 // ---- public API -------------------------------------------------------------
 
 export function buildTile(config: TileConfig, s: number): Part[] {
@@ -183,9 +258,14 @@ export function buildTile(config: TileConfig, s: number): Part[] {
     case 'lava_floor':    return buildLavaFloor(rng, s);
     case 'ice_floor':     return buildIceFloor(rng, s);
     case 'moss_floor':    return buildMossFloor(rng, s);
+    case 'spike_trap':    return buildSpikeTrap(rng, s);
+    case 'stairs_down':   return buildStairsDown(rng, s);
+    case 'stairs_up':     return buildStairsUp(rng, s);
+    case 'cracked_wall':  return buildCrackedWall(rng, s);
+    case 'pit':           return buildPit(rng, s);
     case 'stone_floor':
     default:              return buildStoneFloor(rng, s);
   }
 }
 
-export const TILE_KINDS: TileKind[] = ['stone_floor', 'dirt_floor', 'stone_wall', 'crystal_floor', 'wood_door', 'lava_floor', 'ice_floor', 'moss_floor'];
+export const TILE_KINDS: TileKind[] = ['stone_floor', 'dirt_floor', 'stone_wall', 'crystal_floor', 'wood_door', 'lava_floor', 'ice_floor', 'moss_floor', 'spike_trap', 'stairs_down', 'stairs_up', 'cracked_wall', 'pit'];
