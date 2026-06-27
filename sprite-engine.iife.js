@@ -2417,10 +2417,10 @@ var SpriteEngine = (() => {
     });
   }
   function wallTopAndFront(parts, rng, s, topCol, frontCol) {
-    pushBox2(parts, MATERIALS.bone(topCol), s * 0.5, s * 0.1, s * 0.48, s * 0.09, s * 0.01, 0.2);
+    pushBox2(parts, MATERIALS.bone(topCol), s * 0.5, s * 0.1, s * 0.5, s * 0.1, 0, 0.2);
     const lipCol = [topCol[0] + 18, topCol[1] + 15, topCol[2] + 12];
-    pushBox2(parts, MATERIALS.bone(lipCol), s * 0.5, s * 0.2, s * 0.48, s * 5e-3, s * 2e-3, 0.15);
-    pushBox2(parts, MATERIALS.bone(frontCol), s * 0.5, s * 0.6, s * 0.48, s * 0.39, s * 0.01, 0.18);
+    pushBox2(parts, MATERIALS.bone(lipCol), s * 0.5, s * 0.2, s * 0.5, s * 5e-3, 0, 0.15);
+    pushBox2(parts, MATERIALS.bone(frontCol), s * 0.5, s * 0.6, s * 0.5, s * 0.4, 0, 0.18);
   }
   function wallBricks(parts, rng, s, frontCol) {
     const mortarCol = [frontCol[0] * 0.65, frontCol[1] * 0.62, frontCol[2] * 0.58];
@@ -2462,16 +2462,16 @@ var SpriteEngine = (() => {
       MATERIALS.bone([frontCol[0] * 0.4, frontCol[1] * 0.38, frontCol[2] * 0.34]),
       s * 0.5,
       s * 0.975,
-      s * 0.48,
-      s * 0.018,
-      s * 4e-3,
+      s * 0.5,
+      s * 0.025,
+      0,
       0.08
     );
   }
   function floorBase(parts, rng, s) {
     const j = rng.jitter(6);
     const col = [92 + j, 82 + j, 70 + j];
-    pushBox2(parts, MATERIALS.bone(col), s * 0.5, s * 0.5, s * 0.48, s * 0.48, s * 0.01, 0.1);
+    pushBox2(parts, MATERIALS.bone(col), s * 0.5, s * 0.5, s * 0.5, s * 0.5, s * 0.01, 0.1);
     return col;
   }
   function buildStoneFloor(rng, s) {
@@ -2482,8 +2482,8 @@ var SpriteEngine = (() => {
       MATERIALS.bone([48 + warmth, 44 + warmth, 38 + warmth]),
       s * 0.5,
       s * 0.5,
-      s * 0.48,
-      s * 0.48,
+      s * 0.5,
+      s * 0.5,
       s * 0.01,
       0.08
     );
@@ -2528,7 +2528,7 @@ var SpriteEngine = (() => {
   function buildDirtFloor(rng, s) {
     const parts = [];
     const base = [112 + rng.jitter(14), 84 + rng.jitter(10), 56 + rng.jitter(8)];
-    pushBox2(parts, MATERIALS.flesh(base), s * 0.5, s * 0.5, s * 0.48, s * 0.48, s * 0.015, 0.08);
+    pushBox2(parts, MATERIALS.flesh(base), s * 0.5, s * 0.5, s * 0.5, s * 0.5, s * 0.015, 0.08);
     for (let i = 0; i < 2; i++) {
       const px = s * (0.2 + rng.float() * 0.6), py = s * (0.2 + rng.float() * 0.6);
       pushCircle3(
@@ -2580,7 +2580,7 @@ var SpriteEngine = (() => {
   function buildCrystalFloor(rng, s) {
     const parts = [];
     const base = [35 + rng.jitter(6), 30 + rng.jitter(5), 45 + rng.jitter(6)];
-    pushBox2(parts, MATERIALS.bone(base), s * 0.5, s * 0.5, s * 0.48, s * 0.48, s * 0.015, 0.12);
+    pushBox2(parts, MATERIALS.bone(base), s * 0.5, s * 0.5, s * 0.5, s * 0.5, s * 0.015, 0.12);
     const veins = 3 + Math.floor(rng.float() * 2);
     for (let i = 0; i < veins; i++) {
       const ax = s * (0.08 + rng.float() * 0.84), ay = s * (0.08 + rng.float() * 0.84);
@@ -2656,7 +2656,7 @@ var SpriteEngine = (() => {
   function buildLavaFloor(rng, s) {
     const parts = [];
     const base = [35 + rng.jitter(4), 24 + rng.jitter(3), 20 + rng.jitter(3)];
-    pushBox2(parts, MATERIALS.bone(base), s * 0.5, s * 0.5, s * 0.48, s * 0.48, s * 0.015, 0.1);
+    pushBox2(parts, MATERIALS.bone(base), s * 0.5, s * 0.5, s * 0.5, s * 0.5, s * 0.015, 0.1);
     for (let i = 0; i < 3; i++) {
       const ax = s * (0.05 + rng.float() * 0.9), ay = s * (0.05 + rng.float() * 0.9);
       const bx = s * (0.05 + rng.float() * 0.9), by = s * (0.05 + rng.float() * 0.9);
@@ -2678,7 +2678,7 @@ var SpriteEngine = (() => {
   function buildIceFloor(rng, s) {
     const parts = [];
     const base = [170 + rng.jitter(8), 200 + rng.jitter(6), 220 + rng.jitter(4)];
-    pushBox2(parts, MATERIALS.glass(base), s * 0.5, s * 0.5, s * 0.48, s * 0.48, s * 0.015, 0.15);
+    pushBox2(parts, MATERIALS.glass(base), s * 0.5, s * 0.5, s * 0.5, s * 0.5, s * 0.015, 0.15);
     for (let i = 0; i < 3; i++) {
       const ax = s * (0.15 + rng.float() * 0.7), ay = s * (0.15 + rng.float() * 0.7);
       const bx = ax + rng.jitter(s * 0.3), by = ay + rng.jitter(s * 0.3);
@@ -2697,7 +2697,7 @@ var SpriteEngine = (() => {
   function buildMossFloor(rng, s) {
     const parts = [];
     const base = [82 + rng.jitter(6), 76 + rng.jitter(5), 70 + rng.jitter(5)];
-    pushBox2(parts, MATERIALS.bone(base), s * 0.5, s * 0.5, s * 0.48, s * 0.48, s * 0.015, 0.1);
+    pushBox2(parts, MATERIALS.bone(base), s * 0.5, s * 0.5, s * 0.5, s * 0.5, s * 0.015, 0.1);
     for (let i = 0; i < 4; i++) {
       const px = s * (0.12 + rng.float() * 0.76), py = s * (0.12 + rng.float() * 0.76);
       const pr = s * (0.04 + rng.float() * 0.035);
@@ -2719,10 +2719,53 @@ var SpriteEngine = (() => {
     }
     return parts;
   }
+  function buildGrassFloor(rng, s) {
+    const parts = [];
+    const j = rng.jitter(8);
+    const base = [58 + j, 92 + j, 40 + j];
+    pushBox2(parts, MATERIALS.flesh(base), s * 0.5, s * 0.5, s * 0.5, s * 0.5, 0, 0.08);
+    for (let i = 0; i < 3; i++) {
+      const px = s * (0.08 + rng.float() * 0.84);
+      const py = s * (0.08 + rng.float() * 0.84);
+      pushCircle3(
+        parts,
+        MATERIALS.flesh([base[0] * 0.78, base[1] * 0.84, base[2] * 0.76]),
+        px,
+        py,
+        s * (0.06 + rng.float() * 0.04),
+        0.06
+      );
+    }
+    for (let i = 0; i < 2; i++) {
+      const px = s * (0.15 + rng.float() * 0.7);
+      const py = s * (0.15 + rng.float() * 0.7);
+      pushCircle3(
+        parts,
+        MATERIALS.flesh([base[0] + 12, base[1] + 15, base[2] + 8]),
+        px,
+        py,
+        s * (0.04 + rng.float() * 0.03),
+        0.05
+      );
+    }
+    for (let i = 0; i < 2; i++) {
+      const px = s * (0.12 + rng.float() * 0.76);
+      const py = s * (0.12 + rng.float() * 0.76);
+      pushCircle3(
+        parts,
+        MATERIALS.flesh([92 + rng.jitter(8), 70 + rng.jitter(6), 46 + rng.jitter(5)]),
+        px,
+        py,
+        s * (0.018 + rng.float() * 0.012),
+        0.1
+      );
+    }
+    return parts;
+  }
   function buildSpikeTrap(rng, s) {
     const parts = [];
     const base = [78 + rng.jitter(5), 72 + rng.jitter(4), 68 + rng.jitter(4)];
-    pushBox2(parts, MATERIALS.bone(base), s * 0.5, s * 0.5, s * 0.48, s * 0.48, s * 0.015, 0.12);
+    pushBox2(parts, MATERIALS.bone(base), s * 0.5, s * 0.5, s * 0.5, s * 0.5, s * 0.015, 0.12);
     for (let r = 0; r < 3; r++) {
       for (let c = 0; c < 3; c++) {
         const sx = s * (0.22 + c * 0.28) + rng.jitter(s * 0.015);
@@ -2737,7 +2780,7 @@ var SpriteEngine = (() => {
   function buildStairsDown(rng, s) {
     const parts = [];
     const base = [72 + rng.jitter(5), 68 + rng.jitter(4), 64 + rng.jitter(4)];
-    pushBox2(parts, MATERIALS.bone(base), s * 0.5, s * 0.5, s * 0.48, s * 0.48, s * 0.015, 0.15);
+    pushBox2(parts, MATERIALS.bone(base), s * 0.5, s * 0.5, s * 0.5, s * 0.5, s * 0.015, 0.15);
     const steps = 5;
     for (let i = 0; i < steps; i++) {
       const t = i / (steps - 1);
@@ -2763,7 +2806,7 @@ var SpriteEngine = (() => {
   function buildStairsUp(rng, s) {
     const parts = [];
     const base = [72 + rng.jitter(5), 68 + rng.jitter(4), 64 + rng.jitter(4)];
-    pushBox2(parts, MATERIALS.bone(base), s * 0.5, s * 0.5, s * 0.48, s * 0.48, s * 0.015, 0.15);
+    pushBox2(parts, MATERIALS.bone(base), s * 0.5, s * 0.5, s * 0.5, s * 0.5, s * 0.015, 0.15);
     const steps = 5;
     for (let i = 0; i < steps; i++) {
       const t = i / (steps - 1);
@@ -2819,7 +2862,7 @@ var SpriteEngine = (() => {
   function buildPit(rng, s) {
     const parts = [];
     const edge = [72 + rng.jitter(5), 66 + rng.jitter(4), 62 + rng.jitter(4)];
-    pushBox2(parts, MATERIALS.bone(edge), s * 0.5, s * 0.5, s * 0.48, s * 0.48, s * 0.015, 0.12);
+    pushBox2(parts, MATERIALS.bone(edge), s * 0.5, s * 0.5, s * 0.5, s * 0.5, s * 0.015, 0.12);
     pushCircle3(
       parts,
       MATERIALS.bone([edge[0] * 0.6, edge[1] * 0.6, edge[2] * 0.58]),
@@ -2845,7 +2888,7 @@ var SpriteEngine = (() => {
     const parts = [];
     const j = rng.jitter(5);
     const rimCol = [82 + j, 76 + j, 70 + j];
-    pushBox2(parts, MATERIALS.bone(rimCol), s * 0.5, s * 0.5, s * 0.48, s * 0.48, s * 0.015, 0.12);
+    pushBox2(parts, MATERIALS.bone(rimCol), s * 0.5, s * 0.5, s * 0.5, s * 0.5, s * 0.015, 0.12);
     const waterCol = [28 + j, 52 + j, 68 + j];
     pushCircle3(parts, MATERIALS.glass(waterCol), s * 0.5, s * 0.5, s * 0.36, 0.15);
     const ripples = 2 + (rng.float() > 0.5 ? 1 : 0);
@@ -2873,21 +2916,21 @@ var SpriteEngine = (() => {
   function buildUndergroundRiver(rng, s) {
     const parts = [];
     const bankCol = [78 + rng.jitter(5), 72 + rng.jitter(4), 68 + rng.jitter(4)];
-    pushBox2(parts, MATERIALS.bone(bankCol), s * 0.5, s * 0.1, s * 0.48, s * 0.1, s * 0.015, 0.18);
+    pushBox2(parts, MATERIALS.bone(bankCol), s * 0.5, s * 0.1, s * 0.5, s * 0.1, 0, 0.18);
     pushBox2(
       parts,
       MATERIALS.bone([bankCol[0] + 10, bankCol[1] + 8, bankCol[2] + 6]),
       s * 0.5,
       s * 0.21,
-      s * 0.48,
+      s * 0.5,
       s * 0.015,
-      s * 5e-3,
+      0,
       0.12
     );
-    pushBox2(parts, MATERIALS.bone(bankCol), s * 0.5, s * 0.9, s * 0.48, s * 0.1, s * 0.015, 0.18);
+    pushBox2(parts, MATERIALS.bone(bankCol), s * 0.5, s * 0.9, s * 0.5, s * 0.1, 0, 0.18);
     const j = rng.jitter(5);
     const waterCol = [24 + j, 48 + j, 62 + j];
-    pushBox2(parts, MATERIALS.glass(waterCol), s * 0.5, s * 0.52, s * 0.48, s * 0.28, s * 0.015, 0.12);
+    pushBox2(parts, MATERIALS.glass(waterCol), s * 0.5, s * 0.52, s * 0.5, s * 0.28, 0, 0.12);
     const ripples = 4 + Math.floor(rng.float() * 2);
     for (let i = 0; i < ripples; i++) {
       const ry = s * (0.3 + rng.float() * 0.4);
@@ -2950,7 +2993,7 @@ var SpriteEngine = (() => {
   function buildCobweb(rng, s) {
     const parts = [];
     const baseCol = [78 + rng.jitter(5), 72 + rng.jitter(4), 68 + rng.jitter(4)];
-    pushBox2(parts, MATERIALS.bone(baseCol), s * 0.5, s * 0.5, s * 0.48, s * 0.48, s * 0.015, 0.1);
+    pushBox2(parts, MATERIALS.bone(baseCol), s * 0.5, s * 0.5, s * 0.5, s * 0.5, s * 0.015, 0.1);
     const webCol = [185, 182, 178];
     const ox = s * 0.04, oy = s * 0.04;
     const strands = 6 + Math.floor(rng.float() * 3);
@@ -3028,7 +3071,7 @@ var SpriteEngine = (() => {
   }
   function buildChain(rng, s) {
     const parts = [];
-    pushBox2(parts, MATERIALS.bone([22, 20, 18]), s * 0.5, s * 0.5, s * 0.48, s * 0.48, s * 0.015, 0.06);
+    pushBox2(parts, MATERIALS.bone([22, 20, 18]), s * 0.5, s * 0.5, s * 0.5, s * 0.5, s * 0.015, 0.06);
     const chainMat = MATERIALS.metal([162 + rng.jitter(8), 156 + rng.jitter(6), 148 + rng.jitter(6)]);
     const links = 5 + Math.floor(rng.float() * 2);
     const cx = s * 0.5 + rng.jitter(s * 0.04);
@@ -3699,7 +3742,7 @@ var SpriteEngine = (() => {
     const parts = [];
     const cx = s * 0.5;
     const rubbleCol = [78 + rng.jitter(8), 72 + rng.jitter(6), 64 + rng.jitter(5)];
-    pushBox2(parts, MATERIALS.bone(rubbleCol), cx, s * 0.5, s * 0.48, s * 0.48, s * 0.01, 0.1);
+    pushBox2(parts, MATERIALS.bone(rubbleCol), cx, s * 0.5, s * 0.5, s * 0.5, s * 0.01, 0.1);
     const wallCol = [90 + rng.jitter(10), 82 + rng.jitter(8), 72 + rng.jitter(6)];
     const wallMat = MATERIALS.bone(wallCol);
     pushBox2(parts, wallMat, s * 0.15, s * 0.42, s * 0.12, s * 0.3, s * 0.01, 0.2);
@@ -3778,6 +3821,8 @@ var SpriteEngine = (() => {
     switch (config.kind ?? "stone_floor") {
       case "dirt_floor":
         return buildDirtFloor(rng, s);
+      case "grass_floor":
+        return buildGrassFloor(rng, s);
       case "stone_wall":
         return buildStoneWall(rng, s);
       case "crystal_floor":
@@ -3851,7 +3896,7 @@ var SpriteEngine = (() => {
         return buildStoneFloor(rng, s);
     }
   }
-  var TILE_KINDS = ["stone_floor", "dirt_floor", "stone_wall", "crystal_floor", "wood_door", "lava_floor", "ice_floor", "moss_floor", "spike_trap", "stairs_down", "stairs_up", "cracked_wall", "pit", "water_pool", "underground_river", "stalagmite", "cobweb", "barrel", "chain", "bone_pile", "shop_counter", "iron_gate", "torch_bracket", "altar", "anvil", "bed", "table", "bookshelf", "pillar", "fountain", "tree", "pine_tree", "dead_tree", "house", "ruins", "fence"];
+  var TILE_KINDS = ["stone_floor", "dirt_floor", "grass_floor", "stone_wall", "crystal_floor", "wood_door", "lava_floor", "ice_floor", "moss_floor", "spike_trap", "stairs_down", "stairs_up", "cracked_wall", "pit", "water_pool", "underground_river", "stalagmite", "cobweb", "barrel", "chain", "bone_pile", "shop_counter", "iron_gate", "torch_bracket", "altar", "anvil", "bed", "table", "bookshelf", "pillar", "fountain", "tree", "pine_tree", "dead_tree", "house", "ruins", "fence"];
 
   // src/field.ts
   function edt1d(f, n, out) {
