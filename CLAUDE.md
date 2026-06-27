@@ -42,8 +42,10 @@ src/
   skeleton.ts   — character body builder (head, torso, arms, legs, hair, outfit, weapons, shield)
   creatures.ts  — enemy builders: 11 kinds (insect, worm, crawler, fire_elemental, shadow, burrower, bat, slime, undead, golem, ghost)
   items.ts      — loot builders: 16 kinds (+ fish)
-  tiles.ts      — dungeon tile builders: 20 kinds (+ water_pool, underground_river, stalagmite, cobweb, barrel, chain, bone_pile)
+  tiles.ts      — dungeon tile builders: 30 kinds (+ shop_counter, iron_gate, torch_bracket, altar, anvil, bed, table, bookshelf, pillar, fountain)
   effects.ts    — VFX: slash, impact, projectiles, sparkle, shadow, flash, tint, status effects, water_ripple, smoke, drip + phase-driven builders
+  ui.ts         — HUD generators: health/mana/XP bars, inventory slot, dialog box, damage number, button
+  font.ts       — 5x7 bitmap pixel font: renderText, renderNumber, measureText (ASCII 32-126, no external files)
   loot.ts       — death markers: loot_bag, skull, gravestone, blood_stain
   minimap.ts    — tiny colored icons (4-8px): player, enemy, item, door, stairs, loot, trap, boss
   darkness.ts   — fog-of-war / lighting system: darkness overlay, light glow, torch flicker, darkness check
@@ -111,8 +113,11 @@ generateEnemyAnimation(config, 'move'|'idle'|'death'|'hit'|'emerge')
 generateItem({ seed, size, kind: 'mushroom'|'crystal'|'dagger'|'torch'|'potion'|'coin'|'rune'|'chest'|'key'|'scroll'|'meat'|'lantern'|'ore'|'firestone'|'bone_shard'|'fish' })
 generateItemAnimation(config, 'idle'|'active'|'pickup')
 
-// Tiles (20 kinds — dungeon floors, walls, doors, traps, navigation, props)
-generateTile({ seed, size, kind: 'stone_floor'|'dirt_floor'|'stone_wall'|'crystal_floor'|'wood_door'|'lava_floor'|'ice_floor'|'moss_floor'|'spike_trap'|'stairs_down'|'stairs_up'|'cracked_wall'|'pit'|'water_pool'|'underground_river'|'stalagmite'|'cobweb'|'barrel'|'chain'|'bone_pile' })
+// Tiles (30 kinds — dungeon floors, walls, doors, traps, props, interiors)
+generateTile({ seed, size, kind: 'stone_floor'|'dirt_floor'|'stone_wall'|'crystal_floor'|'wood_door'
+  |'lava_floor'|'ice_floor'|'moss_floor'|'spike_trap'|'stairs_down'|'stairs_up'|'cracked_wall'|'pit'
+  |'water_pool'|'underground_river'|'stalagmite'|'cobweb'|'barrel'|'chain'|'bone_pile'
+  |'shop_counter'|'iron_gate'|'torch_bracket'|'altar'|'anvil'|'bed'|'table'|'bookshelf'|'pillar'|'fountain' })
 
 // Loot / death markers (UNDRAL permadeath drops)
 generateLootMarker({ kind: 'loot_bag'|'skull'|'gravestone'|'blood_stain', seed, size, color })
@@ -121,6 +126,20 @@ generateLootMarker({ kind: 'loot_bag'|'skull'|'gravestone'|'blood_stain', seed, 
 generateSlashEffect({ size, color }), generateImpactEffect(), generateProjectile({ kind }), generateSparkle()
 generateShadow(size, opacity), flashSprite(buf), tintSprite(buf, color, amount), applyStatusEffect(buf, effect, phase)
 generateEffectAnimation({ kind: 'slash'|'impact'|'sparkle'|'fireball'|'magic_bolt'|'water_ripple'|'smoke'|'drip', size, color })
+
+// UI / HUD elements
+generateHealthBar({ width, height, fill, color, bgColor, borderColor })
+generateManaBar({ width, height, fill, color, bgColor, borderColor })
+generateXPBar({ width, height, fill, color, bgColor, borderColor })
+generateInventorySlot({ size, empty, highlight, bgColor, borderColor })
+generateDialogBox({ width, height, bgColor, borderColor })
+generateDamageNumber({ size, color, crit })
+generateButton({ width, height, color, pressed })
+
+// Pixel font / text rendering (5x7 bitmap, ASCII 32-126, no external files)
+renderText('Hello World', { color, scale, spacing, shadow, shadowColor })
+renderNumber(42, { color, scale })
+measureText('text', config)  // => { width, height }
 
 // Minimap (8 icon types)
 generateMinimapIcon({ icon: 'player'|'enemy'|'item'|'door'|'stairs'|'loot'|'trap'|'boss', size })

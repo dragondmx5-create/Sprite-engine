@@ -61,6 +61,17 @@ export type { SceneEntity, SceneLayer } from './scene';
 export { generateDarknessOverlay, generateLightGlow, isInDarkness, torchFlicker } from './darkness';
 export type { LightSource } from './darkness';
 
+// ---- Pixel font / text rendering ----------------------------------------
+export { renderText, renderNumber, measureText } from './font';
+export type { TextConfig } from './font';
+
+// ---- UI / HUD elements -----------------------------------------------
+export {
+  generateHealthBar, generateManaBar, generateXPBar,
+  generateInventorySlot, generateDialogBox, generateDamageNumber, generateButton,
+} from './ui';
+export type { HealthBarConfig, ManaBarConfig, XPBarConfig, InventorySlotConfig, DialogBoxConfig, DamageNumberConfig, ButtonConfig } from './ui';
+
 // ---- GPU accelerated rendering (WebGPU) ------------------------------------
 export { GPURenderer, getGPURenderer, renderPartsGPU, renderBatchGPU } from './gpu';
 
