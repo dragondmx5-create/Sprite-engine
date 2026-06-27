@@ -2380,25 +2380,25 @@ var SpriteEngine = (() => {
     });
   }
   function wallTopAndFront(parts, rng, s, topCol, frontCol) {
-    pushBox2(parts, MATERIALS.bone(topCol), s * 0.5, s * 0.13, s * 0.48, s * 0.12, s * 0.01, 0.2);
-    const lipCol = [topCol[0] + 25, topCol[1] + 22, topCol[2] + 20];
-    pushBox2(parts, MATERIALS.bone(lipCol), s * 0.5, s * 0.255, s * 0.48, s * 6e-3, s * 2e-3, 0.15);
-    pushBox2(parts, MATERIALS.bone(frontCol), s * 0.5, s * 0.625, s * 0.48, s * 0.355, s * 0.01, 0.18);
+    pushBox2(parts, MATERIALS.bone(topCol), s * 0.5, s * 0.1, s * 0.48, s * 0.09, s * 0.01, 0.2);
+    const lipCol = [topCol[0] + 18, topCol[1] + 15, topCol[2] + 12];
+    pushBox2(parts, MATERIALS.bone(lipCol), s * 0.5, s * 0.2, s * 0.48, s * 5e-3, s * 2e-3, 0.15);
+    pushBox2(parts, MATERIALS.bone(frontCol), s * 0.5, s * 0.6, s * 0.48, s * 0.39, s * 0.01, 0.18);
   }
   function wallBricks(parts, rng, s, frontCol) {
-    const mortarCol = [frontCol[0] * 0.55, frontCol[1] * 0.55, frontCol[2] * 0.52];
+    const mortarCol = [frontCol[0] * 0.65, frontCol[1] * 0.62, frontCol[2] * 0.58];
     const mortarMat = MATERIALS.bone(mortarCol);
-    for (let i = 0; i < 3; i++) {
-      const my = s * (0.36 + i * 0.185);
-      pushCapsule3(parts, mortarMat, s * 0.03, my, s * 0.97, my, Math.max(1, s * 5e-3), 0.06);
+    for (let i = 0; i < 2; i++) {
+      const my = s * (0.42 + i * 0.22);
+      pushCapsule3(parts, mortarMat, s * 0.04, my, s * 0.96, my, Math.max(1, s * 5e-3), 0.06);
     }
-    for (let row = 0; row < 4; row++) {
-      const ry0 = s * (0.27 + row * 0.185);
-      const ry1 = ry0 + s * 0.185;
-      const offset = row % 2 * 0.165;
-      for (let v = 0; v < 3; v++) {
-        const vx = s * (0.165 + offset + v * 0.33);
-        if (vx > s * 0.04 && vx < s * 0.96) {
+    for (let row = 0; row < 3; row++) {
+      const ry0 = s * (0.27 + row * 0.22);
+      const ry1 = ry0 + s * 0.22;
+      const offset = row % 2 * 0.2;
+      for (let v = 0; v < 2; v++) {
+        const vx = s * (0.25 + offset + v * 0.5);
+        if (vx > s * 0.05 && vx < s * 0.95) {
           pushCapsule3(parts, mortarMat, vx, ry0 + s * 0.01, vx, ry1 - s * 0.01, Math.max(1, s * 4e-3), 0.05);
         }
       }
@@ -2406,15 +2406,15 @@ var SpriteEngine = (() => {
     for (let i = 0; i < 3; i++) {
       const j = rng.jitter(10);
       const bx = s * (0.15 + rng.float() * 0.7);
-      const by = s * (0.3 + rng.float() * 0.56);
+      const by = s * (0.32 + rng.float() * 0.52);
       pushBox2(
         parts,
-        MATERIALS.bone([frontCol[0] + 10 + j, frontCol[1] + 8 + j, frontCol[2] + 6 + j]),
+        MATERIALS.bone([frontCol[0] + 12 + j, frontCol[1] + 10 + j, frontCol[2] + 6 + j]),
         bx,
         by,
-        s * 0.06,
-        s * 0.04,
-        s * 5e-3,
+        s * 0.07,
+        s * 0.045,
+        s * 6e-3,
         0.12
       );
     }
@@ -2422,26 +2422,27 @@ var SpriteEngine = (() => {
   function wallBaseShadow(parts, s, frontCol) {
     pushBox2(
       parts,
-      MATERIALS.bone([frontCol[0] * 0.35, frontCol[1] * 0.35, frontCol[2] * 0.32]),
+      MATERIALS.bone([frontCol[0] * 0.4, frontCol[1] * 0.38, frontCol[2] * 0.34]),
       s * 0.5,
       s * 0.975,
       s * 0.48,
-      s * 0.015,
+      s * 0.018,
       s * 4e-3,
       0.08
     );
   }
   function floorBase(parts, rng, s) {
-    const j = rng.jitter(5);
-    const col = [82 + j, 76 + j, 70 + j];
+    const j = rng.jitter(6);
+    const col = [92 + j, 82 + j, 70 + j];
     pushBox2(parts, MATERIALS.bone(col), s * 0.5, s * 0.5, s * 0.48, s * 0.48, s * 0.01, 0.1);
     return col;
   }
   function buildStoneFloor(rng, s) {
     const parts = [];
+    const warmth = rng.jitter(5);
     pushBox2(
       parts,
-      MATERIALS.bone([42 + rng.jitter(4), 38 + rng.jitter(3), 35 + rng.jitter(3)]),
+      MATERIALS.bone([48 + warmth, 44 + warmth, 38 + warmth]),
       s * 0.5,
       s * 0.5,
       s * 0.48,
@@ -2453,19 +2454,21 @@ var SpriteEngine = (() => {
     const bw = (s - gap * 3) / 2;
     for (let row = 0; row < 2; row++) {
       for (let col = 0; col < 2; col++) {
-        const j = rng.jitter(8);
-        const base = [95 + j, 88 + j, 80 + j];
-        const cx = gap + bw / 2 + col * (bw + gap);
-        const cy = gap + bw / 2 + row * (bw + gap);
-        pushBox2(parts, MATERIALS.bone(base), cx, cy, bw / 2 - 1, bw / 2 - 1, s * 0.015, 0.18);
-        if (rng.float() > 0.5) {
+        const j = rng.jitter(14);
+        const base = [100 + j + warmth, 90 + j + warmth, 76 + j + warmth];
+        const cx = gap + bw / 2 + col * (bw + gap) + rng.jitter(s * 0.02);
+        const cy = gap + bw / 2 + row * (bw + gap) + rng.jitter(s * 0.02);
+        const hw = bw / 2 - 1 + rng.jitter(s * 0.01);
+        const hh = bw / 2 - 1 + rng.jitter(s * 0.01);
+        pushBox2(parts, MATERIALS.bone(base), cx, cy, hw, hh, s * 0.016, 0.16);
+        if (rng.float() > 0.4) {
           pushCircle3(
             parts,
-            MATERIALS.bone([base[0] + 10, base[1] + 8, base[2] + 6]),
-            cx + rng.jitter(bw * 0.15),
-            cy + rng.jitter(bw * 0.15),
-            s * 0.035,
-            0.1
+            MATERIALS.bone([base[0] + 8, base[1] + 6, base[2] + 4]),
+            cx + rng.jitter(bw * 0.18),
+            cy + rng.jitter(bw * 0.18),
+            s * 0.03,
+            0.08
           );
         }
       }
@@ -2474,20 +2477,20 @@ var SpriteEngine = (() => {
       const ax = s * (0.15 + rng.float() * 0.7), ay = s * (0.15 + rng.float() * 0.7);
       pushCapsule3(
         parts,
-        MATERIALS.bone([35, 32, 28]),
+        MATERIALS.bone([36 + warmth, 32 + warmth, 26 + warmth]),
         ax,
         ay,
         ax + rng.jitter(s * 0.22),
         ay + rng.jitter(s * 0.22),
-        Math.max(1, s * 8e-3),
-        0.1
+        Math.max(1, s * 7e-3),
+        0.08
       );
     }
     return parts;
   }
   function buildDirtFloor(rng, s) {
     const parts = [];
-    const base = [105 + rng.jitter(12), 78 + rng.jitter(8), 52 + rng.jitter(8)];
+    const base = [112 + rng.jitter(14), 84 + rng.jitter(10), 56 + rng.jitter(8)];
     pushBox2(parts, MATERIALS.flesh(base), s * 0.5, s * 0.5, s * 0.48, s * 0.48, s * 0.015, 0.08);
     for (let i = 0; i < 2; i++) {
       const px = s * (0.2 + rng.float() * 0.6), py = s * (0.2 + rng.float() * 0.6);
@@ -2530,8 +2533,8 @@ var SpriteEngine = (() => {
   }
   function buildStoneWall(rng, s) {
     const parts = [];
-    const topCol = [52 + rng.jitter(6), 48 + rng.jitter(5), 45 + rng.jitter(5)];
-    const frontCol = [78 + rng.jitter(8), 72 + rng.jitter(6), 66 + rng.jitter(6)];
+    const topCol = [68 + rng.jitter(8), 58 + rng.jitter(6), 48 + rng.jitter(5)];
+    const frontCol = [92 + rng.jitter(10), 80 + rng.jitter(8), 68 + rng.jitter(7)];
     wallTopAndFront(parts, rng, s, topCol, frontCol);
     wallBricks(parts, rng, s, frontCol);
     wallBaseShadow(parts, s, frontCol);

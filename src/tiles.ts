@@ -49,55 +49,55 @@ function pushEllipse(parts: Part[], mat: Part['material'], cx: number, cy: numbe
 // ---- 3/4 perspective wall helpers -------------------------------------------
 
 function wallTopAndFront(parts: Part[], rng: RNG, s: number, topCol: RGB, frontCol: RGB) {
-  // Top surface of wall (viewed from slight above)
-  pushBox(parts, MATERIALS.bone(topCol), s * 0.5, s * 0.13, s * 0.48, s * 0.12, s * 0.01, 0.2);
+  // Top surface of wall (viewed from slight above) — narrower band
+  pushBox(parts, MATERIALS.bone(topCol), s * 0.5, s * 0.10, s * 0.48, s * 0.09, s * 0.01, 0.2);
   // Highlight lip where top meets front face
-  const lipCol: RGB = [topCol[0] + 25, topCol[1] + 22, topCol[2] + 20];
-  pushBox(parts, MATERIALS.bone(lipCol), s * 0.5, s * 0.255, s * 0.48, s * 0.006, s * 0.002, 0.15);
-  // Front face base
-  pushBox(parts, MATERIALS.bone(frontCol), s * 0.5, s * 0.625, s * 0.48, s * 0.355, s * 0.01, 0.18);
+  const lipCol: RGB = [topCol[0] + 18, topCol[1] + 15, topCol[2] + 12];
+  pushBox(parts, MATERIALS.bone(lipCol), s * 0.5, s * 0.20, s * 0.48, s * 0.005, s * 0.002, 0.15);
+  // Front face base — taller to compensate for narrower top
+  pushBox(parts, MATERIALS.bone(frontCol), s * 0.5, s * 0.60, s * 0.48, s * 0.39, s * 0.01, 0.18);
 }
 
 function wallBricks(parts: Part[], rng: RNG, s: number, frontCol: RGB) {
-  const mortarCol: RGB = [frontCol[0] * 0.55, frontCol[1] * 0.55, frontCol[2] * 0.52];
+  const mortarCol: RGB = [frontCol[0] * 0.65, frontCol[1] * 0.62, frontCol[2] * 0.58];
   const mortarMat = MATERIALS.bone(mortarCol);
-  // 3 horizontal mortar lines
-  for (let i = 0; i < 3; i++) {
-    const my = s * (0.36 + i * 0.185);
-    pushCapsule(parts, mortarMat, s * 0.03, my, s * 0.97, my, Math.max(1, s * 0.005), 0.06);
+  // 2 horizontal mortar lines (fewer = reads better at small sizes)
+  for (let i = 0; i < 2; i++) {
+    const my = s * (0.42 + i * 0.22);
+    pushCapsule(parts, mortarMat, s * 0.04, my, s * 0.96, my, Math.max(1, s * 0.005), 0.06);
   }
   // Vertical mortar (offset rows)
-  for (let row = 0; row < 4; row++) {
-    const ry0 = s * (0.27 + row * 0.185);
-    const ry1 = ry0 + s * 0.185;
-    const offset = (row % 2) * 0.165;
-    for (let v = 0; v < 3; v++) {
-      const vx = s * (0.165 + offset + v * 0.33);
-      if (vx > s * 0.04 && vx < s * 0.96) {
+  for (let row = 0; row < 3; row++) {
+    const ry0 = s * (0.27 + row * 0.22);
+    const ry1 = ry0 + s * 0.22;
+    const offset = (row % 2) * 0.2;
+    for (let v = 0; v < 2; v++) {
+      const vx = s * (0.25 + offset + v * 0.5);
+      if (vx > s * 0.05 && vx < s * 0.95) {
         pushCapsule(parts, mortarMat, vx, ry0 + s * 0.01, vx, ry1 - s * 0.01, Math.max(1, s * 0.004), 0.05);
       }
     }
   }
-  // Brick highlights: random lighter patches on some bricks
+  // Brick highlights: random lighter warm patches
   for (let i = 0; i < 3; i++) {
     const j = rng.jitter(10);
     const bx = s * (0.15 + rng.float() * 0.7);
-    const by = s * (0.30 + rng.float() * 0.56);
-    pushBox(parts, MATERIALS.bone([frontCol[0] + 10 + j, frontCol[1] + 8 + j, frontCol[2] + 6 + j] as RGB),
-      bx, by, s * 0.06, s * 0.04, s * 0.005, 0.12);
+    const by = s * (0.32 + rng.float() * 0.52);
+    pushBox(parts, MATERIALS.bone([frontCol[0] + 12 + j, frontCol[1] + 10 + j, frontCol[2] + 6 + j] as RGB),
+      bx, by, s * 0.07, s * 0.045, s * 0.006, 0.12);
   }
 }
 
 function wallBaseShadow(parts: Part[], s: number, frontCol: RGB) {
-  pushBox(parts, MATERIALS.bone([frontCol[0] * 0.35, frontCol[1] * 0.35, frontCol[2] * 0.32] as RGB),
-    s * 0.5, s * 0.975, s * 0.48, s * 0.015, s * 0.004, 0.08);
+  pushBox(parts, MATERIALS.bone([frontCol[0] * 0.40, frontCol[1] * 0.38, frontCol[2] * 0.34] as RGB),
+    s * 0.5, s * 0.975, s * 0.48, s * 0.018, s * 0.004, 0.08);
 }
 
 // ---- floor on which props sit -----------------------------------------------
 
 function floorBase(parts: Part[], rng: RNG, s: number) {
-  const j = rng.jitter(5);
-  const col: RGB = [82 + j, 76 + j, 70 + j];
+  const j = rng.jitter(6);
+  const col: RGB = [92 + j, 82 + j, 70 + j];
   pushBox(parts, MATERIALS.bone(col), s * 0.5, s * 0.5, s * 0.48, s * 0.48, s * 0.01, 0.1);
   return col;
 }
@@ -106,36 +106,41 @@ function floorBase(parts: Part[], rng: RNG, s: number) {
 
 function buildStoneFloor(rng: RNG, s: number): Part[] {
   const parts: Part[] = [];
-  // Dark grout base
-  pushBox(parts, MATERIALS.bone([42 + rng.jitter(4), 38 + rng.jitter(3), 35 + rng.jitter(3)] as RGB),
+  const warmth = rng.jitter(5);
+  // Warm grout base
+  pushBox(parts, MATERIALS.bone([48 + warmth, 44 + warmth, 38 + warmth] as RGB),
     s * 0.5, s * 0.5, s * 0.48, s * 0.48, s * 0.01, 0.08);
-  // 2x2 flagstones
+  // 2x2 flagstones with size and color variation
   const gap = s * 0.04;
   const bw = (s - gap * 3) / 2;
   for (let row = 0; row < 2; row++) {
     for (let col = 0; col < 2; col++) {
-      const j = rng.jitter(8);
-      const base: RGB = [95 + j, 88 + j, 80 + j];
-      const cx = gap + bw / 2 + col * (bw + gap);
-      const cy = gap + bw / 2 + row * (bw + gap);
-      pushBox(parts, MATERIALS.bone(base), cx, cy, bw / 2 - 1, bw / 2 - 1, s * 0.015, 0.18);
-      if (rng.float() > 0.5) {
-        pushCircle(parts, MATERIALS.bone([base[0] + 10, base[1] + 8, base[2] + 6] as RGB),
-          cx + rng.jitter(bw * 0.15), cy + rng.jitter(bw * 0.15), s * 0.035, 0.1);
+      const j = rng.jitter(14);
+      const base: RGB = [100 + j + warmth, 90 + j + warmth, 76 + j + warmth];
+      const cx = gap + bw / 2 + col * (bw + gap) + rng.jitter(s * 0.02);
+      const cy = gap + bw / 2 + row * (bw + gap) + rng.jitter(s * 0.02);
+      const hw = bw / 2 - 1 + rng.jitter(s * 0.01);
+      const hh = bw / 2 - 1 + rng.jitter(s * 0.01);
+      pushBox(parts, MATERIALS.bone(base), cx, cy, hw, hh, s * 0.016, 0.16);
+      // Subtle surface variation
+      if (rng.float() > 0.4) {
+        pushCircle(parts, MATERIALS.bone([base[0] + 8, base[1] + 6, base[2] + 4] as RGB),
+          cx + rng.jitter(bw * 0.18), cy + rng.jitter(bw * 0.18), s * 0.03, 0.08);
       }
     }
   }
+  // Occasional crack
   if (rng.float() > 0.5) {
     const ax = s * (0.15 + rng.float() * 0.7), ay = s * (0.15 + rng.float() * 0.7);
-    pushCapsule(parts, MATERIALS.bone([35, 32, 28]), ax, ay,
-      ax + rng.jitter(s * 0.22), ay + rng.jitter(s * 0.22), Math.max(1, s * 0.008), 0.1);
+    pushCapsule(parts, MATERIALS.bone([36 + warmth, 32 + warmth, 26 + warmth] as RGB), ax, ay,
+      ax + rng.jitter(s * 0.22), ay + rng.jitter(s * 0.22), Math.max(1, s * 0.007), 0.08);
   }
   return parts;
 }
 
 function buildDirtFloor(rng: RNG, s: number): Part[] {
   const parts: Part[] = [];
-  const base: RGB = [105 + rng.jitter(12), 78 + rng.jitter(8), 52 + rng.jitter(8)];
+  const base: RGB = [112 + rng.jitter(14), 84 + rng.jitter(10), 56 + rng.jitter(8)];
   pushBox(parts, MATERIALS.flesh(base), s * 0.5, s * 0.5, s * 0.48, s * 0.48, s * 0.015, 0.08);
   // Darker dirt patches
   for (let i = 0; i < 2; i++) {
@@ -162,8 +167,8 @@ function buildDirtFloor(rng: RNG, s: number): Part[] {
 
 function buildStoneWall(rng: RNG, s: number): Part[] {
   const parts: Part[] = [];
-  const topCol: RGB = [52 + rng.jitter(6), 48 + rng.jitter(5), 45 + rng.jitter(5)];
-  const frontCol: RGB = [78 + rng.jitter(8), 72 + rng.jitter(6), 66 + rng.jitter(6)];
+  const topCol: RGB = [68 + rng.jitter(8), 58 + rng.jitter(6), 48 + rng.jitter(5)];
+  const frontCol: RGB = [92 + rng.jitter(10), 80 + rng.jitter(8), 68 + rng.jitter(7)];
   wallTopAndFront(parts, rng, s, topCol, frontCol);
   wallBricks(parts, rng, s, frontCol);
   wallBaseShadow(parts, s, frontCol);
