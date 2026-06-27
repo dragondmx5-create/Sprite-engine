@@ -164,46 +164,46 @@ var SpriteEngine = (() => {
     skin: (base) => ({
       name: "skin",
       base,
-      specStrength: 0.18,
-      roughness: 0.78,
+      specStrength: 0.22,
+      roughness: 0.72,
       metallic: false,
-      shadowCoolShift: 0.5
+      shadowCoolShift: 0.25
     }),
     // Matte. Almost no specular — light is all diffuse form.
     cloth: (base) => ({
       name: "cloth",
       base,
-      specStrength: 0.05,
-      roughness: 0.96,
+      specStrength: 0.08,
+      roughness: 0.92,
       metallic: false,
-      shadowCoolShift: 0.7
+      shadowCoolShift: 0.35
     }),
     // Semi-gloss. A defined but soft highlight band — catches light on one edge.
     leather: (base) => ({
       name: "leather",
       base,
-      specStrength: 0.45,
-      roughness: 0.55,
+      specStrength: 0.48,
+      roughness: 0.5,
       metallic: false,
-      shadowCoolShift: 0.6
+      shadowCoolShift: 0.3
     }),
     // Tight, bright, COLOR-TINTED highlight. Reads unmistakably shiny.
     metal: (base) => ({
       name: "metal",
       base,
-      specStrength: 0.7,
-      roughness: 0.26,
+      specStrength: 0.75,
+      roughness: 0.22,
       metallic: true,
-      shadowCoolShift: 0.8
+      shadowCoolShift: 0.45
     }),
-    // Glossy strands — strong but slightly broad sheen, deep cool shadows.
+    // Glossy strands — strong but slightly broad sheen, defined shadows.
     hair: (base) => ({
       name: "hair",
       base,
-      specStrength: 0.4,
-      roughness: 0.45,
+      specStrength: 0.44,
+      roughness: 0.4,
       metallic: false,
-      shadowCoolShift: 0.9
+      shadowCoolShift: 0.4
     }),
     // --- Creature / loot materials (Phase 1) -------------------------------
     // Insect shell: dark, hard, wet-looking. A tight tinted sheen rolls along
@@ -211,67 +211,64 @@ var SpriteEngine = (() => {
     chitin: (base) => ({
       name: "chitin",
       base,
-      specStrength: 0.6,
-      roughness: 0.3,
+      specStrength: 0.65,
+      roughness: 0.28,
       metallic: true,
-      shadowCoolShift: 0.85
+      shadowCoolShift: 0.45
     }),
-    // Living tissue: soft, slightly wet, deep saturated shadows. Used for worms
-    // and crawlers — reads as something squishy and alive, not cloth.
+    // Living tissue: soft, slightly wet, deep saturated shadows.
     flesh: (base) => ({
       name: "flesh",
       base,
-      specStrength: 0.3,
-      roughness: 0.6,
+      specStrength: 0.32,
+      roughness: 0.55,
       metallic: false,
-      shadowCoolShift: 0.45
+      shadowCoolShift: 0.22
     }),
-    // Cut gem / crystal: bright, razor-tight pinpoint highlight, base-tinted —
-    // catches the light like a jewel even at a few pixels across.
+    // Cut gem / crystal: bright, razor-tight pinpoint highlight, base-tinted.
     gem: (base) => ({
       name: "gem",
       base,
-      specStrength: 0.9,
-      roughness: 0.1,
+      specStrength: 0.92,
+      roughness: 0.08,
       metallic: true,
-      shadowCoolShift: 0.6
+      shadowCoolShift: 0.35
     }),
-    // Bone / tusk: chalky, near-matte, faint dry sheen. Cool, dead tone.
+    // Bone / tusk: chalky, near-matte, faint dry sheen.
     bone: (base) => ({
       name: "bone",
       base,
-      specStrength: 0.12,
-      roughness: 0.85,
+      specStrength: 0.14,
+      roughness: 0.82,
       metallic: false,
-      shadowCoolShift: 0.7
+      shadowCoolShift: 0.38
     }),
-    // Ember / molten: emissive-feeling. Strong broad glow rather than a sharp
-    // spec dot, warm shadows so even the dark side stays hot. (Deeper layers.)
+    // Ember / molten: emissive-feeling, warm shadows.
     ember: (base) => ({
       name: "ember",
       base,
-      specStrength: 0.55,
-      roughness: 0.7,
+      specStrength: 0.58,
+      roughness: 0.65,
       metallic: false,
       shadowCoolShift: 0
     }),
-    // Gold: warm metal with a bright, color-tinted highlight — coins, trim.
+    // Gold: warm metal with a bright, color-tinted highlight.
     gold: (base) => ({
       name: "gold",
       base,
-      specStrength: 0.8,
-      roughness: 0.22,
+      specStrength: 0.82,
+      roughness: 0.2,
       metallic: true,
-      shadowCoolShift: 0.5
+      shadowCoolShift: 0.25
     }),
-    // Glass: bright, very tight pinpoint sheen, cool — potion vials, lenses.
+    // Glass: bright, very tight pinpoint sheen.
     glass: (base) => ({
       name: "glass",
       base,
       specStrength: 0.95,
-      roughness: 0.08,
+      roughness: 0.06,
       metallic: false,
-      shadowCoolShift: 0.7
+      shadowCoolShift: 0.38
     })
   };
 
@@ -484,17 +481,17 @@ var SpriteEngine = (() => {
     };
     switch (kind) {
       case "skin":
-        return hsv(rng.range(0.03, 0.09), rng.range(0.35, 0.52), rng.range(0.8, 0.93));
+        return hsv(rng.range(0.03, 0.09), rng.range(0.4, 0.58), rng.range(0.78, 0.92));
       case "hair":
-        return hsv(rng.range(0, 1), rng.range(0.45, 0.85), rng.range(0.28, 0.7));
+        return hsv(rng.range(0, 1), rng.range(0.55, 0.9), rng.range(0.3, 0.72));
       case "cloth":
-        return hsv(rng.range(0, 1), rng.range(0.5, 0.85), rng.range(0.5, 0.82));
+        return hsv(rng.range(0, 1), rng.range(0.62, 0.92), rng.range(0.52, 0.8));
       case "leather":
-        return hsv(rng.range(0.05, 0.1), rng.range(0.5, 0.7), rng.range(0.3, 0.5));
+        return hsv(rng.range(0.05, 0.1), rng.range(0.55, 0.75), rng.range(0.32, 0.52));
       case "metal":
-        return hsv(rng.range(0.55, 0.62), rng.range(0.06, 0.14), rng.range(0.52, 0.64));
+        return hsv(rng.range(0.55, 0.62), rng.range(0.08, 0.16), rng.range(0.54, 0.68));
       case "hat":
-        return hsv(rng.range(0, 1), rng.range(0.45, 0.8), rng.range(0.4, 0.7));
+        return hsv(rng.range(0, 1), rng.range(0.55, 0.88), rng.range(0.42, 0.72));
       default:
         return [200, 200, 200];
     }
@@ -552,25 +549,25 @@ var SpriteEngine = (() => {
       cape: MATERIALS.cloth(capeCol)
     };
     const cx = s * 0.5;
-    const headHw = s * 0.205 * headScale;
-    const headHh = s * 0.185 * headScale;
-    const headCy = s * 0.275;
-    const headCorner = headHw * 0.55;
-    const torsoTop = headCy + headHh * 0.86;
-    const torsoBot = s * 0.66;
+    const headHw = s * 0.21 * headScale;
+    const headHh = s * 0.19 * headScale;
+    const headCy = s * 0.27;
+    const headCorner = headHw * 0.72;
+    const torsoTop = headCy + headHh * 0.82;
+    const torsoBot = s * 0.65;
     const torsoCy = (torsoTop + torsoBot) / 2;
-    const torsoHw = s * 0.125 * bodyWidth;
+    const torsoHw = s * 0.12 * bodyWidth;
     const torsoHh = (torsoBot - torsoTop) / 2;
     const shoulderY = torsoTop + s * 0.01;
-    const armHw = s * 0.036 * bodyWidth;
-    const armHh = torsoHh * 0.7 * limbLen;
+    const armHw = s * 0.034 * bodyWidth;
+    const armHh = torsoHh * 0.72 * limbLen;
     const armCy = shoulderY + armHh;
-    const armX = torsoHw + armHw * 0.55;
-    const legHw = s * 0.05 * bodyWidth;
-    const legHh = s * 0.06 * limbLen;
+    const armX = torsoHw + armHw * 0.6;
+    const legHw = s * 0.046 * bodyWidth;
+    const legHh = s * 0.065 * limbLen;
     const legCy = torsoBot + legHh - s * 5e-3;
     const hipY = legCy - legHh;
-    const legSpread = s * 0.058 * stanceBase;
+    const legSpread = s * 0.054 * stanceBase;
     const unit = s / 48;
     const rootX = pose.rootX * unit;
     const rootY = pose.rootY * unit;
@@ -631,7 +628,7 @@ var SpriteEngine = (() => {
         box(M.metal, ax, shoulderY + armHw * 0.4, armHw * 1.25, armHw * 0.95, armHw * 0.7, 0.55, xUpper);
       }
     }
-    box(M.skin, cx, headCy, headHw, headHh, headCorner, 0.36, xHead());
+    box(M.skin, cx, headCy, headHw, headHh, headCorner, 0.52, xHead());
     if (config.face !== false && facing !== "back") {
       const eyeY = headCy + headHh * 0.2;
       const lookSign = facing === "left" ? -1 : facing === "right" ? 1 : 0;
@@ -1610,28 +1607,28 @@ var SpriteEngine = (() => {
   var WHITE = [255, 255, 255];
   function buildRamp(base, coolShift) {
     const cool = (c, amt) => [
-      c[0] * (1 - 0.18 * amt),
-      c[1] * (1 - 0.06 * amt),
-      c[2] * (1 + 0.1 * amt)
+      c[0] * (1 - 0.12 * amt),
+      c[1] * (1 - 0.04 * amt),
+      c[2] * (1 + 0.08 * amt)
     ];
     const warm = (c, amt) => [
-      c[0] + (255 - c[0]) * 0.1 * amt,
-      c[1] + (255 - c[1]) * 0.07 * amt,
+      c[0] + (255 - c[0]) * 0.12 * amt,
+      c[1] + (255 - c[1]) * 0.08 * amt,
       c[2] + (255 - c[2]) * 0.02 * amt
     ];
     return {
-      core: cool(scale(base, 0.34), coolShift),
-      shadow: cool(scale(base, 0.62), coolShift),
+      core: cool(scale(base, 0.38), coolShift),
+      shadow: cool(scale(base, 0.65), coolShift),
       mid: base,
-      light: warm(scale(base, 1.12), 1),
-      hi: warm(mix(scale(base, 1.18), WHITE, 0.25), 1)
+      light: warm(scale(base, 1.14), 1),
+      hi: warm(mix(scale(base, 1.2), WHITE, 0.22), 1)
     };
   }
   function sampleRamp(r, x) {
-    if (x < 0.4) return mix(r.core, r.shadow, smoothstep(0, 0.4, x));
-    if (x < 0.55) return mix(r.shadow, r.mid, smoothstep(0.4, 0.55, x));
-    if (x < 0.78) return mix(r.mid, r.light, smoothstep(0.55, 0.78, x));
-    return mix(r.light, r.hi, smoothstep(0.78, 1, x));
+    if (x < 0.35) return mix(r.core, r.shadow, smoothstep(0, 0.35, x));
+    if (x < 0.48) return mix(r.shadow, r.mid, smoothstep(0.35, 0.48, x));
+    if (x < 0.74) return mix(r.mid, r.light, smoothstep(0.48, 0.74, x));
+    return mix(r.light, r.hi, smoothstep(0.74, 1, x));
   }
   function quantizeChannel(v, levels) {
     if (levels <= 1) return v;
@@ -1694,7 +1691,7 @@ var SpriteEngine = (() => {
     };
     const outlineColor = config.outline === false ? null : config.outline && config.outline.color || [22, 18, 28];
     const quantize = config.quantize === false ? 0 : config.quantize ?? 5;
-    return { size, ss, W: size * ss, H: size * ss, roundness: config.roundness ?? 0.45, light, outlineColor, quantize };
+    return { size, ss, W: size * ss, H: size * ss, roundness: config.roundness ?? 0.55, light, outlineColor, quantize };
   }
   function renderParts(parts, opts) {
     const { size, ss, W, H, roundness, light } = opts;

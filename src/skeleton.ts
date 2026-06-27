@@ -38,12 +38,12 @@ function defaultColor(rng: RNG, kind: string): RGB {
     return [(r + m) * 255, (g + m) * 255, (b + m) * 255];
   };
   switch (kind) {
-    case 'skin':    return hsv(rng.range(0.03, 0.09), rng.range(0.35, 0.52), rng.range(0.80, 0.93));
-    case 'hair':    return hsv(rng.range(0.0, 1.0), rng.range(0.45, 0.85), rng.range(0.28, 0.7));
-    case 'cloth':   return hsv(rng.range(0.0, 1.0), rng.range(0.5, 0.85), rng.range(0.5, 0.82));
-    case 'leather': return hsv(rng.range(0.05, 0.10), rng.range(0.5, 0.7), rng.range(0.3, 0.5));
-    case 'metal':   return hsv(rng.range(0.55, 0.62), rng.range(0.06, 0.14), rng.range(0.52, 0.64));
-    case 'hat':     return hsv(rng.range(0.0, 1.0), rng.range(0.45, 0.8), rng.range(0.4, 0.7));
+    case 'skin':    return hsv(rng.range(0.03, 0.09), rng.range(0.40, 0.58), rng.range(0.78, 0.92));
+    case 'hair':    return hsv(rng.range(0.0, 1.0), rng.range(0.55, 0.90), rng.range(0.30, 0.72));
+    case 'cloth':   return hsv(rng.range(0.0, 1.0), rng.range(0.62, 0.92), rng.range(0.52, 0.80));
+    case 'leather': return hsv(rng.range(0.05, 0.10), rng.range(0.55, 0.75), rng.range(0.32, 0.52));
+    case 'metal':   return hsv(rng.range(0.55, 0.62), rng.range(0.08, 0.16), rng.range(0.54, 0.68));
+    case 'hat':     return hsv(rng.range(0.0, 1.0), rng.range(0.55, 0.88), rng.range(0.42, 0.72));
     default:        return [200, 200, 200];
   }
 }
@@ -117,28 +117,28 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
 
   // --- Base layout (neutral pose), in working px. -------------------------
   const cx = s * 0.5;
-  const headHw = s * 0.205 * headScale;
-  const headHh = s * 0.185 * headScale;
-  const headCy = s * 0.275;
-  const headCorner = headHw * 0.55;
+  const headHw = s * 0.21 * headScale;
+  const headHh = s * 0.19 * headScale;
+  const headCy = s * 0.27;
+  const headCorner = headHw * 0.72;
 
-  const torsoTop = headCy + headHh * 0.86;
-  const torsoBot = s * 0.66;
+  const torsoTop = headCy + headHh * 0.82;
+  const torsoBot = s * 0.65;
   const torsoCy = (torsoTop + torsoBot) / 2;
-  const torsoHw = s * 0.125 * bodyWidth;
+  const torsoHw = s * 0.12 * bodyWidth;
   const torsoHh = (torsoBot - torsoTop) / 2;
 
   const shoulderY = torsoTop + s * 0.01;
-  const armHw = s * 0.036 * bodyWidth;
-  const armHh = torsoHh * 0.7 * limbLen;
+  const armHw = s * 0.034 * bodyWidth;
+  const armHh = torsoHh * 0.72 * limbLen;
   const armCy = shoulderY + armHh;
-  const armX = torsoHw + armHw * 0.55;
+  const armX = torsoHw + armHw * 0.6;
 
-  const legHw = s * 0.05 * bodyWidth;
-  const legHh = s * 0.06 * limbLen;
+  const legHw = s * 0.046 * bodyWidth;
+  const legHh = s * 0.065 * limbLen;
   const legCy = torsoBot + legHh - s * 0.005;
   const hipY = legCy - legHh;            // hip joint (top of leg)
-  const legSpread = s * 0.058 * stanceBase;
+  const legSpread = s * 0.054 * stanceBase;
 
   // --- Pose channels scaled to the working buffer. ------------------------
   const unit = s / 48;                    // offsets are authored at size 48
@@ -225,7 +225,7 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
   }
 
   // 7) HEAD.
-  box(M.skin, cx, headCy, headHw, headHh, headCorner, 0.36, xHead());
+  box(M.skin, cx, headCy, headHw, headHh, headCorner, 0.52, xHead());
 
   // 8) EYES — small dark blocks, low on the face. Skipped when facing away;
   // shifted toward the look direction for a 3/4 profile (geometry only, so

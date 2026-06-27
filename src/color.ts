@@ -44,24 +44,24 @@ export interface ToneRamp {
 }
 
 export function buildRamp(base: RGB, coolShift: number): ToneRamp {
-  // Cool shift nudges shadows toward blue (subtract a little R, add a little B).
+  // Cool shift nudges shadows toward blue — reduced range for less watercolor.
   const cool = (c: RGB, amt: number): RGB => [
-    c[0] * (1 - 0.18 * amt),
-    c[1] * (1 - 0.06 * amt),
-    c[2] * (1 + 0.10 * amt),
+    c[0] * (1 - 0.12 * amt),
+    c[1] * (1 - 0.04 * amt),
+    c[2] * (1 + 0.08 * amt),
   ];
   // Warm shift nudges lights toward yellow (add R/G, hold B).
   const warm = (c: RGB, amt: number): RGB => [
-    c[0] + (255 - c[0]) * 0.10 * amt,
-    c[1] + (255 - c[1]) * 0.07 * amt,
+    c[0] + (255 - c[0]) * 0.12 * amt,
+    c[1] + (255 - c[1]) * 0.08 * amt,
     c[2] + (255 - c[2]) * 0.02 * amt,
   ];
   return {
-    core: cool(scale(base, 0.34), coolShift),
-    shadow: cool(scale(base, 0.62), coolShift),
+    core: cool(scale(base, 0.38), coolShift),
+    shadow: cool(scale(base, 0.65), coolShift),
     mid: base,
-    light: warm(scale(base, 1.12), 1),
-    hi: warm(mix(scale(base, 1.18), WHITE, 0.25), 1),
+    light: warm(scale(base, 1.14), 1),
+    hi: warm(mix(scale(base, 1.20), WHITE, 0.22), 1),
   };
 }
 
@@ -70,10 +70,10 @@ export function buildRamp(base: RGB, coolShift: number): ToneRamp {
  * the light). Piecewise smoothstep gives soft, painterly band transitions.
  */
 export function sampleRamp(r: ToneRamp, x: number): RGB {
-  if (x < 0.4) return mix(r.core, r.shadow, smoothstep(0.0, 0.4, x));
-  if (x < 0.55) return mix(r.shadow, r.mid, smoothstep(0.4, 0.55, x));
-  if (x < 0.78) return mix(r.mid, r.light, smoothstep(0.55, 0.78, x));
-  return mix(r.light, r.hi, smoothstep(0.78, 1.0, x));
+  if (x < 0.35) return mix(r.core, r.shadow, smoothstep(0.0, 0.35, x));
+  if (x < 0.48) return mix(r.shadow, r.mid, smoothstep(0.35, 0.48, x));
+  if (x < 0.74) return mix(r.mid, r.light, smoothstep(0.48, 0.74, x));
+  return mix(r.light, r.hi, smoothstep(0.74, 1.0, x));
 }
 
 /** Posterize a channel to `levels` steps — the "crunchy pixel" option. */

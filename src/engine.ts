@@ -55,7 +55,7 @@ export function resolveRenderOpts(config: SpriteConfig = {}): RenderOpts {
   const outlineColor: RGB | null =
     config.outline === false ? null : ((config.outline && config.outline.color) || [22, 18, 28]);
   const quantize = config.quantize === false ? 0 : (config.quantize ?? 5);
-  return { size, ss, W: size * ss, H: size * ss, roundness: config.roundness ?? 0.45, light, outlineColor, quantize };
+  return { size, ss, W: size * ss, H: size * ss, roundness: config.roundness ?? 0.55, light, outlineColor, quantize };
 }
 
 /**

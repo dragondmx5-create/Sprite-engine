@@ -11,31 +11,31 @@ export const MATERIALS: Record<string, MatFactory> = {
   // Soft, broad sheen. Mostly matte with a faint living gloss.
   skin: (base) => ({
     name: 'skin', base,
-    specStrength: 0.18, roughness: 0.78, metallic: false, shadowCoolShift: 0.5,
+    specStrength: 0.22, roughness: 0.72, metallic: false, shadowCoolShift: 0.25,
   }),
 
   // Matte. Almost no specular — light is all diffuse form.
   cloth: (base) => ({
     name: 'cloth', base,
-    specStrength: 0.05, roughness: 0.96, metallic: false, shadowCoolShift: 0.7,
+    specStrength: 0.08, roughness: 0.92, metallic: false, shadowCoolShift: 0.35,
   }),
 
   // Semi-gloss. A defined but soft highlight band — catches light on one edge.
   leather: (base) => ({
     name: 'leather', base,
-    specStrength: 0.45, roughness: 0.55, metallic: false, shadowCoolShift: 0.6,
+    specStrength: 0.48, roughness: 0.50, metallic: false, shadowCoolShift: 0.30,
   }),
 
   // Tight, bright, COLOR-TINTED highlight. Reads unmistakably shiny.
   metal: (base) => ({
     name: 'metal', base,
-    specStrength: 0.7, roughness: 0.26, metallic: true, shadowCoolShift: 0.8,
+    specStrength: 0.75, roughness: 0.22, metallic: true, shadowCoolShift: 0.45,
   }),
 
-  // Glossy strands — strong but slightly broad sheen, deep cool shadows.
+  // Glossy strands — strong but slightly broad sheen, defined shadows.
   hair: (base) => ({
     name: 'hair', base,
-    specStrength: 0.4, roughness: 0.45, metallic: false, shadowCoolShift: 0.9,
+    specStrength: 0.44, roughness: 0.40, metallic: false, shadowCoolShift: 0.40,
   }),
 
   // --- Creature / loot materials (Phase 1) -------------------------------
@@ -44,45 +44,42 @@ export const MATERIALS: Record<string, MatFactory> = {
   // the lit edge of every segment, reading as polished chitin.
   chitin: (base) => ({
     name: 'chitin', base,
-    specStrength: 0.6, roughness: 0.3, metallic: true, shadowCoolShift: 0.85,
+    specStrength: 0.65, roughness: 0.28, metallic: true, shadowCoolShift: 0.45,
   }),
 
-  // Living tissue: soft, slightly wet, deep saturated shadows. Used for worms
-  // and crawlers — reads as something squishy and alive, not cloth.
+  // Living tissue: soft, slightly wet, deep saturated shadows.
   flesh: (base) => ({
     name: 'flesh', base,
-    specStrength: 0.3, roughness: 0.6, metallic: false, shadowCoolShift: 0.45,
+    specStrength: 0.32, roughness: 0.55, metallic: false, shadowCoolShift: 0.22,
   }),
 
-  // Cut gem / crystal: bright, razor-tight pinpoint highlight, base-tinted —
-  // catches the light like a jewel even at a few pixels across.
+  // Cut gem / crystal: bright, razor-tight pinpoint highlight, base-tinted.
   gem: (base) => ({
     name: 'gem', base,
-    specStrength: 0.9, roughness: 0.1, metallic: true, shadowCoolShift: 0.6,
+    specStrength: 0.92, roughness: 0.08, metallic: true, shadowCoolShift: 0.35,
   }),
 
-  // Bone / tusk: chalky, near-matte, faint dry sheen. Cool, dead tone.
+  // Bone / tusk: chalky, near-matte, faint dry sheen.
   bone: (base) => ({
     name: 'bone', base,
-    specStrength: 0.12, roughness: 0.85, metallic: false, shadowCoolShift: 0.7,
+    specStrength: 0.14, roughness: 0.82, metallic: false, shadowCoolShift: 0.38,
   }),
 
-  // Ember / molten: emissive-feeling. Strong broad glow rather than a sharp
-  // spec dot, warm shadows so even the dark side stays hot. (Deeper layers.)
+  // Ember / molten: emissive-feeling, warm shadows.
   ember: (base) => ({
     name: 'ember', base,
-    specStrength: 0.55, roughness: 0.7, metallic: false, shadowCoolShift: 0.0,
+    specStrength: 0.58, roughness: 0.65, metallic: false, shadowCoolShift: 0.0,
   }),
 
-  // Gold: warm metal with a bright, color-tinted highlight — coins, trim.
+  // Gold: warm metal with a bright, color-tinted highlight.
   gold: (base) => ({
     name: 'gold', base,
-    specStrength: 0.8, roughness: 0.22, metallic: true, shadowCoolShift: 0.5,
+    specStrength: 0.82, roughness: 0.20, metallic: true, shadowCoolShift: 0.25,
   }),
 
-  // Glass: bright, very tight pinpoint sheen, cool — potion vials, lenses.
+  // Glass: bright, very tight pinpoint sheen.
   glass: (base) => ({
     name: 'glass', base,
-    specStrength: 0.95, roughness: 0.08, metallic: false, shadowCoolShift: 0.7,
+    specStrength: 0.95, roughness: 0.06, metallic: false, shadowCoolShift: 0.38,
   }),
 };
