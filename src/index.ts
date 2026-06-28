@@ -79,6 +79,10 @@ export { GPURenderer, getGPURenderer, renderPartsGPU, renderBatchGPU } from './g
 export { SDF_CIRCLE, SDF_ELLIPSE, SDF_CAPSULE, SDF_ROUNDED_BOX, extractSDFDesc } from './shapes';
 export type { SDFDesc } from './shapes';
 
+// ---- World map rendering (Telegram territory game) -------------------------
+export { generateWorldMap, generateTerritoryCard } from './worldmap';
+export type { WorldMapConfig, TerritoryData, BiomeTileSet } from './worldmap';
+
 // ---- Sprite caching --------------------------------------------------------
 export {
   SpriteCache, globalCache,
