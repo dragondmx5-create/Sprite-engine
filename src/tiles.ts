@@ -1315,7 +1315,8 @@ function buildCrate(rng: RNG, s: number): Part[] {
   pushEllipse(parts, MATERIALS.bone([floorCol[0] * 0.45, floorCol[1] * 0.45, floorCol[2] * 0.42] as RGB),
     s * 0.52, s * 0.88, s * 0.22, s * 0.05, 0.05);
   // Front face
-  pushBox(parts, MATERIALS.leather(woodCol), s * 0.5, s * 0.62, s * 0.22, s * 0.24, s * 0.02, 0.14);
+  pushBox(parts, textured(MATERIALS.leather(woodCol), { kind: 'grain', amount: 0.05, sx: 1, sy: 4 }, { kind: 'grain', amount: 0.04 }),
+    s * 0.5, s * 0.62, s * 0.22, s * 0.24, s * 0.02, 0.14);
   const seam: RGB = [woodCol[0] * 0.72, woodCol[1] * 0.72, woodCol[2] * 0.68];
   pushCapsule(parts, MATERIALS.leather(seam), s * 0.5, s * 0.40, s * 0.5, s * 0.84, Math.max(1, s * 0.005), 0.06);
   // Corner battens
@@ -1323,7 +1324,7 @@ function buildCrate(rng: RNG, s: number): Part[] {
   pushBox(parts, batten, s * 0.30, s * 0.62, s * 0.02, s * 0.24, s * 0.006, 0.1);
   pushBox(parts, batten, s * 0.70, s * 0.62, s * 0.02, s * 0.24, s * 0.006, 0.1);
   // Top surface (foreshortened)
-  pushBox(parts, MATERIALS.leather([woodCol[0] + 14, woodCol[1] + 10, woodCol[2] + 6] as RGB),
+  pushBox(parts, textured(MATERIALS.leather([woodCol[0] + 14, woodCol[1] + 10, woodCol[2] + 6] as RGB), { kind: 'grain', amount: 0.05, sx: 4, sy: 1 }),
     s * 0.5, s * 0.40, s * 0.22, s * 0.06, s * 0.015, 0.12);
   pushCapsule(parts, MATERIALS.leather(seam), s * 0.30, s * 0.40, s * 0.70, s * 0.40, Math.max(1, s * 0.004), 0.05);
   pushCapsule(parts, MATERIALS.leather(seam), s * 0.5, s * 0.35, s * 0.5, s * 0.45, Math.max(1, s * 0.004), 0.05);
@@ -1340,7 +1341,8 @@ function buildCauldron(rng: RNG, s: number): Part[] {
   pushCapsule(parts, legMat, s * 0.36, s * 0.60, s * 0.30, s * 0.84, Math.max(1.2, s * 0.02), 0.3);
   pushCapsule(parts, legMat, s * 0.64, s * 0.60, s * 0.70, s * 0.84, Math.max(1.2, s * 0.02), 0.3);
   // Pot body
-  pushEllipse(parts, MATERIALS.matteMetal(ironCol), s * 0.5, s * 0.55, s * 0.24, s * 0.18, 0.5);
+  pushEllipse(parts, textured(MATERIALS.matteMetal(ironCol), { kind: 'speckle', amount: 0.03 }, { kind: 'grain', amount: 0.03 }),
+    s * 0.5, s * 0.55, s * 0.24, s * 0.18, 0.5);
   // Rim
   pushEllipse(parts, MATERIALS.matteMetal([ironCol[0] + 18, ironCol[1] + 16, ironCol[2] + 16] as RGB),
     s * 0.5, s * 0.40, s * 0.22, s * 0.06, 0.3);
@@ -1361,10 +1363,11 @@ function buildChestProp(rng: RNG, s: number): Part[] {
     s * 0.52, s * 0.88, s * 0.22, s * 0.05, 0.05);
   const woodCol: RGB = [120 + rng.jitter(10), 80 + rng.jitter(8), 46 + rng.jitter(6)];
   // Body
-  pushBox(parts, MATERIALS.leather(woodCol), s * 0.5, s * 0.70, s * 0.20, s * 0.14, s * 0.02, 0.14);
+  pushBox(parts, textured(MATERIALS.leather(woodCol), { kind: 'grain', amount: 0.05, sx: 1, sy: 4 }, { kind: 'grain', amount: 0.03 }),
+    s * 0.5, s * 0.70, s * 0.20, s * 0.14, s * 0.02, 0.14);
   // Domed lid, flush with the body's width so it reads as a cap, not a brim
   const lidCol: RGB = [woodCol[0] + 10, woodCol[1] + 7, woodCol[2] + 4];
-  pushEllipse(parts, MATERIALS.leather(lidCol), s * 0.5, s * 0.54, s * 0.20, s * 0.09, 0.5);
+  pushEllipse(parts, textured(MATERIALS.leather(lidCol), { kind: 'grain', amount: 0.04, sx: 4, sy: 1 }), s * 0.5, s * 0.54, s * 0.20, s * 0.09, 0.5);
   pushBox(parts, MATERIALS.leather([lidCol[0] + 14, lidCol[1] + 10, lidCol[2] + 6] as RGB),
     s * 0.5, s * 0.50, s * 0.17, s * 0.02, s * 0.01, 0.3);
   // Iron corner bands wrapping over lid and body
@@ -1384,7 +1387,8 @@ function buildWell(rng: RNG, s: number, h?: number): Part[] {
   pushEllipse(parts, MATERIALS.bone([floorCol[0] * 0.45, floorCol[1] * 0.45, floorCol[2] * 0.42] as RGB),
     s * 0.5, th * 0.94, s * 0.3, s * 0.06, 0.05);
   const stoneCol: RGB = [96 + rng.jitter(6), 90 + rng.jitter(5), 82 + rng.jitter(5)];
-  pushEllipse(parts, MATERIALS.bone(stoneCol), s * 0.5, th * 0.68, s * 0.26, s * 0.16, 0.3);
+  pushEllipse(parts, textured(MATERIALS.bone(stoneCol), { kind: 'grain', amount: 0.04, scale: 3 }, { kind: 'grain', amount: 0.04 }),
+    s * 0.5, th * 0.68, s * 0.26, s * 0.16, 0.3);
   pushEllipse(parts, MATERIALS.bone([stoneCol[0] * 0.5, stoneCol[1] * 0.5, stoneCol[2] * 0.48] as RGB),
     s * 0.5, th * 0.62, s * 0.18, s * 0.08, 0.3);
   pushEllipse(parts, MATERIALS.bone([stoneCol[0] + 16, stoneCol[1] + 13, stoneCol[2] + 10] as RGB),
@@ -1411,9 +1415,10 @@ function buildBench(rng: RNG, s: number): Part[] {
   pushCapsule(parts, legMat, s * 0.24, s * 0.62, s * 0.24, s * 0.84, Math.max(1, s * 0.014), 0.15);
   pushCapsule(parts, legMat, s * 0.76, s * 0.62, s * 0.76, s * 0.84, Math.max(1, s * 0.014), 0.15);
   // Seat
-  pushBox(parts, MATERIALS.leather(woodCol), s * 0.5, s * 0.62, s * 0.34, s * 0.045, s * 0.01, 0.15);
+  pushBox(parts, textured(MATERIALS.leather(woodCol), { kind: 'grain', amount: 0.05, sx: 4, sy: 1 }),
+    s * 0.5, s * 0.62, s * 0.34, s * 0.045, s * 0.01, 0.15);
   // Backrest
-  pushBox(parts, MATERIALS.leather([woodCol[0] - 6, woodCol[1] - 5, woodCol[2] - 4] as RGB),
+  pushBox(parts, textured(MATERIALS.leather([woodCol[0] - 6, woodCol[1] - 5, woodCol[2] - 4] as RGB), { kind: 'grain', amount: 0.05, sx: 4, sy: 1 }),
     s * 0.5, s * 0.40, s * 0.32, s * 0.04, s * 0.01, 0.15);
   pushCapsule(parts, legMat, s * 0.24, s * 0.62, s * 0.24, s * 0.36, Math.max(1, s * 0.012), 0.15);
   pushCapsule(parts, legMat, s * 0.76, s * 0.62, s * 0.76, s * 0.36, Math.max(1, s * 0.012), 0.15);
@@ -1426,7 +1431,8 @@ function buildPlanter(rng: RNG, s: number): Part[] {
   pushEllipse(parts, MATERIALS.bone([floorCol[0] * 0.45, floorCol[1] * 0.45, floorCol[2] * 0.42] as RGB),
     s * 0.5, s * 0.86, s * 0.18, s * 0.045, 0.05);
   const potCol: RGB = [140 + rng.jitter(10), 88 + rng.jitter(8), 60 + rng.jitter(6)];
-  pushBox(parts, MATERIALS.bone(potCol), s * 0.5, s * 0.72, s * 0.15, s * 0.12, s * 0.02, 0.2);
+  pushBox(parts, textured(MATERIALS.bone(potCol), { kind: 'grain', amount: 0.04 }, { kind: 'speckle', amount: 0.02 }),
+    s * 0.5, s * 0.72, s * 0.15, s * 0.12, s * 0.02, 0.2);
   pushEllipse(parts, MATERIALS.bone([potCol[0] + 15, potCol[1] + 10, potCol[2] + 6] as RGB), s * 0.5, s * 0.60, s * 0.16, s * 0.03, 0.2);
   pushEllipse(parts, MATERIALS.bone([45, 35, 28]), s * 0.5, s * 0.60, s * 0.13, s * 0.02, 0.15);
   // Foliage + blossoms
@@ -1447,7 +1453,7 @@ function buildFirewood(rng: RNG, s: number): Part[] {
   pushEllipse(parts, MATERIALS.bone([floorCol[0] * 0.45, floorCol[1] * 0.45, floorCol[2] * 0.42] as RGB),
     s * 0.5, s * 0.86, s * 0.26, s * 0.05, 0.05);
   const barkCol: RGB = [92 + rng.jitter(10), 62 + rng.jitter(8), 40 + rng.jitter(6)];
-  const woodMat = MATERIALS.leather(barkCol);
+  const woodMat = textured(MATERIALS.leather(barkCol), { kind: 'grain', amount: 0.05, sx: 1, sy: 3 }, { kind: 'grain', amount: 0.03 });
   const ringCol: RGB = [barkCol[0] + 40, barkCol[1] + 30, barkCol[2] + 18];
   for (let i = 0; i < 4; i++) {
     const lx = s * (0.2 + i * 0.2);
@@ -1469,9 +1475,10 @@ function buildSignpost(rng: RNG, s: number, h?: number): Part[] {
   pushEllipse(parts, MATERIALS.bone([floorCol[0] * 0.45, floorCol[1] * 0.45, floorCol[2] * 0.42] as RGB),
     s * 0.5, th * 0.96, s * 0.14, s * 0.04, 0.05);
   const postCol: RGB = [110 + rng.jitter(8), 78 + rng.jitter(6), 48 + rng.jitter(5)];
-  pushCapsule(parts, MATERIALS.leather(postCol), s * 0.5, th * 0.94, s * 0.5, th * 0.34, Math.max(1.2, s * 0.035), 0.3);
+  pushCapsule(parts, textured(MATERIALS.leather(postCol), { kind: 'grain', amount: 0.05, sx: 1, sy: 5 }), s * 0.5, th * 0.94, s * 0.5, th * 0.34, Math.max(1.2, s * 0.035), 0.3);
   const signCol: RGB = [130 + rng.jitter(8), 96 + rng.jitter(6), 60 + rng.jitter(5)];
-  pushBox(parts, MATERIALS.leather(signCol), s * 0.5, th * 0.24, s * 0.28, th * 0.09, s * 0.015, 0.15);
+  pushBox(parts, textured(MATERIALS.leather(signCol), { kind: 'grain', amount: 0.05, sx: 4, sy: 1 }, { kind: 'grain', amount: 0.03 }),
+    s * 0.5, th * 0.24, s * 0.28, th * 0.09, s * 0.015, 0.15);
   pushCapsule(parts, MATERIALS.leather([signCol[0] * 0.75, signCol[1] * 0.75, signCol[2] * 0.72] as RGB),
     s * 0.5 - s * 0.24, th * 0.24, s * 0.5 + s * 0.24, th * 0.24, Math.max(1, s * 0.004), 0.06);
   // Carved mark
@@ -1485,7 +1492,7 @@ function buildBucket(rng: RNG, s: number): Part[] {
   pushEllipse(parts, MATERIALS.bone([floorCol[0] * 0.45, floorCol[1] * 0.45, floorCol[2] * 0.42] as RGB),
     s * 0.5, s * 0.86, s * 0.14, s * 0.035, 0.05);
   const woodCol: RGB = [130 + rng.jitter(10), 92 + rng.jitter(8), 55 + rng.jitter(6)];
-  pushBox(parts, MATERIALS.leather(woodCol), s * 0.5, s * 0.68, s * 0.11, s * 0.14, s * 0.01, 0.16);
+  pushBox(parts, textured(MATERIALS.leather(woodCol), { kind: 'grain', amount: 0.05, sx: 1, sy: 4 }), s * 0.5, s * 0.68, s * 0.11, s * 0.14, s * 0.01, 0.16);
   const bandMat = MATERIALS.matteMetal([120, 116, 110]);
   pushBox(parts, bandMat, s * 0.5, s * 0.60, s * 0.12, s * 0.01, s * 0.004, 0.3);
   pushBox(parts, bandMat, s * 0.5, s * 0.76, s * 0.115, s * 0.01, s * 0.004, 0.3);
@@ -1502,8 +1509,9 @@ function buildGravestoneProp(rng: RNG, s: number): Part[] {
   pushEllipse(parts, MATERIALS.bone([floorCol[0] * 0.45, floorCol[1] * 0.45, floorCol[2] * 0.42] as RGB),
     s * 0.5, s * 0.88, s * 0.2, s * 0.05, 0.05);
   const stoneCol: RGB = [96 + rng.jitter(6), 92 + rng.jitter(5), 88 + rng.jitter(5)];
-  pushBox(parts, MATERIALS.bone(stoneCol), s * 0.5, s * 0.58, s * 0.14, s * 0.26, s * 0.05, 0.4);
-  pushEllipse(parts, MATERIALS.bone(stoneCol), s * 0.5, s * 0.34, s * 0.14, s * 0.06, 0.4);
+  const gravestoneMat = textured(MATERIALS.bone(stoneCol), { kind: 'grain', amount: 0.04 }, { kind: 'speckle', amount: 0.025 });
+  pushBox(parts, gravestoneMat, s * 0.5, s * 0.58, s * 0.14, s * 0.26, s * 0.05, 0.4);
+  pushEllipse(parts, gravestoneMat, s * 0.5, s * 0.34, s * 0.14, s * 0.06, 0.4);
   if (rng.float() > 0.4) {
     pushCircle(parts, MATERIALS.flesh([50 + rng.jitter(8), 92 + rng.jitter(10), 42 + rng.jitter(6)] as RGB),
       s * 0.5 + rng.jitter(s * 0.05), s * 0.62, s * 0.05, 0.15);
@@ -1520,7 +1528,7 @@ function buildStatue(rng: RNG, s: number, h?: number): Part[] {
   pushEllipse(parts, MATERIALS.bone([floorCol[0] * 0.45, floorCol[1] * 0.45, floorCol[2] * 0.42] as RGB),
     s * 0.5, th * 0.97, s * 0.2, s * 0.05, 0.05);
   const stoneCol: RGB = [124 + rng.jitter(8), 120 + rng.jitter(6), 112 + rng.jitter(6)];
-  const stone = textured(MATERIALS.bone(stoneCol), { kind: 'grain', amount: 0.04 });
+  const stone = textured(MATERIALS.bone(stoneCol), { kind: 'grain', amount: 0.04, scale: 3 }, { kind: 'grain', amount: 0.03 }, { kind: 'speckle', amount: 0.02 });
   pushBox(parts, MATERIALS.bone([stoneCol[0] - 20, stoneCol[1] - 18, stoneCol[2] - 16] as RGB),
     s * 0.5, th * 0.88, s * 0.18, th * 0.07, s * 0.02, 0.2);
   pushCapsule(parts, stone, s * 0.5, th * 0.80, s * 0.5, th * 0.55, s * 0.09, 0.3);
@@ -1540,8 +1548,9 @@ function buildShelf(rng: RNG, s: number, h?: number): Part[] {
   const topCol: RGB = [wallCol[0] - 12, wallCol[1] - 11, wallCol[2] - 10];
   wallTopAndFront(parts, rng, s, th, topCol, wallCol);
   const woodCol: RGB = [108 + rng.jitter(8), 74 + rng.jitter(6), 44 + rng.jitter(5)];
-  pushBox(parts, MATERIALS.leather(woodCol), s * 0.5, th * 0.48, s * 0.42, th * 0.025, s * 0.01, 0.15);
-  pushBox(parts, MATERIALS.leather(woodCol), s * 0.5, th * 0.72, s * 0.42, th * 0.025, s * 0.01, 0.15);
+  const shelfWood = textured(MATERIALS.leather(woodCol), { kind: 'grain', amount: 0.05, sx: 4, sy: 1 });
+  pushBox(parts, shelfWood, s * 0.5, th * 0.48, s * 0.42, th * 0.025, s * 0.01, 0.15);
+  pushBox(parts, shelfWood, s * 0.5, th * 0.72, s * 0.42, th * 0.025, s * 0.01, 0.15);
   const bracket = MATERIALS.matteMetal([90, 86, 80]);
   pushCapsule(parts, bracket, s * 0.14, th * 0.48, s * 0.14, th * 0.72, Math.max(1, s * 0.008), 0.2);
   pushCapsule(parts, bracket, s * 0.86, th * 0.48, s * 0.86, th * 0.72, Math.max(1, s * 0.008), 0.2);
@@ -1569,7 +1578,8 @@ function buildBanner(rng: RNG, s: number, h?: number): Part[] {
   const clothCol: RGB = rng.float() > 0.5
     ? [160 + rng.jitter(20), 40 + rng.jitter(10), 44 + rng.jitter(10)]
     : [50 + rng.jitter(10), 70 + rng.jitter(15), 150 + rng.jitter(20)];
-  pushBox(parts, MATERIALS.cloth(clothCol), s * 0.5, th * 0.5, s * 0.30, th * 0.4, s * 0.02, 0.1);
+  pushBox(parts, textured(MATERIALS.cloth(clothCol), { kind: 'grain', amount: 0.04, sx: 1, sy: 3 }, { kind: 'grain', amount: 0.03 }),
+    s * 0.5, th * 0.5, s * 0.30, th * 0.4, s * 0.02, 0.1);
   // Swallowtail notch at the bottom
   const notch: RGB = [clothCol[0] * 0.8, clothCol[1] * 0.8, clothCol[2] * 0.8];
   pushCapsule(parts, MATERIALS.cloth(notch), s * 0.5 - s * 0.06, th * 0.86, s * 0.5, th * 0.98, Math.max(1, s * 0.012), 0.15);

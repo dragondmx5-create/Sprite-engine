@@ -39,7 +39,9 @@ const tiles = kinds.map((k,i)=>{
 const entities: SceneEntity[] = [];
 const shadows: SceneEntity[] = [];
 function addTall(kind:string, seed:string, tx:number, ty:number, w:number, hMul:number){
-  const spr = generateTile({ kind: kind as any, seed, size: w, height: Math.round(w*hMul), supersample: 2, outline: false } as any);
+  // bare: true so props that paint their own floor slab (bench/lantern/...)
+  // don't show it as a hard square over the grass.
+  const spr = generateTile({ kind: kind as any, seed, size: w, height: Math.round(w*hMul), supersample: 2, outline: false, bare: true } as any);
   entities.push({ sprite: spr, x: tx*TS-(w-TS)/2, y: ty*TS-(spr.height-TS) });
   return spr;
 }

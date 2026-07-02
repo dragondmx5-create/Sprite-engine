@@ -60,7 +60,11 @@ const entities: SceneEntity[] = [];
 const shadows: SceneEntity[] = [];
 
 function addTall(kind: string, seed: string, tx: number, ty: number, w: number, hMul: number) {
-  const spr = generateTile({ kind: kind as any, seed, size: w, height: Math.round(w * hMul), supersample: 3, outline: false } as any);
+  // bare: true — several prop builders (well/statue/signpost/lantern/bench/...)
+  // paint their own stone floor slab so they double as standalone dungeon
+  // tiles; on open grass that slab shows as a hard gray square instead of
+  // blending with the terrain underneath, so always skip it out here.
+  const spr = generateTile({ kind: kind as any, seed, size: w, height: Math.round(w * hMul), supersample: 3, outline: false, bare: true } as any);
   entities.push({ sprite: spr, x: tx * TS - (w - TS) / 2, y: ty * TS - (spr.height - TS) });
   return spr;
 }
