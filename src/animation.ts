@@ -55,7 +55,7 @@ export function generateAnimation(config: SpriteConfig, animationName: string): 
       : (clip.frames > 1 ? i / (clip.frames - 1) : 0);
 
     const pose = samplePose(clip, phase);
-    const parts = buildSkeleton(config, opts.W, pose); // same seed every frame
+    const parts = buildSkeleton(config, opts.W, pose, opts.ss); // same seed every frame
     frames.push(renderParts(parts, opts));             // same shading path
   }
 

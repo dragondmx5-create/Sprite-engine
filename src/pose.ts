@@ -126,15 +126,17 @@ export const IDLE: AnimationClip = {
 export const WALK: AnimationClip = {
   name: 'walk', fps: 12, loop: true, frames: 8,
   keyframes: [
-    // contact: left leg forward, right leg back, arms opposite, body low
-    { t: 0.0,  pose: { legL: 18 * D, legR: -18 * D, armL: -16 * D, armR: 16 * D, rootY: 0.4 } },
+    // contact: both legs swing the SAME way (weight-shift sway) — a
+    // front-facing chibi reads stepping as side-to-side weight transfer;
+    // opposite-sign pairs at higher angles cross the legs into one blob.
+    { t: 0.0,  pose: { legL: -9 * D, legR: -9 * D, armL: -12 * D, armR: 12 * D, rootY: 1 } },
     // passing: legs together under body, body lifts
-    { t: 0.25, pose: { legL: 0, legR: 0, armL: 0, armR: 0, rootY: -1.2 } },
+    { t: 0.25, pose: { legL: 0, legR: 0, armL: 0, armR: 0, rootY: -1 } },
     // contact: mirrored
-    { t: 0.5,  pose: { legL: -18 * D, legR: 18 * D, armL: 16 * D, armR: -16 * D, rootY: 0.4 } },
+    { t: 0.5,  pose: { legL: 9 * D, legR: 9 * D, armL: 12 * D, armR: -12 * D, rootY: 1 } },
     // passing
-    { t: 0.75, pose: { legL: 0, legR: 0, armL: 0, armR: 0, rootY: -1.2 } },
-    { t: 1.0,  pose: { legL: 18 * D, legR: -18 * D, armL: -16 * D, armR: 16 * D, rootY: 0.4 } },
+    { t: 0.75, pose: { legL: 0, legR: 0, armL: 0, armR: 0, rootY: -1 } },
+    { t: 1.0,  pose: { legL: -9 * D, legR: -9 * D, armL: -12 * D, armR: 12 * D, rootY: 1 } },
   ],
 };
 

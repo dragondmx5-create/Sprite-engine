@@ -191,7 +191,7 @@ export function renderParts(parts: Part[], opts: RenderOpts): SpriteBuffer {
 /** Static sprite: build the (optionally posed) skeleton, then render it. */
 export function generateSprite(config: SpriteConfig = {}, pose?: Pose): SpriteBuffer {
   const opts = resolveRenderOpts(config);
-  const parts = buildSkeleton(config, opts.W, pose);
+  const parts = buildSkeleton(config, opts.W, pose, opts.ss);
   return renderParts(parts, opts);
 }
 

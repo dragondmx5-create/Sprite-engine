@@ -71,7 +71,7 @@ function fwd(x: number, y: number, xf: Xform): [number, number] {
 }
 
 /** Build the ordered part list. `s` = working px. `pose` defaults to neutral. */
-export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUTRAL_POSE): Part[] {
+export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUTRAL_POSE, ss = 1): Part[] {
   const rng = new RNG(config.seed ?? 0);
   const body = config.body ?? {};
   const ipose = body.pose ?? {};
@@ -157,9 +157,13 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
 
   // --- Pose channels scaled to the working buffer. ------------------------
   const unit = s / 48;                    // offsets are authored at size 48
-  const rootX = pose.rootX * unit;
-  const rootY = pose.rootY * unit;
-  const headBob = pose.headBob * unit;
+  // Snap translations to whole output pixels (multiples of ss in the working
+  // buffer): sub-pixel drift + downsample makes 2px features like eyes fade
+  // out on some frames, which reads as the face "flickering" during walks.
+  const snap = (v: number) => Math.round(v / ss) * ss;
+  const rootX = snap(pose.rootX * unit);
+  const rootY = snap(pose.rootY * unit);
+  const headBob = snap(pose.headBob * unit);
   const lean = pose.torsoLean;
   const neckY = headCy + headHh;          // neck pivot (for head tilt)
   const pelX = cx, pelY = torsoBot;       // pelvis pivot (for torso lean)
@@ -394,8 +398,10 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
     const fr: SDF = union(
       roundedBox(cx, fy, headHw * 1.04, headHh * 0.40, headHw * 0.22),
       union(
-        roundedBox(cx - headHw * 0.76, headCy - headHh * 0.08, headHw * 0.30, headHh * 0.52, headHw * 0.18),
-        roundedBox(cx + headHw * 0.76, headCy - headHh * 0.08, headHw * 0.30, headHh * 0.52, headHw * 0.18),
+        // sideburns hug the skull and extend up under the fringe/cap so they
+        // never read as detached blobs when headwear hides the top band
+        roundedBox(cx - headHw * 0.70, headCy - headHh * 0.20, headHw * 0.26, headHh * 0.58, headHw * 0.16),
+        roundedBox(cx + headHw * 0.70, headCy - headHh * 0.20, headHw * 0.26, headHh * 0.58, headHw * 0.16),
       ),
     );
     place(M.hair, fr, cx - headHw * 1.10, headCy - headHh * 1.0, cx + headHw * 1.10, headCy + headHh * 0.50, 0.4, xHead());
