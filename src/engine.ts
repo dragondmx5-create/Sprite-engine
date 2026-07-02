@@ -112,24 +112,31 @@ export function renderParts(parts: Part[], opts: RenderOpts): SpriteBuffer {
     // shading for the same part in every frame.
     const ctx = makeShadeContext(part.material, light);
 
-    // Texture layer: luminance grain/speckle hashed on the OUTPUT pixel grid
-    // (supersamples within one output pixel share a value, otherwise the
-    // box-filter downsample would average the noise away).
-    const tex = part.material.texture;
-    const texCell = tex ? ss * Math.max(1, tex.scale ?? 1) : 1;
+    // Texture stack: one or more grain/speckle octaves hashed on the OUTPUT
+    // pixel grid (supersamples within one output pixel share a value,
+    // otherwise the box-filter downsample would average the noise away).
+    // Each layer hashes with its own salt so octaves don't correlate.
+    const texRaw = part.material.texture;
+    const texLayers = texRaw ? (Array.isArray(texRaw) ? texRaw : [texRaw]) : null;
+    const texCells = texLayers ? texLayers.map((t) => ss * Math.max(1, t.scale ?? 1)) : null;
 
     for (let y = 0; y < ch; y++) {
       for (let x = 0; x < cw; x++) {
         const li = y * cw + x;
         if (!mask[li]) continue;
         shade(ctx, nx[li], ny[li], nz[li], out);
-        if (tex) {
-          const n = hash2(((cx0 + x) / texCell) | 0, ((cy0 + y) / texCell) | 0);
-          // speckle: sparse strong dots; grain: dense gentle noise
-          const f = tex.kind === 'speckle'
-            ? (n > 0.82 ? 1 + tex.amount * 2 : n < 0.16 ? 1 - tex.amount * 2 : 1)
-            : 1 + tex.amount * (n * 2 - 1);
-          out[0] *= f; out[1] *= f; out[2] *= f;
+        if (texLayers) {
+          for (let ti = 0; ti < texLayers.length; ti++) {
+            const t = texLayers[ti];
+            const cell = texCells![ti];
+            const salt = ti * 7919;
+            const n = hash2((((cx0 + x) / cell) | 0) + salt, (((cy0 + y) / cell) | 0) + salt);
+            // speckle: sparse strong dots; grain: dense gentle noise
+            const f = t.kind === 'speckle'
+              ? (n > 0.82 ? 1 + t.amount * 2 : n < 0.16 ? 1 - t.amount * 2 : 1)
+              : 1 + t.amount * (n * 2 - 1);
+            out[0] *= f; out[1] *= f; out[2] *= f;
+          }
         }
         const j = ((cy0 + y) * W + (cx0 + x)) * 4;
         acc[j] = out[0];

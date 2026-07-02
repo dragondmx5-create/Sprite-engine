@@ -36,16 +36,23 @@ export interface Material {
    * hand-dithered grain that makes terrain/foliage read detailed instead of
    * airbrushed. Deterministic (position-hash), so it never boils between
    * frames of the same sprite.
-   *   'grain'   — luminance noise per output pixel (dirt, stone, wood)
-   *   'speckle' — clustered light/dark dots (grass, foliage)
+   *
+   * Accepts a single layer or a STACK of layers applied in order — combine
+   * scales like paint passes: a broad mottle (scale 4-6) for patchiness, a
+   * mid speckle for clumps, a fine grain (scale 1) for tooth.
+   *   'grain'   — luminance noise per cell (dirt, stone, wood)
+   *   'speckle' — sparse strong light/dark dots (grass, foliage)
    */
-  texture?: {
-    kind: 'grain' | 'speckle';
-    /** Strength of the luminance perturbation, ~0.03..0.15. */
-    amount: number;
-    /** Pixel cell size of the pattern (1 = every output pixel). Default 1. */
-    scale?: number;
-  };
+  texture?: TextureLayer | TextureLayer[];
+}
+
+/** One octave of the material texture stack. */
+export interface TextureLayer {
+  kind: 'grain' | 'speckle';
+  /** Strength of the luminance perturbation, ~0.03..0.15. */
+  amount: number;
+  /** Pixel cell size of the pattern (1 = every output pixel). Default 1. */
+  scale?: number;
 }
 
 /** A light, expressed as the direction FROM the surface TOWARD the light. */
