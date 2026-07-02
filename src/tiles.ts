@@ -572,26 +572,31 @@ function buildInteriorWall(rng: RNG, s: number, h: number): Part[] {
  * Decorative rug/carpet — composites over wood_floor/stone_floor (no floor
  * slab of its own, same convention as bush/flowers/fence overworld props).
  */
-function buildRug(rng: RNG, s: number): Part[] {
+function buildRug(rng: RNG, s: number, h?: number): Part[] {
   const parts: Part[] = [];
+  // Independent width/height: a rug is usually laid as a multi-tile
+  // rectangle (e.g. 4x2 tiles), not a single square tile like most other
+  // builders assume, so every proportion below scales off its own axis.
+  const th = h ?? s;
+  const short = Math.min(s, th);
   const palettes: RGB[] = [[150, 45, 45], [45, 70, 140], [140, 95, 40], [70, 110, 60]];
   const base = palettes[Math.floor(rng.float() * palettes.length)];
   const j = rng.jitter(6);
   const rugCol: RGB = [base[0] + j, base[1] + j, base[2] + j];
   const borderCol: RGB = [rugCol[0] * 0.55, rugCol[1] * 0.55, rugCol[2] * 0.55];
   // Border frame, then a smaller inner field on top
-  pushBox(parts, MATERIALS.cloth(borderCol), s * 0.5, s * 0.5, s * 0.42, s * 0.38, s * 0.03, 0.08);
+  pushBox(parts, MATERIALS.cloth(borderCol), s * 0.5, th * 0.5, s * 0.44, th * 0.44, short * 0.05, 0.08);
   pushBox(parts, textured(MATERIALS.cloth(rugCol), { kind: 'grain', amount: 0.04, scale: 4 }, { kind: 'speckle', amount: 0.02 }),
-    s * 0.5, s * 0.5, s * 0.36, s * 0.32, s * 0.02, 0.08);
+    s * 0.5, th * 0.5, s * 0.37, th * 0.37, short * 0.04, 0.08);
   // Center medallion
   const accentCol: RGB = [rugCol[0] + 30, rugCol[1] + 20, rugCol[2] + 10];
-  pushEllipse(parts, MATERIALS.cloth(accentCol), s * 0.5, s * 0.5, s * 0.14, s * 0.10, 0.3);
-  pushEllipse(parts, MATERIALS.cloth(borderCol), s * 0.5, s * 0.5, s * 0.07, s * 0.05, 0.3);
+  pushEllipse(parts, MATERIALS.cloth(accentCol), s * 0.5, th * 0.5, s * 0.13, th * 0.16, 0.3);
+  pushEllipse(parts, MATERIALS.cloth(borderCol), s * 0.5, th * 0.5, s * 0.065, th * 0.08, 0.3);
   // Fringe ticks along the top/bottom edges
   for (let i = 0; i < 5; i++) {
-    const tx = s * (0.16 + i * 0.17);
-    pushCapsule(parts, MATERIALS.cloth(borderCol), tx, s * 0.12, tx, s * 0.08, Math.max(1, s * 0.012), 0.2);
-    pushCapsule(parts, MATERIALS.cloth(borderCol), tx, s * 0.88, tx, s * 0.92, Math.max(1, s * 0.012), 0.2);
+    const tx = s * (0.14 + i * 0.18);
+    pushCapsule(parts, MATERIALS.cloth(borderCol), tx, th * 0.09, tx, th * 0.03, Math.max(1, short * 0.025), 0.2);
+    pushCapsule(parts, MATERIALS.cloth(borderCol), tx, th * 0.91, tx, th * 0.97, Math.max(1, short * 0.025), 0.2);
   }
   return parts;
 }
@@ -1917,7 +1922,7 @@ export function buildTile(config: TileConfig, s: number, h?: number): Part[] {
     case 'bucket':           return buildBucket(rng, s);
     case 'gravestone':       return buildGravestoneProp(rng, s);
     case 'interior_wall':    return buildInteriorWall(rng, s, th);
-    case 'rug':              return buildRug(rng, s);
+    case 'rug':              return buildRug(rng, s, th);
     case 'stone_floor':
     default:                 return buildStoneFloor(rng, s, config.edges);
   }
