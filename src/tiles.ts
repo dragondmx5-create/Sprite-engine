@@ -11,7 +11,7 @@ import { RNG } from './rng';
 import { MATERIALS } from './materials';
 import { Part, roundedBox, circle, capsule, ellipse } from './shapes';
 
-export type TileKind = 'stone_floor' | 'dirt_floor' | 'grass_floor' | 'stone_wall' | 'crystal_floor' | 'wood_door' | 'lava_floor' | 'ice_floor' | 'moss_floor' | 'spike_trap' | 'stairs_down' | 'stairs_up' | 'cracked_wall' | 'pit' | 'water_pool' | 'underground_river' | 'stalagmite' | 'cobweb' | 'barrel' | 'chain' | 'bone_pile' | 'shop_counter' | 'iron_gate' | 'torch_bracket' | 'altar' | 'anvil' | 'bed' | 'table' | 'bookshelf' | 'pillar' | 'fountain' | 'tree' | 'pine_tree' | 'dead_tree' | 'house' | 'ruins' | 'fence' | 'water' | 'bush' | 'flowers' | 'rock';
+export type TileKind = 'stone_floor' | 'dirt_floor' | 'grass_floor' | 'wood_floor' | 'wood_wall' | 'stone_wall' | 'crystal_floor' | 'wood_door' | 'lava_floor' | 'ice_floor' | 'moss_floor' | 'spike_trap' | 'stairs_down' | 'stairs_up' | 'cracked_wall' | 'pit' | 'water_pool' | 'underground_river' | 'stalagmite' | 'cobweb' | 'barrel' | 'chain' | 'bone_pile' | 'shop_counter' | 'iron_gate' | 'torch_bracket' | 'altar' | 'anvil' | 'bed' | 'table' | 'bookshelf' | 'pillar' | 'fountain' | 'tree' | 'pine_tree' | 'dead_tree' | 'house' | 'ruins' | 'fence' | 'water' | 'bush' | 'flowers' | 'rock';
 
 export interface TileConfig {
   kind?: TileKind;
@@ -27,6 +27,13 @@ export interface TileConfig {
     n?: boolean; e?: boolean; s?: boolean; w?: boolean;
     ne?: boolean; nw?: boolean; se?: boolean; sw?: boolean;
   };
+  /**
+   * Props (furniture, barrels, counters…) normally paint their own stone
+   * floor slab so they work as standalone dungeon tiles. Set bare: true when
+   * compositing them over an existing floor (e.g. a wood_floor interior) to
+   * skip the slab. Same seed produces the same prop either way.
+   */
+  bare?: boolean;
 }
 
 // ---- helpers ----------------------------------------------------------------
@@ -112,10 +119,16 @@ function wallBaseShadow(parts: Part[], s: number, h: number, frontCol: RGB) {
 
 // ---- floor on which props sit -----------------------------------------------
 
+// Set per buildTile() call from config.bare; when true, props skip their
+// built-in floor slab (they're being composited over an existing floor).
+let bareProps = false;
+
 function floorBase(parts: Part[], rng: RNG, s: number) {
+  // Always draw from the RNG so seed→prop mapping is identical with/without
+  // the slab (bare must not shift downstream random values).
   const j = rng.jitter(6);
   const col: RGB = [92 + j, 82 + j, 70 + j];
-  pushBox(parts, MATERIALS.bone(col), s * 0.5, s * 0.5, s * 0.50, s * 0.50, s * 0.01, 0.1);
+  if (!bareProps) pushBox(parts, MATERIALS.bone(col), s * 0.5, s * 0.5, s * 0.50, s * 0.50, s * 0.01, 0.1);
   return col;
 }
 
@@ -389,6 +402,65 @@ function buildGrassFloor(rng: RNG, s: number): Part[] {
     pushCircle(parts, MATERIALS.flesh([92 + rng.jitter(8), 70 + rng.jitter(6), 46 + rng.jitter(5)] as RGB),
       px, py, s * (0.018 + rng.float() * 0.012), 0.1);
   }
+  return parts;
+}
+
+/** Interior wood plank floor — warm boards with seams, knots and wood grain. */
+function buildWoodFloor(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const j = rng.jitter(6);
+  const base: RGB = [148 + j, 106 + j, 62 + j];
+  pushBox(parts, textured(MATERIALS.leather(base), { kind: 'grain', amount: 0.04, scale: 4 }, { kind: 'grain', amount: 0.05 }),
+    s * 0.5, s * 0.5, s * 0.50, s * 0.50, 0, 0.08);
+  // Alternating board tint — every other board slightly lighter/darker
+  const boards = 4;
+  for (let i = 0; i < boards; i++) {
+    if (i % 2 === 0) continue;
+    const lift = rng.float() > 0.5 ? 8 : -8;
+    pushBox(parts, textured(MATERIALS.leather([base[0] + lift, base[1] + lift * 0.8, base[2] + lift * 0.6] as RGB), { kind: 'grain', amount: 0.05 }),
+      s * 0.5, s * ((i + 0.5) / boards), s * 0.50, s * (0.5 / boards), 0, 0.06);
+  }
+  // Board seams
+  const seam = MATERIALS.leather([base[0] * 0.66, base[1] * 0.66, base[2] * 0.62] as RGB);
+  for (let i = 1; i < boards; i++) {
+    pushCapsule(parts, seam, 0, s * (i / boards), s, s * (i / boards), Math.max(1, s * 0.006), 0.05);
+  }
+  // Vertical butt joints, staggered per board
+  for (let i = 0; i < boards; i++) {
+    const bx = s * (0.2 + rng.float() * 0.6);
+    pushCapsule(parts, seam, bx, s * (i / boards) + s * 0.01, bx, s * ((i + 1) / boards) - s * 0.01, Math.max(1, s * 0.005), 0.05);
+  }
+  // Occasional knot
+  if (rng.float() > 0.55) {
+    pushCircle(parts, MATERIALS.leather([base[0] * 0.72, base[1] * 0.72, base[2] * 0.68] as RGB),
+      s * (0.2 + rng.float() * 0.6), s * (0.2 + rng.float() * 0.6), Math.max(1, s * 0.02), 0.3);
+  }
+  return parts;
+}
+
+/**
+ * Timber wall in 3/4: visible TOP surface strip plus a tall shaded FRONT face
+ * with vertical plank seams — the wall reads as a solid slab with height,
+ * matching stone_wall's construction (Cambria interior style).
+ */
+function buildWoodWall(rng: RNG, s: number, h: number): Part[] {
+  const parts: Part[] = [];
+  const topCol: RGB = [104 + rng.jitter(8), 76 + rng.jitter(6), 48 + rng.jitter(5)];
+  const frontCol: RGB = [126 + rng.jitter(8), 92 + rng.jitter(7), 58 + rng.jitter(5)];
+  // Top surface + bright lip + front face
+  pushBox(parts, textured(MATERIALS.leather(topCol), { kind: 'grain', amount: 0.05 }), s * 0.5, h * 0.08, s * 0.50, h * 0.08, 0, 0.2);
+  pushBox(parts, MATERIALS.leather([topCol[0] + 18, topCol[1] + 14, topCol[2] + 10] as RGB), s * 0.5, h * 0.16, s * 0.50, h * 0.005, 0, 0.15);
+  pushBox(parts, textured(MATERIALS.leather(frontCol), { kind: 'grain', amount: 0.04, scale: 3 }, { kind: 'grain', amount: 0.05 }),
+    s * 0.5, h * 0.58, s * 0.50, h * 0.42, 0, 0.18);
+  // Vertical plank seams on the front face
+  const seam = MATERIALS.leather([frontCol[0] * 0.66, frontCol[1] * 0.66, frontCol[2] * 0.62] as RGB);
+  for (let i = 0; i < 3; i++) {
+    const vx = s * (0.25 + i * 0.25) + rng.jitter(s * 0.02);
+    pushCapsule(parts, seam, vx, h * 0.20, vx, h * 0.94, Math.max(1, s * 0.005), 0.06);
+  }
+  // Horizontal rail
+  pushCapsule(parts, seam, s * 0.03, h * 0.55, s * 0.97, h * 0.55, Math.max(1, s * 0.005), 0.06);
+  wallBaseShadow(parts, s, h, frontCol);
   return parts;
 }
 
@@ -1357,9 +1429,12 @@ function buildFence(rng: RNG, s: number): Part[] {
 export function buildTile(config: TileConfig, s: number, h?: number): Part[] {
   const rng = new RNG(config.seed ?? 0);
   const th = h ?? s;
+  bareProps = !!config.bare;
   switch (config.kind ?? 'stone_floor') {
     case 'dirt_floor':    return buildDirtFloor(rng, s, config.edges);
     case 'grass_floor':   return buildGrassFloor(rng, s);
+    case 'wood_floor':    return buildWoodFloor(rng, s);
+    case 'wood_wall':     return buildWoodWall(rng, s, th);
     case 'stone_wall':    return buildStoneWall(rng, s, th);
     case 'crystal_floor': return buildCrystalFloor(rng, s);
     case 'wood_door':     return buildWoodDoor(rng, s);
@@ -1403,4 +1478,4 @@ export function buildTile(config: TileConfig, s: number, h?: number): Part[] {
   }
 }
 
-export const TILE_KINDS: TileKind[] = ['stone_floor', 'dirt_floor', 'grass_floor', 'stone_wall', 'crystal_floor', 'wood_door', 'lava_floor', 'ice_floor', 'moss_floor', 'spike_trap', 'stairs_down', 'stairs_up', 'cracked_wall', 'pit', 'water_pool', 'underground_river', 'stalagmite', 'cobweb', 'barrel', 'chain', 'bone_pile', 'shop_counter', 'iron_gate', 'torch_bracket', 'altar', 'anvil', 'bed', 'table', 'bookshelf', 'pillar', 'fountain', 'tree', 'pine_tree', 'dead_tree', 'house', 'ruins', 'fence', 'water', 'bush', 'flowers', 'rock'];
+export const TILE_KINDS: TileKind[] = ['stone_floor', 'dirt_floor', 'grass_floor', 'wood_floor', 'wood_wall', 'stone_wall', 'crystal_floor', 'wood_door', 'lava_floor', 'ice_floor', 'moss_floor', 'spike_trap', 'stairs_down', 'stairs_up', 'cracked_wall', 'pit', 'water_pool', 'underground_river', 'stalagmite', 'cobweb', 'barrel', 'chain', 'bone_pile', 'shop_counter', 'iron_gate', 'torch_bracket', 'altar', 'anvil', 'bed', 'table', 'bookshelf', 'pillar', 'fountain', 'tree', 'pine_tree', 'dead_tree', 'house', 'ruins', 'fence', 'water', 'bush', 'flowers', 'rock'];

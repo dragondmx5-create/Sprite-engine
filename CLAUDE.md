@@ -113,14 +113,18 @@ generateEnemyAnimation(config, 'move'|'idle'|'death'|'hit'|'emerge')
 generateItem({ seed, size, kind: 'mushroom'|'crystal'|'dagger'|'torch'|'potion'|'coin'|'rune'|'chest'|'key'|'scroll'|'meat'|'lantern'|'ore'|'firestone'|'bone_shard'|'fish' })
 generateItemAnimation(config, 'idle'|'active'|'pickup')
 
-// Tiles (41 kinds — dungeon floors, walls, doors, traps, props, interiors, overworld)
-generateTile({ seed, size, kind: 'stone_floor'|'dirt_floor'|'grass_floor'|'stone_wall'|'crystal_floor'|'wood_door'
+// Tiles (43 kinds — dungeon floors, walls, doors, traps, props, interiors, overworld)
+generateTile({ seed, size, kind: 'stone_floor'|'dirt_floor'|'grass_floor'|'wood_floor'|'wood_wall'|'stone_wall'|'crystal_floor'|'wood_door'
   |'lava_floor'|'ice_floor'|'moss_floor'|'spike_trap'|'stairs_down'|'stairs_up'|'cracked_wall'|'pit'
   |'water_pool'|'underground_river'|'stalagmite'|'cobweb'|'barrel'|'chain'|'bone_pile'
   |'shop_counter'|'iron_gate'|'torch_bracket'|'altar'|'anvil'|'bed'|'table'|'bookshelf'|'pillar'|'fountain'
   |'tree'|'pine_tree'|'dead_tree'|'house'|'ruins'|'fence'|'water'|'bush'|'flowers'|'rock' })
 // dirt_floor/water take edges: {n,e,s,w,ne,nw,se,sw} — flag sides/corners that
 // touch grass to draw an organic grass fringe (soft path/shore transitions).
+// Props (bed/table/bookshelf/barrel/shop_counter/...) take bare: true to skip
+// their built-in stone slab when composited over an interior floor.
+// Cambria-style buildings: compose wood_wall perimeter + wood_floor interior
+// + bare furniture props in the scene tile grid (leave a wall gap as a door).
 
 // Loot / death markers (UNDRAL permadeath drops)
 generateLootMarker({ kind: 'loot_bag'|'skull'|'gravestone'|'blood_stain', seed, size, color })
