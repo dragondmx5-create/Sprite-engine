@@ -9,11 +9,12 @@
 import type { RGB } from './types';
 import { RNG } from './rng';
 import { MATERIALS } from './materials';
-import { Part, roundedBox, circle, capsule, ellipse } from './shapes';
+import { Part, roundedBox, circle, capsule, ellipse, union } from './shapes';
+import { fbm2D } from './noise';
 
 export type TileKind = 'stone_floor' | 'dirt_floor' | 'grass_floor' | 'wood_floor' | 'wood_wall' | 'stone_wall' | 'crystal_floor' | 'wood_door' | 'lava_floor' | 'ice_floor' | 'moss_floor' | 'spike_trap' | 'stairs_down' | 'stairs_up' | 'cracked_wall' | 'pit' | 'water_pool' | 'underground_river' | 'stalagmite' | 'cobweb' | 'barrel' | 'chain' | 'bone_pile' | 'shop_counter' | 'iron_gate' | 'torch_bracket' | 'altar' | 'anvil' | 'bed' | 'table' | 'bookshelf' | 'pillar' | 'fountain' | 'tree' | 'pine_tree' | 'dead_tree' | 'house' | 'ruins' | 'fence' | 'water' | 'bush' | 'flowers' | 'rock'
   | 'lantern' | 'crate' | 'banner' | 'statue' | 'shelf' | 'cauldron' | 'chest' | 'well' | 'bench' | 'planter' | 'firewood' | 'signpost' | 'bucket' | 'gravestone'
-  | 'interior_wall' | 'rug' | 'pebbles' | 'root';
+  | 'interior_wall' | 'rug' | 'pebbles' | 'root' | 'grass_dirt_mix';
 
 export interface TileConfig {
   kind?: TileKind;
@@ -554,6 +555,136 @@ function buildGrassFloor(rng: RNG, s: number): Part[] {
       break;
     }
   }
+  return parts;
+}
+
+/**
+ * A single tile that is GENUINELY part grass, part dirt — not two whole
+ * tiles blended at their shared edge (that's what `edges`/edgeFringe do),
+ * but one tile whose own interior splits roughly in half along a meandering
+ * line, each side carrying its terrain's own detail pass (dirt clods, grass
+ * blades). Meant for the worn-patch tiles right at the edge of a path
+ * carving through a lawn, where a full dirt_floor tile reads as an abrupt
+ * bite out of the grass — this softens that step into two visible.
+ *
+ * The boundary is a capsule chain, not a raw half-plane SDF, so every part
+ * keeps its GPU sdfDesc (see shapes.ts/gpu.ts) and the tile stays renderable
+ * on the WebGPU path like every other tile.
+ */
+function buildGrassDirtMix(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+
+  // Full grass base first — the dirt half paints over it, so only the detail
+  // passes below need to reason about which side of the line they're on.
+  const gj = rng.jitter(4);
+  const grassBase: RGB = [50 + gj, 96 + gj, 34 + gj];
+  pushBox(parts, textured(MATERIALS.flesh(grassBase), { kind: 'grain', amount: 0.05, scale: 5 }, { kind: 'speckle', amount: 0.06 }, { kind: 'bump', amount: 0.22, scale: 1.6 }),
+    s * 0.5, s * 0.5, s * 0.50, s * 0.50, 0, 0.08);
+
+  // Meandering boundary: split runs either top/bottom or left/right, wobbled
+  // by fbm so it reads as a worn coastline instead of a ruler-straight cut.
+  // dirtFrac stays close to 0.5 (the "half and half" the idea asked for)
+  // with just enough per-tile variety that a row of these doesn't repeat.
+  const horizontal = rng.float() > 0.5;
+  const dirtFrac = 0.42 + rng.float() * 0.16;
+  const flip = rng.float() > 0.5;
+  const waveSalt = Math.floor(rng.float() * 1000);
+  // Amplitude kept small relative to the capsule radius below (see the
+  // comment on `steps`) — too large and consecutive capsule centers land
+  // far enough apart perpendicular to the chain that the union stops
+  // reading as one smooth edge and beads into a row of separate lobes.
+  const boundary = (t: number) => dirtFrac + (fbm2D(t * 2.6, 1.7, 2, waveSalt) - 0.5) * 0.14;
+
+  const dirtBase: RGB = [122 + rng.jitter(14), 80 + rng.jitter(10), 46 + rng.jitter(8)];
+  const dirtMat = textured(MATERIALS.flesh(dirtBase), { kind: 'grain', amount: 0.06, scale: 4 }, { kind: 'grain', amount: 0.06 }, { kind: 'speckle', amount: 0.04 }, { kind: 'bump', amount: 0.28, scale: 3 });
+
+  // Same formula the capsule chain paints from, so detail placement below
+  // always agrees with where the boundary actually landed.
+  const isDirt = (px: number, py: number): boolean => {
+    const t = horizontal ? px / s : py / s;
+    const perp = horizontal ? py / s : px / s;
+    const side = perp > boundary(t);
+    return flip ? !side : side;
+  };
+
+  // Wavy dirt patch: a chain of overlapping capsules run from the boundary
+  // line out past the tile edge. These are UNIONED into one combined SDF and
+  // pushed as a single Part — each capsule bevel-shaded independently would
+  // leave a visible ridge at every overlap seam (the per-part distance-field
+  // bevel has no idea a neighboring part exists); one shared SDF means the
+  // whole blob gets bevel-shaded once, as one coherent shape. Enough steps
+  // that consecutive centers never drift apart (perpendicular to the chain)
+  // by more than the radius, or the union reads as beaded lobes instead of
+  // one smooth edge.
+  const steps = 14;
+  let dirtSDF: (x: number, y: number) => number = () => Infinity;
+  for (let i = 0; i < steps; i++) {
+    const t = i / (steps - 1);
+    const b = boundary(t) * s;
+    const along = t * s;
+    const to = flip ? -s * 0.15 : s * 1.15;
+    const ax = horizontal ? along : b, ay = horizontal ? b : along;
+    const bx = horizontal ? along : to, by = horizontal ? to : along;
+    dirtSDF = union(dirtSDF, capsule(ax, ay, bx, by, s * 0.08));
+  }
+  parts.push({
+    material: dirtMat, roundness: 0.14, sdf: dirtSDF,
+    bbox: [Math.floor(-s * 0.2), Math.floor(-s * 0.2), Math.ceil(s * 1.2), Math.ceil(s * 1.2)],
+  });
+
+  // Blended fringe dots straddling the boundary — mixes both colors so the
+  // seam dissolves pixel-art-style instead of reading as a painted edge.
+  for (let i = 0; i < 8; i++) {
+    const t = rng.float();
+    const b = (boundary(t) + rng.jitter(0.05)) * s;
+    const along = t * s;
+    const px = horizontal ? along : b, py = horizontal ? b : along;
+    const col = rng.float() > 0.5 ? dirtBase : grassBase;
+    pushCircle(parts, MATERIALS.flesh(col), px, py, s * (0.015 + rng.float() * 0.018), 0.08);
+  }
+
+  // Dirt-side clods (same look as buildDirtFloor's mottle pass), rejection-
+  // sampled against isDirt() so none of them stray onto the grass side.
+  let placed = 0, tries = 0;
+  while (placed < 6 && tries < 50) {
+    tries++;
+    const px = s * (0.06 + rng.float() * 0.88), py = s * (0.06 + rng.float() * 0.88);
+    if (!isDirt(px, py)) continue;
+    placed++;
+    const cr = s * (0.05 + rng.float() * 0.05);
+    const jc = rng.jitter(16);
+    const col: RGB = [dirtBase[0] + jc, dirtBase[1] + jc * 0.9, dirtBase[2] + jc * 0.8];
+    pushEllipse(parts, textured(MATERIALS.flesh(col), { kind: 'grain', amount: 0.05 }, { kind: 'bump', amount: 0.2, scale: 2 }),
+      px, py, cr, cr * (0.62 + rng.float() * 0.24), 0.18);
+  }
+  // Dirt-side pebbles: contact shadow, then stone.
+  placed = 0; tries = 0;
+  while (placed < 3 && tries < 50) {
+    tries++;
+    const px = s * (0.08 + rng.float() * 0.84), py = s * (0.08 + rng.float() * 0.84);
+    if (!isDirt(px, py)) continue;
+    placed++;
+    const pr = s * (0.016 + rng.float() * 0.014);
+    const j = rng.jitter(10);
+    pushEllipse(parts, MATERIALS.flesh([dirtBase[0] * 0.55, dirtBase[1] * 0.55, dirtBase[2] * 0.52] as RGB),
+      px + pr * 0.25, py + pr * 0.5, pr * 1.15, pr * 0.6, 0.08);
+    pushCircle(parts, MATERIALS.bone([dirtBase[0] * 0.68 + j, dirtBase[1] * 0.68 + j, dirtBase[2] * 0.68 + j] as RGB),
+      px, py, pr, 0.3);
+  }
+
+  // Grass-side blades — mixed dark and sunlit strokes, skipped on the dirt side.
+  const bladeMat = MATERIALS.flesh([grassBase[0] * 0.72, grassBase[1] * 0.80, grassBase[2] * 0.70] as RGB);
+  const bladeLitMat = MATERIALS.flesh([grassBase[0] + 22, grassBase[1] + 24, grassBase[2] + 6] as RGB);
+  placed = 0; tries = 0;
+  while (placed < 6 && tries < 50) {
+    tries++;
+    const bx = s * (0.06 + rng.float() * 0.88), by = s * (0.1 + rng.float() * 0.82);
+    if (isDirt(bx, by)) continue;
+    placed++;
+    const lean = rng.jitter(s * 0.02);
+    pushCapsule(parts, placed % 3 === 2 ? bladeLitMat : bladeMat, bx, by, bx + lean, by - s * (0.035 + rng.float() * 0.02), Math.max(1, s * 0.010), 0.1);
+  }
+
   return parts;
 }
 
@@ -2172,6 +2303,7 @@ export function buildTile(config: TileConfig, s: number, h?: number): Part[] {
     case 'rug':              return buildRug(rng, s, th);
     case 'pebbles':          return buildPebbles(rng, s);
     case 'root':             return buildRoot(rng, s);
+    case 'grass_dirt_mix':   return buildGrassDirtMix(rng, s);
     case 'stone_floor':
     default:                 return buildStoneFloor(rng, s, config.edges);
   }
@@ -2179,4 +2311,4 @@ export function buildTile(config: TileConfig, s: number, h?: number): Part[] {
 
 export const TILE_KINDS: TileKind[] = ['stone_floor', 'dirt_floor', 'grass_floor', 'wood_floor', 'wood_wall', 'stone_wall', 'crystal_floor', 'wood_door', 'lava_floor', 'ice_floor', 'moss_floor', 'spike_trap', 'stairs_down', 'stairs_up', 'cracked_wall', 'pit', 'water_pool', 'underground_river', 'stalagmite', 'cobweb', 'barrel', 'chain', 'bone_pile', 'shop_counter', 'iron_gate', 'torch_bracket', 'altar', 'anvil', 'bed', 'table', 'bookshelf', 'pillar', 'fountain', 'tree', 'pine_tree', 'dead_tree', 'house', 'ruins', 'fence', 'water', 'bush', 'flowers', 'rock',
   'lantern', 'crate', 'banner', 'statue', 'shelf', 'cauldron', 'chest', 'well', 'bench', 'planter', 'firewood', 'signpost', 'bucket', 'gravestone', 'pebbles', 'root',
-  'interior_wall', 'rug'];
+  'interior_wall', 'rug', 'grass_dirt_mix'];
