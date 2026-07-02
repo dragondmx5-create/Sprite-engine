@@ -1188,84 +1188,110 @@ function buildDeadTree(rng: RNG, s: number, h: number): Part[] {
   return parts;
 }
 
+/**
+ * 3/4 top-down house. The roof is a big sloped PLANE seen from above (rows of
+ * shingles that get wider and darker toward the eave — perspective
+ * foreshortening), then a dark fascia with a cast shadow onto the wall below.
+ * The right side wall is a darker vertical strip, which is what sells the
+ * building as a volume with height rather than a flat facade.
+ */
 function buildHouse(rng: RNG, s: number, h: number): Part[] {
   const parts: Part[] = [];
   const cx = s * 0.5;
-  // Ground shadow at bottom
-  pushEllipse(parts, MATERIALS.bone([25, 24, 20]), cx + s * 0.02, h * 0.95, s * 0.28, s * 0.06, 0.05);
-  // Front wall — warm timber planks (Cambria buildings are wood, not stucco)
+  // Ground contact shadow
+  pushEllipse(parts, MATERIALS.bone([25, 24, 20]), cx + s * 0.03, h * 0.94, s * 0.40, s * 0.07, 0.05);
+
   const wallCol: RGB = [136 + rng.jitter(10), 104 + rng.jitter(8), 72 + rng.jitter(6)];
-  const wallDark: RGB = [wallCol[0] * 0.68, wallCol[1] * 0.68, wallCol[2] * 0.64];
+  const wallDark: RGB = [wallCol[0] * 0.62, wallCol[1] * 0.62, wallCol[2] * 0.58];
   const wall = textured(MATERIALS.leather(wallCol), { kind: 'grain', amount: 0.04, scale: 4 }, { kind: 'grain', amount: 0.05 });
-  // Side edge (dark depth)
-  pushBox(parts, MATERIALS.leather(wallDark), cx + s * 0.40, h * 0.62, s * 0.08, h * 0.28, s * 0.01, 0.18);
-  // Main front face
-  pushBox(parts, wall, cx - s * 0.04, h * 0.62, s * 0.38, h * 0.28, s * 0.01, 0.2);
+
+  // --- WALLS (drawn first, roof overhangs them) --------------------------
+  const wallTop = h * 0.42, wallBot = h * 0.92;
+  const wallCy = (wallTop + wallBot) / 2, wallHh = (wallBot - wallTop) / 2;
+  // Right side wall — in shade, sells the depth
+  pushBox(parts, textured(MATERIALS.leather(wallDark), { kind: 'grain', amount: 0.05 }),
+    cx + s * 0.40, wallCy, s * 0.075, wallHh, s * 0.008, 0.15);
+  // Vertical siding seams on the side wall
+  pushCapsule(parts, MATERIALS.leather([wallDark[0] * 0.8, wallDark[1] * 0.8, wallDark[2] * 0.8] as RGB),
+    cx + s * 0.40, wallTop + h * 0.02, cx + s * 0.40, wallBot - h * 0.02, Math.max(1, s * 0.004), 0.06);
+  // Front wall
+  pushBox(parts, wall, cx - s * 0.065, wallCy, s * 0.395, wallHh, s * 0.008, 0.2);
   // Horizontal plank seams
   const seam = MATERIALS.leather([wallCol[0] * 0.72, wallCol[1] * 0.72, wallCol[2] * 0.68] as RGB);
   for (let i = 0; i < 3; i++) {
-    const sy = h * (0.46 + i * 0.115);
-    pushCapsule(parts, seam, cx - s * 0.41, sy, cx + s * 0.33, sy, Math.max(1, s * 0.004), 0.06);
+    const sy = h * (0.52 + i * 0.115);
+    pushCapsule(parts, seam, cx - s * 0.45, sy, cx + s * 0.32, sy, Math.max(1, s * 0.004), 0.06);
   }
-  // Corner support beams
-  const beam = MATERIALS.leather([wallCol[0] * 0.55, wallCol[1] * 0.55, wallCol[2] * 0.52] as RGB);
-  pushBox(parts, beam, cx - s * 0.40, h * 0.62, s * 0.018, h * 0.28, s * 0.006, 0.2);
-  pushBox(parts, beam, cx + s * 0.32, h * 0.62, s * 0.018, h * 0.28, s * 0.006, 0.2);
-  // Door (taller)
-  const doorCol: RGB = [95 + rng.jitter(8), 65 + rng.jitter(6), 42 + rng.jitter(5)];
-  pushBox(parts, MATERIALS.leather(doorCol), cx - s * 0.10, h * 0.78, s * 0.10, h * 0.12, s * 0.01, 0.25);
-  pushCircle(parts, MATERIALS.gold([190, 170, 70]), cx - s * 0.03, h * 0.78, Math.max(1, s * 0.014), 0.5);
-  // Stone doorstep
-  pushBox(parts, MATERIALS.bone([98, 92, 82]), cx - s * 0.10, h * 0.905, s * 0.13, h * 0.012, s * 0.006, 0.2);
-  // Windows — small warm-lit panes with wooden shutters (half-timber cottage)
+  // Corner beams + half-timber braces
+  const beam = MATERIALS.leather([wallCol[0] * 0.52, wallCol[1] * 0.52, wallCol[2] * 0.49] as RGB);
+  pushBox(parts, beam, cx - s * 0.445, wallCy, s * 0.018, wallHh, s * 0.006, 0.2);
+  pushBox(parts, beam, cx + s * 0.315, wallCy, s * 0.018, wallHh, s * 0.006, 0.2);
+  pushCapsule(parts, beam, cx - s * 0.44, h * 0.52, cx - s * 0.34, h * 0.45, Math.max(1, s * 0.009), 0.15);
+  pushCapsule(parts, beam, cx + s * 0.31, h * 0.52, cx + s * 0.21, h * 0.45, Math.max(1, s * 0.009), 0.15);
+
+  // Windows — warm-lit panes with shutters
   const frameMat = MATERIALS.leather([60, 45, 30]);
   const shutterMat = MATERIALS.leather([wallCol[0] * 0.5, wallCol[1] * 0.48, wallCol[2] * 0.45] as RGB);
   const windowAt = (wx: number, wy: number) => {
-    // shutters first (behind the frame edges)
-    pushBox(parts, shutterMat, wx - s * 0.075, wy, s * 0.022, h * 0.048, s * 0.006, 0.25);
-    pushBox(parts, shutterMat, wx + s * 0.075, wy, s * 0.022, h * 0.048, s * 0.006, 0.25);
-    // warm glowing pane
-    pushBox(parts, MATERIALS.glass([200, 165, 90]), wx, wy, s * 0.05, h * 0.042, s * 0.008, 0.3);
-    // cross frame
+    pushBox(parts, shutterMat, wx - s * 0.075, wy, s * 0.022, h * 0.042, s * 0.006, 0.25);
+    pushBox(parts, shutterMat, wx + s * 0.075, wy, s * 0.022, h * 0.042, s * 0.006, 0.25);
+    pushBox(parts, MATERIALS.glass([200, 165, 90]), wx, wy, s * 0.05, h * 0.037, s * 0.008, 0.3);
     pushBox(parts, frameMat, wx, wy, s * 0.055, s * 0.0035, s * 0.002, 0.2);
-    pushBox(parts, frameMat, wx, wy, s * 0.0035, h * 0.046, s * 0.002, 0.2);
-    // sill
-    pushBox(parts, frameMat, wx, wy + h * 0.055, s * 0.065, s * 0.006, s * 0.003, 0.2);
+    pushBox(parts, frameMat, wx, wy, s * 0.0035, h * 0.040, s * 0.002, 0.2);
+    pushBox(parts, frameMat, wx, wy + h * 0.048, s * 0.065, s * 0.006, s * 0.003, 0.2);
   };
-  windowAt(cx + s * 0.16, h * 0.53);
-  windowAt(cx - s * 0.26, h * 0.53);
-  // Half-timber diagonal braces between the corner beams and the roof line
-  const brace = MATERIALS.leather([wallCol[0] * 0.55, wallCol[1] * 0.55, wallCol[2] * 0.52] as RGB);
-  pushCapsule(parts, brace, cx - s * 0.40, h * 0.44, cx - s * 0.30, h * 0.38, Math.max(1, s * 0.009), 0.15);
-  pushCapsule(parts, brace, cx + s * 0.32, h * 0.44, cx + s * 0.22, h * 0.38, Math.max(1, s * 0.009), 0.15);
-  // Lintel beam across the top of the wall
-  pushBox(parts, brace, cx - s * 0.04, h * 0.375, s * 0.38, h * 0.008, s * 0.004, 0.15);
-  // Roof — large, prominent, muted shingle red
-  const roofCol: RGB = [94 + rng.jitter(8), 46 + rng.jitter(6), 34 + rng.jitter(4)];
-  const roof = textured(MATERIALS.leather(roofCol), { kind: 'grain', amount: 0.05, scale: 3 }, { kind: 'grain', amount: 0.06 });
-  const roofLight: RGB = [roofCol[0] + 20, roofCol[1] + 15, roofCol[2] + 10];
-  // Roof front face (tall eave)
-  pushBox(parts, roof, cx - s * 0.04, h * 0.28, s * 0.44, h * 0.08, s * 0.01, 0.2);
-  // Roof top slope
-  pushBox(parts, MATERIALS.leather(roofLight), cx - s * 0.04, h * 0.18, s * 0.42, h * 0.06, s * 0.01, 0.15);
-  // Shingle row seams across the eave
-  const shingleSeam = MATERIALS.leather([roofCol[0] * 0.7, roofCol[1] * 0.7, roofCol[2] * 0.7] as RGB);
-  for (let i = 0; i < 2; i++) {
-    const sy = h * (0.25 + i * 0.05);
-    pushCapsule(parts, shingleSeam, cx - s * 0.46, sy, cx + s * 0.38, sy, Math.max(1, s * 0.004), 0.06);
+  windowAt(cx + s * 0.14, h * 0.60);
+  windowAt(cx - s * 0.28, h * 0.60);
+
+  // Door with a small gabled canopy
+  const doorCol: RGB = [95 + rng.jitter(8), 65 + rng.jitter(6), 42 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.leather(doorCol), cx - s * 0.08, h * 0.815, s * 0.095, h * 0.105, s * 0.012, 0.25);
+  // thin lintel beam over the door
+  pushBox(parts, frameMat, cx - s * 0.08, h * 0.705, s * 0.115, h * 0.010, s * 0.005, 0.15);
+  pushCircle(parts, MATERIALS.gold([190, 170, 70]), cx - s * 0.015, h * 0.82, Math.max(1, s * 0.014), 0.5);
+  pushBox(parts, MATERIALS.bone([98, 92, 82]), cx - s * 0.08, h * 0.925, s * 0.125, h * 0.012, s * 0.006, 0.2);
+
+  // --- ROOF: sloped plane seen from above --------------------------------
+  const roofCol: RGB = [96 + rng.jitter(8), 48 + rng.jitter(6), 36 + rng.jitter(4)];
+  const rowSeam = MATERIALS.leather([roofCol[0] * 0.62, roofCol[1] * 0.62, roofCol[2] * 0.62] as RGB);
+  // Four shingle rows: wider + darker toward the eave (foreshortened slope
+  // catching less sky light). Slight right offset per row = viewing angle.
+  const rows = 4;
+  for (let i = 0; i < rows; i++) {
+    const t = i / (rows - 1);                        // 0 = ridge, 1 = eave
+    const cyR = h * (0.115 + i * 0.082);
+    const hwR = s * (0.42 + t * 0.09);
+    const lift = 24 - t * 34;                        // +24 → -10 brightness
+    const rowCol: RGB = [roofCol[0] + lift, roofCol[1] + lift * 0.75, roofCol[2] + lift * 0.6];
+    pushBox(parts, textured(MATERIALS.leather(rowCol), { kind: 'grain', amount: 0.05, scale: 3 }, { kind: 'grain', amount: 0.05 }),
+      cx - s * 0.02 + s * 0.012 * i, cyR, hwR, h * 0.048, s * 0.008, 0.14);
+    // seam under each row
+    pushCapsule(parts, rowSeam, cx - s * 0.02 + s * 0.012 * i - hwR, cyR + h * 0.043,
+      cx - s * 0.02 + s * 0.012 * i + hwR, cyR + h * 0.043, Math.max(1, s * 0.0045), 0.06);
+    // staggered shingle tick marks along the row
+    const ticks = 4 + (i % 2);
+    for (let k = 0; k < ticks; k++) {
+      const tx = cx - hwR * 0.85 + (k + 0.5 + (i % 2) * 0.5) * (hwR * 1.7 / ticks) + rng.jitter(s * 0.01);
+      pushCapsule(parts, rowSeam, tx, cyR - h * 0.012, tx, cyR + h * 0.026, Math.max(1, s * 0.004), 0.05);
+    }
   }
-  // Staggered shingle tabs
-  for (let i = 0; i < 5; i++) {
-    const sx = cx - s * 0.38 + i * s * 0.17 + rng.jitter(s * 0.02);
-    pushBox(parts, MATERIALS.leather([roofCol[0] + 10, roofCol[1] + 6, roofCol[2] + 4] as RGB),
-      sx, h * (0.27 + (i % 2) * 0.045), s * 0.045, h * 0.012, s * 0.006, 0.12);
-  }
-  // Chimney
-  pushBox(parts, MATERIALS.bone([70 + rng.jitter(5), 62 + rng.jitter(4), 56 + rng.jitter(4)] as RGB),
-    cx + s * 0.28, h * 0.10, s * 0.05, h * 0.08, s * 0.006, 0.25);
-  // Roof overhang shadow
-  pushBox(parts, MATERIALS.bone([wallCol[0] * 0.6, wallCol[1] * 0.6, wallCol[2] * 0.58] as RGB),
-    cx - s * 0.04, h * 0.36, s * 0.40, h * 0.008, s * 0.004, 0.08);
+  // Ridge cap along the top
+  pushBox(parts, MATERIALS.leather([roofCol[0] + 34, roofCol[1] + 24, roofCol[2] + 18] as RGB),
+    cx - s * 0.02, h * 0.072, s * 0.415, h * 0.017, s * 0.01, 0.3);
+  // Eave fascia — dark board where the roof ends, overhanging the walls
+  pushBox(parts, MATERIALS.leather([roofCol[0] * 0.55, roofCol[1] * 0.55, roofCol[2] * 0.55] as RGB),
+    cx + s * 0.016, h * 0.435, s * 0.515, h * 0.018, s * 0.008, 0.12);
+  // Cast shadow from the overhang onto the wall
+  pushBox(parts, MATERIALS.leather([wallCol[0] * 0.5, wallCol[1] * 0.5, wallCol[2] * 0.48] as RGB),
+    cx - s * 0.065, h * 0.468, s * 0.395, h * 0.014, s * 0.006, 0.06);
+
+  // Chimney sitting ON the roof plane (drawn after it), with cap and mouth
+  const chimCol: RGB = [88 + rng.jitter(5), 78 + rng.jitter(4), 70 + rng.jitter(4)];
+  pushBox(parts, textured(MATERIALS.bone(chimCol), { kind: 'grain', amount: 0.05 }),
+    cx + s * 0.27, h * 0.115, s * 0.045, h * 0.075, s * 0.006, 0.25);
+  pushBox(parts, MATERIALS.bone([chimCol[0] + 15, chimCol[1] + 12, chimCol[2] + 10] as RGB),
+    cx + s * 0.27, h * 0.048, s * 0.055, h * 0.014, s * 0.006, 0.3);
+  pushEllipse(parts, MATERIALS.bone([30, 27, 24]), cx + s * 0.27, h * 0.036, s * 0.032, h * 0.006, 0.1);
   return parts;
 }
 
