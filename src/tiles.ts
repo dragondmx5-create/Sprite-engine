@@ -462,25 +462,33 @@ function buildGrassFloor(rng: RNG, s: number): Part[] {
   // over a big lawn; variation should come from the patches/blades instead.
   const j = rng.jitter(4);
   const base: RGB = [50 + j, 96 + j, 34 + j];
-  // Speckled base — dense light/dark leaf dots do most of the "dense turf"
-  // work, and a fine bump layer gives the turf actual noise-driven relief
-  // (light rolls across it) instead of a flat plane with dots painted on.
-  pushBox(parts, textured(MATERIALS.flesh(base), { kind: 'grain', amount: 0.05, scale: 5 }, { kind: 'speckle', amount: 0.06 }, { kind: 'grain', amount: 0.03 }, { kind: 'bump', amount: 0.22, scale: 1.6 }), s * 0.5, s * 0.5, s * 0.50, s * 0.50, 0, 0.08);
-  // Occasional dominant patch — most of what still made a big lawn of these
-  // tiles feel like wallpaper wasn't color, it was SILHOUETTE: every tile had
-  // the same handful of small dots in the same size range, so from a few
-  // tiles back they all resolve to the same texture regardless of position.
-  // One tile in ~6 gets a single much bigger, off-center patch (parched
-  // yellow-brown or lush dark) that dominates that tile's read and makes a
-  // lawn of them look like a real uneven field instead of a repeated swatch.
+  // Calm base — a plain per-pixel 'speckle' layer (its default cell = 1
+  // OUTPUT pixel) reads as literal TV static up close, not turf, and
+  // stacking grain+speckle+grain on top of itself only made that worse. The
+  // base now carries just enough grain+bump to feel like a surface; the
+  // actual "this is grass" signal comes from the blade dabs below, which are
+  // real shaded shapes instead of dithered noise.
+  pushBox(parts, textured(MATERIALS.flesh(base), { kind: 'grain', amount: 0.035, scale: 3 }, { kind: 'bump', amount: 0.2, scale: 2 }), s * 0.5, s * 0.5, s * 0.50, s * 0.50, 0, 0.08);
+  // Occasional dominant patch — a lawn of same-sized small dots still reads
+  // as wallpaper from a few tiles back regardless of position, so ~1 tile in
+  // 6 gets a bigger sun/shade dapple. Roundness stays LOW like every other
+  // flat-ground patch on this tile — the fake-3D shading reads a high
+  // roundness circle/ellipse as a DOME (a pebble, a fruit), which is exactly
+  // wrong for "a patch of the same flat ground, just a different color"; low
+  // roundness keeps it reading as a flat color region, not a glossy blob.
   if (rng.float() > 0.82) {
     const dry = rng.float() > 0.5;
     const featCol: RGB = dry
-      ? [base[0] + 30, base[1] + 8, base[2] - 14]
-      : [base[0] * 0.62, base[1] * 0.78, base[2] * 0.85];
+      ? [base[0] + 16, base[1] + 10, base[2] - 4]
+      : [base[0] * 0.74, base[1] * 0.86, base[2] * 0.92];
     const fx = s * (0.2 + rng.float() * 0.6), fy = s * (0.2 + rng.float() * 0.6);
-    pushEllipse(parts, textured(MATERIALS.flesh(featCol), { kind: 'speckle', amount: 0.05 }, { kind: 'grain', amount: 0.04 }, { kind: 'bump', amount: 0.2, scale: 1.6 }),
-      fx, fy, s * (0.22 + rng.float() * 0.1), s * (0.16 + rng.float() * 0.08), 0.15);
+    // Grain only, no bump — a bump layer perturbs the normal even across the
+    // FLAT interior of a low-roundness shape (there's no bevel there to hide
+    // it in), which showed up as an odd faceted/starburst pattern instead of
+    // soft mottling. The base fill's own bump already carries the tile's
+    // overall relief; these patches just need to shift its color.
+    pushEllipse(parts, textured(MATERIALS.flesh(featCol), { kind: 'grain', amount: 0.03, scale: 3 }),
+      fx, fy, s * (0.22 + rng.float() * 0.1), s * (0.16 + rng.float() * 0.08), 0.1);
   }
   // Darker grass patches — shadow patches lean blue-green, so the turf gets
   // actual hue variation (Cambria mottle), not just darker copies of one
@@ -490,27 +498,39 @@ function buildGrassFloor(rng: RNG, s: number): Part[] {
   for (let i = 0; i < darkPatches; i++) {
     const px = s * (0.08 + rng.float() * 0.84);
     const py = s * (0.08 + rng.float() * 0.84);
-    pushCircle(parts, textured(MATERIALS.flesh([base[0] * 0.72, base[1] * 0.84, base[2] * 0.88] as RGB), { kind: 'speckle', amount: 0.05 }, { kind: 'grain', amount: 0.03 }, { kind: 'bump', amount: 0.2, scale: 1.6 }),
-      px, py, s * (0.05 + rng.float() * 0.06), 0.06);
+    pushCircle(parts, textured(MATERIALS.flesh([base[0] * 0.78, base[1] * 0.88, base[2] * 0.92] as RGB), { kind: 'grain', amount: 0.03, scale: 3 }),
+      px, py, s * (0.05 + rng.float() * 0.06), 0.07);
   }
   // Lighter grass highlights — sun patches lean yellow-green
   const lightPatches = 1 + Math.floor(rng.float() * 4);
   for (let i = 0; i < lightPatches; i++) {
     const px = s * (0.15 + rng.float() * 0.7);
     const py = s * (0.15 + rng.float() * 0.7);
-    pushCircle(parts, textured(MATERIALS.flesh([base[0] + 16, base[1] + 15, base[2] + 2] as RGB), { kind: 'speckle', amount: 0.05 }, { kind: 'grain', amount: 0.03 }),
-      px, py, s * (0.03 + rng.float() * 0.04), 0.05);
+    pushCircle(parts, textured(MATERIALS.flesh([base[0] + 14, base[1] + 13, base[2] + 1] as RGB), { kind: 'grain', amount: 0.03, scale: 3 }),
+      px, py, s * (0.03 + rng.float() * 0.04), 0.06);
   }
-  // Individual grass blades — mixed dark and sunlit strokes; the light ones
-  // are what read as blades catching the sun instead of uniform stubble.
-  const bladeMat = MATERIALS.flesh([base[0] * 0.72, base[1] * 0.80, base[2] * 0.70] as RGB);
-  const bladeLitMat = MATERIALS.flesh([base[0] + 22, base[1] + 24, base[2] + 6] as RGB);
-  const blades = 5 + Math.floor(rng.float() * 7);
+  // Individual grass blades — THE texture. Real shaded strokes, not noise:
+  // sized to actually be visible (a hair's width used to round away to
+  // nothing after downsampling) and, crucially, longer than they are wide —
+  // a capsule whose radius approaches its length reads as a round blob, not
+  // a blade, so length comfortably exceeds diameter here. Dense, and leaning
+  // the same general direction with per-blade jitter — combed turf, not a
+  // chaotic scribble. Three tones (dark/mid/lit) mixed so blades read as
+  // catching light individually instead of one flat stubble color.
+  const bladeDark = MATERIALS.flesh([base[0] * 0.62, base[1] * 0.72, base[2] * 0.62] as RGB);
+  const bladeMid = MATERIALS.flesh([base[0] * 0.85, base[1] * 0.92, base[2] * 0.8] as RGB);
+  const bladeLit = MATERIALS.flesh([base[0] + 24, base[1] + 26, base[2] + 8] as RGB);
+  const windAngle = rng.jitter(0.35); // shared lean so a tile's blades feel combed by one breeze
+  const blades = 16 + Math.floor(rng.float() * 10);
   for (let i = 0; i < blades; i++) {
-    const bx = s * (0.08 + rng.float() * 0.84);
-    const by = s * (0.12 + rng.float() * 0.8);
-    const lean = rng.jitter(s * 0.02);
-    pushCapsule(parts, i % 3 === 2 ? bladeLitMat : bladeMat, bx, by, bx + lean, by - s * (0.035 + rng.float() * 0.02), Math.max(1, s * 0.010), 0.1);
+    const bx = s * (0.05 + rng.float() * 0.9);
+    const by = s * (0.08 + rng.float() * 0.86);
+    const ang = windAngle + rng.jitter(0.3);
+    const len = s * (0.065 + rng.float() * 0.05);
+    const ex = bx + Math.sin(ang) * len, ey = by - Math.cos(ang) * len;
+    const r = rng.float();
+    const mat = r < 0.3 ? bladeDark : r < 0.75 ? bladeMid : bladeLit;
+    pushCapsule(parts, mat, bx, by, ex, ey, Math.max(1, s * 0.015), 0.15);
   }
   // Dirt specks — count varies (some tiles bare, some scuffed)
   const dirtSpecks = Math.floor(rng.float() * 4);
