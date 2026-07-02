@@ -61,6 +61,17 @@ export function resolveRenderOpts(config: SpriteConfig = {}): RenderOpts {
 }
 
 /**
+ * Deterministic 2D position hash → [0,1). Used for the material texture layer;
+ * depends only on pixel position, so the same sprite renders byte-identically
+ * every time and textures never boil between animation frames.
+ */
+function hash2(x: number, y: number): number {
+  let h = (x * 374761393 + y * 668265263) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+/**
  * Render an already-built list of parts to an RGBA SpriteBuffer.
  * This is the single source of truth for shading; static and animated frames
  * both call it.
@@ -101,11 +112,25 @@ export function renderParts(parts: Part[], opts: RenderOpts): SpriteBuffer {
     // shading for the same part in every frame.
     const ctx = makeShadeContext(part.material, light);
 
+    // Texture layer: luminance grain/speckle hashed on the OUTPUT pixel grid
+    // (supersamples within one output pixel share a value, otherwise the
+    // box-filter downsample would average the noise away).
+    const tex = part.material.texture;
+    const texCell = tex ? ss * Math.max(1, tex.scale ?? 1) : 1;
+
     for (let y = 0; y < ch; y++) {
       for (let x = 0; x < cw; x++) {
         const li = y * cw + x;
         if (!mask[li]) continue;
         shade(ctx, nx[li], ny[li], nz[li], out);
+        if (tex) {
+          const n = hash2(((cx0 + x) / texCell) | 0, ((cy0 + y) / texCell) | 0);
+          // speckle: sparse strong dots; grain: dense gentle noise
+          const f = tex.kind === 'speckle'
+            ? (n > 0.82 ? 1 + tex.amount * 2 : n < 0.16 ? 1 - tex.amount * 2 : 1)
+            : 1 + tex.amount * (n * 2 - 1);
+          out[0] *= f; out[1] *= f; out[2] *= f;
+        }
         const j = ((cy0 + y) * W + (cx0 + x)) * 4;
         acc[j] = out[0];
         acc[j + 1] = out[1];

@@ -31,6 +31,21 @@ export interface Material {
   metallic: boolean;
   /** How far shadows shift toward cool/blue (0..1). Gives painterly depth. */
   shadowCoolShift: number;
+  /**
+   * Optional per-pixel surface texture layered over the shading — the
+   * hand-dithered grain that makes terrain/foliage read detailed instead of
+   * airbrushed. Deterministic (position-hash), so it never boils between
+   * frames of the same sprite.
+   *   'grain'   — luminance noise per output pixel (dirt, stone, wood)
+   *   'speckle' — clustered light/dark dots (grass, foliage)
+   */
+  texture?: {
+    kind: 'grain' | 'speckle';
+    /** Strength of the luminance perturbation, ~0.03..0.15. */
+    amount: number;
+    /** Pixel cell size of the pattern (1 = every output pixel). Default 1. */
+    scale?: number;
+  };
 }
 
 /** A light, expressed as the direction FROM the surface TOWARD the light. */
