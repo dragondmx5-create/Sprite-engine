@@ -454,7 +454,7 @@ function buildMossFloor(rng: RNG, s: number): Part[] {
  * string) always picks the same variant, so a lawn reads as varied but
  * stable rather than boiling between renders.
  */
-const GRASS_VARIANTS = ['bare', 'tuft', 'flowers', 'pebbles', 'leaves'] as const;
+const GRASS_VARIANTS = ['bare', 'tuft', 'flowers', 'pebbles', 'leaves', 'clover'] as const;
 
 function buildGrassFloor(rng: RNG, s: number): Part[] {
   const parts: Part[] = [];
@@ -466,40 +466,61 @@ function buildGrassFloor(rng: RNG, s: number): Part[] {
   // work, and a fine bump layer gives the turf actual noise-driven relief
   // (light rolls across it) instead of a flat plane with dots painted on.
   pushBox(parts, textured(MATERIALS.flesh(base), { kind: 'grain', amount: 0.05, scale: 5 }, { kind: 'speckle', amount: 0.06 }, { kind: 'grain', amount: 0.03 }, { kind: 'bump', amount: 0.22, scale: 1.6 }), s * 0.5, s * 0.5, s * 0.50, s * 0.50, 0, 0.08);
+  // Occasional dominant patch — most of what still made a big lawn of these
+  // tiles feel like wallpaper wasn't color, it was SILHOUETTE: every tile had
+  // the same handful of small dots in the same size range, so from a few
+  // tiles back they all resolve to the same texture regardless of position.
+  // One tile in ~6 gets a single much bigger, off-center patch (parched
+  // yellow-brown or lush dark) that dominates that tile's read and makes a
+  // lawn of them look like a real uneven field instead of a repeated swatch.
+  if (rng.float() > 0.82) {
+    const dry = rng.float() > 0.5;
+    const featCol: RGB = dry
+      ? [base[0] + 30, base[1] + 8, base[2] - 14]
+      : [base[0] * 0.62, base[1] * 0.78, base[2] * 0.85];
+    const fx = s * (0.2 + rng.float() * 0.6), fy = s * (0.2 + rng.float() * 0.6);
+    pushEllipse(parts, textured(MATERIALS.flesh(featCol), { kind: 'speckle', amount: 0.05 }, { kind: 'grain', amount: 0.04 }, { kind: 'bump', amount: 0.2, scale: 1.6 }),
+      fx, fy, s * (0.22 + rng.float() * 0.1), s * (0.16 + rng.float() * 0.08), 0.15);
+  }
   // Darker grass patches — shadow patches lean blue-green, so the turf gets
-  // actual hue variation (Cambria mottle), not just darker copies of one green.
-  for (let i = 0; i < 3; i++) {
+  // actual hue variation (Cambria mottle), not just darker copies of one
+  // green. Count/size both randomized per tile (not just position) so
+  // tiles differ in DENSITY, not just where the same fixed layout landed.
+  const darkPatches = 2 + Math.floor(rng.float() * 4);
+  for (let i = 0; i < darkPatches; i++) {
     const px = s * (0.08 + rng.float() * 0.84);
     const py = s * (0.08 + rng.float() * 0.84);
     pushCircle(parts, textured(MATERIALS.flesh([base[0] * 0.72, base[1] * 0.84, base[2] * 0.88] as RGB), { kind: 'speckle', amount: 0.05 }, { kind: 'grain', amount: 0.03 }, { kind: 'bump', amount: 0.2, scale: 1.6 }),
-      px, py, s * (0.06 + rng.float() * 0.04), 0.06);
+      px, py, s * (0.05 + rng.float() * 0.06), 0.06);
   }
   // Lighter grass highlights — sun patches lean yellow-green
-  for (let i = 0; i < 3; i++) {
+  const lightPatches = 1 + Math.floor(rng.float() * 4);
+  for (let i = 0; i < lightPatches; i++) {
     const px = s * (0.15 + rng.float() * 0.7);
     const py = s * (0.15 + rng.float() * 0.7);
     pushCircle(parts, textured(MATERIALS.flesh([base[0] + 16, base[1] + 15, base[2] + 2] as RGB), { kind: 'speckle', amount: 0.05 }, { kind: 'grain', amount: 0.03 }),
-      px, py, s * (0.04 + rng.float() * 0.03), 0.05);
+      px, py, s * (0.03 + rng.float() * 0.04), 0.05);
   }
   // Individual grass blades — mixed dark and sunlit strokes; the light ones
   // are what read as blades catching the sun instead of uniform stubble.
   const bladeMat = MATERIALS.flesh([base[0] * 0.72, base[1] * 0.80, base[2] * 0.70] as RGB);
   const bladeLitMat = MATERIALS.flesh([base[0] + 22, base[1] + 24, base[2] + 6] as RGB);
-  const blades = 6 + Math.floor(rng.float() * 4);
+  const blades = 5 + Math.floor(rng.float() * 7);
   for (let i = 0; i < blades; i++) {
     const bx = s * (0.08 + rng.float() * 0.84);
     const by = s * (0.12 + rng.float() * 0.8);
     const lean = rng.jitter(s * 0.02);
     pushCapsule(parts, i % 3 === 2 ? bladeLitMat : bladeMat, bx, by, bx + lean, by - s * (0.035 + rng.float() * 0.02), Math.max(1, s * 0.010), 0.1);
   }
-  // Dirt specks
-  for (let i = 0; i < 2; i++) {
+  // Dirt specks — count varies (some tiles bare, some scuffed)
+  const dirtSpecks = Math.floor(rng.float() * 4);
+  for (let i = 0; i < dirtSpecks; i++) {
     const px = s * (0.12 + rng.float() * 0.76);
     const py = s * (0.12 + rng.float() * 0.76);
     pushCircle(parts, MATERIALS.flesh([92 + rng.jitter(8), 70 + rng.jitter(6), 46 + rng.jitter(5)] as RGB),
       px, py, s * (0.018 + rng.float() * 0.012), 0.1);
   }
-  // Per-tile decorative variant — one of 5 deterministic looks, picked from
+  // Per-tile decorative variant — one of 6 deterministic looks, picked from
   // the RNG the tile was seeded with. Callers that seed grass tiles by grid
   // coordinate (e.g. `grass-${row}-${col}`) get a stable, non-repeating mix
   // across a lawn instead of every tile rolling the same independent chances.
@@ -551,6 +572,22 @@ function buildGrassFloor(rng: RNG, s: number): Part[] {
         const lx = s * (0.15 + rng.float() * 0.7), ly = s * (0.2 + rng.float() * 0.65);
         const leafCol: RGB = rng.float() > 0.5 ? [180 + rng.jitter(20), 95 + rng.jitter(15), 30 + rng.jitter(10)] : [195 + rng.jitter(15), 150 + rng.jitter(15), 45 + rng.jitter(10)];
         pushEllipse(parts, MATERIALS.leather(leafCol), lx, ly, s * 0.025, s * 0.013, 0.3);
+      }
+      break;
+    }
+    case 'clover': {
+      // A small cluster of three-leaf clovers — a distinct silhouette from
+      // the tuft/flowers variants, so a lawn mixing all six doesn't settle
+      // into "little green blob here, little green blob there" sameness.
+      const cloverMat = MATERIALS.flesh([base[0] * 0.75, base[1] * 1.05, base[2] * 0.7] as RGB);
+      const n = 2 + Math.floor(rng.float() * 2);
+      for (let i = 0; i < n; i++) {
+        const cx = s * (0.15 + rng.float() * 0.7), cy = s * (0.2 + rng.float() * 0.6);
+        const lr = Math.max(1, s * 0.014);
+        for (let leaf = 0; leaf < 3; leaf++) {
+          const ang = (leaf / 3) * Math.PI * 2 - Math.PI / 2;
+          pushCircle(parts, cloverMat, cx + Math.cos(ang) * lr * 0.9, cy + Math.sin(ang) * lr * 0.9, lr, 0.3);
+        }
       }
       break;
     }

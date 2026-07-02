@@ -43,7 +43,7 @@ src/
   skeleton.ts   — character body builder (head, torso, arms, legs, hair, outfit, weapons, shield)
   creatures.ts  — enemy builders: 11 kinds (insect, worm, crawler, fire_elemental, shadow, burrower, bat, slime, undead, golem, ghost)
   items.ts      — loot builders: 16 kinds (+ fish)
-  tiles.ts      — dungeon tile builders: 61 kinds (+ shop_counter, iron_gate, torch_bracket, altar, anvil, bed, table, bookshelf, pillar, fountain, lantern, crate, banner, statue, shelf, cauldron, chest, well, bench, planter, firewood, signpost, bucket, gravestone, pebbles, root, interior_wall, rug)
+  tiles.ts      — dungeon tile builders: 62 kinds (+ shop_counter, iron_gate, torch_bracket, altar, anvil, bed, table, bookshelf, pillar, fountain, lantern, crate, banner, statue, shelf, cauldron, chest, well, bench, planter, firewood, signpost, bucket, gravestone, pebbles, root, interior_wall, rug, grass_dirt_mix)
   autotile.ts   — grid-level terrain edge blending: 4-bit N/E/S/W bitmask + 8-flag edge/corner computation from a neighbor predicate
   effects.ts    — VFX: slash, impact, projectiles, sparkle, shadow, flash, tint, status effects, water_ripple, smoke, drip + phase-driven builders
   ui.ts         — HUD generators: health/mana/XP bars, inventory slot, dialog box, damage number, button
@@ -121,22 +121,31 @@ generateEnemyAnimation(config, 'move'|'idle'|'death'|'hit'|'emerge')
 generateItem({ seed, size, kind: 'mushroom'|'crystal'|'dagger'|'torch'|'potion'|'coin'|'rune'|'chest'|'key'|'scroll'|'meat'|'lantern'|'ore'|'firestone'|'bone_shard'|'fish' })
 generateItemAnimation(config, 'idle'|'active'|'pickup')
 
-// Tiles (59 kinds — dungeon floors, walls, doors, traps, props, interiors, overworld)
+// Tiles (62 kinds — dungeon floors, walls, doors, traps, props, interiors, overworld)
 generateTile({ seed, size, kind: 'stone_floor'|'dirt_floor'|'grass_floor'|'wood_floor'|'wood_wall'|'stone_wall'|'crystal_floor'|'wood_door'
   |'lava_floor'|'ice_floor'|'moss_floor'|'spike_trap'|'stairs_down'|'stairs_up'|'cracked_wall'|'pit'
   |'water_pool'|'underground_river'|'stalagmite'|'cobweb'|'barrel'|'chain'|'bone_pile'
   |'shop_counter'|'iron_gate'|'torch_bracket'|'altar'|'anvil'|'bed'|'table'|'bookshelf'|'pillar'|'fountain'
   |'tree'|'pine_tree'|'dead_tree'|'house'|'ruins'|'fence'|'water'|'bush'|'flowers'|'rock'
   |'lantern'|'crate'|'banner'|'statue'|'shelf'|'cauldron'|'chest'|'well'|'bench'|'planter'|'firewood'|'signpost'|'bucket'|'gravestone'
-  |'interior_wall'|'rug'|'pebbles'|'root' })
+  |'interior_wall'|'rug'|'pebbles'|'root'|'grass_dirt_mix' })
+// grass_dirt_mix is ONE tile that's genuinely half grass, half dirt (an
+// fbm-wobbled internal boundary with each side's own detail pass) — distinct
+// from edgeFringe's blob blending, which softens the border between two
+// separate whole tiles. Use it for the rim of dirt cells that touch grass
+// instead of a hard dirt_floor there, so a path/clearing edge dissolves
+// gradually instead of stepping straight from full dirt to full grass.
 // dirt_floor/water take edges: {n,e,s,w,ne,nw,se,sw} — flag sides/corners that
 // touch grass to draw an organic grass fringe (soft path/shore transitions).
 // stone_floor takes the same edges shape blending against dirt instead.
 // Compute edges per grid cell with autotile.ts instead of hand-rolled lookups:
 //   autotileEdges(row, col, gridMatcher(kindsGrid, cols, rows, k => k === 'grass_floor'))
-// grass_floor picks one of 5 deterministic decor variants (bare/tuft/flowers/
-// pebbles/leaves) from its own seed — seed grass tiles by grid coordinate
-// (e.g. `grass-${row}-${col}`) for stable, non-repeating variety across a lawn.
+// grass_floor picks one of 6 deterministic decor variants (bare/tuft/flowers/
+// pebbles/leaves/clover) from its own seed, plus randomized patch/blade counts
+// and an occasional (~18%) oversized dry/lush feature patch so tiles differ in
+// density and silhouette, not just dot position — seed grass tiles by grid
+// coordinate (e.g. `grass-${row}-${col}`) for stable, non-repeating variety
+// across a lawn.
 // Props (bed/table/bookshelf/barrel/shop_counter/...) take bare: true to skip
 // their built-in stone slab when composited over an interior floor.
 // Cambria-style buildings: compose wood_wall perimeter + wood_floor interior

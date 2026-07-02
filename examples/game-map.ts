@@ -94,6 +94,25 @@ irregularPatch('dirt_floor', 13, 18, 11, 205);
 const A = { r0: 1, r1: 6, c0: 16, c1: 22, doorC: 19 };
 for (let r = A.r0; r <= A.r1; r++) for (let c = A.c0; c <= A.c1; c++) set(r, c, 'wood_floor');
 
+// Soften the dirt/grass boundary: a plain dirt_floor tile right at the edge
+// of the lawn, even with edgeFringe's blob overlay, still reads as "grass
+// tile, then a hard step to dirt tile" because the STEP is real — the two
+// are separate, fully opaque tiles. grass_dirt_mix is one tile that's
+// genuinely both, so swapping some rim cells for it turns that single hard
+// step into two visibly softer ones. Only cells with exactly one grass side
+// qualify (a corner/isthmus dirt cell touching grass on 2+ sides can't be
+// represented by a single two-zone split), and only a random subset of
+// those convert so the transition looks organically patchy, not like every
+// rim cell got the same treatment.
+for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+  if (at(r, c) !== 'dirt_floor') continue;
+  const grassSides = [at(r - 1, c), at(r + 1, c), at(r, c - 1), at(r, c + 1)]
+    .filter((k) => k === 'grass_floor').length;
+  if (grassSides !== 1) continue;
+  if (hashRoll(c, r, 811) > 0.6) continue;
+  set(r, c, 'grass_dirt_mix');
+}
+
 const isGrass = gridMatcher(kinds, COLS, ROWS, (k) => k === 'grass_floor');
 const isDirt = gridMatcher(kinds, COLS, ROWS, (k) => k === 'dirt_floor');
 const tiles = kinds.map((k, i) => {
