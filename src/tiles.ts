@@ -12,7 +12,8 @@ import { MATERIALS } from './materials';
 import { Part, roundedBox, circle, capsule, ellipse } from './shapes';
 
 export type TileKind = 'stone_floor' | 'dirt_floor' | 'grass_floor' | 'wood_floor' | 'wood_wall' | 'stone_wall' | 'crystal_floor' | 'wood_door' | 'lava_floor' | 'ice_floor' | 'moss_floor' | 'spike_trap' | 'stairs_down' | 'stairs_up' | 'cracked_wall' | 'pit' | 'water_pool' | 'underground_river' | 'stalagmite' | 'cobweb' | 'barrel' | 'chain' | 'bone_pile' | 'shop_counter' | 'iron_gate' | 'torch_bracket' | 'altar' | 'anvil' | 'bed' | 'table' | 'bookshelf' | 'pillar' | 'fountain' | 'tree' | 'pine_tree' | 'dead_tree' | 'house' | 'ruins' | 'fence' | 'water' | 'bush' | 'flowers' | 'rock'
-  | 'lantern' | 'crate' | 'banner' | 'statue' | 'shelf' | 'cauldron' | 'chest' | 'well' | 'bench' | 'planter' | 'firewood' | 'signpost' | 'bucket' | 'gravestone';
+  | 'lantern' | 'crate' | 'banner' | 'statue' | 'shelf' | 'cauldron' | 'chest' | 'well' | 'bench' | 'planter' | 'firewood' | 'signpost' | 'bucket' | 'gravestone'
+  | 'interior_wall' | 'rug';
 
 export interface TileConfig {
   kind?: TileKind;
@@ -530,6 +531,68 @@ function buildWoodWall(rng: RNG, s: number, h: number): Part[] {
   // Horizontal rail
   pushCapsule(parts, seam, s * 0.03, h * 0.55, s * 0.97, h * 0.55, Math.max(1, s * 0.005), 0.06);
   wallBaseShadow(parts, s, h, frontCol);
+  return parts;
+}
+
+/**
+ * Plain plaster interior wall — flat and smooth (no brickwork/planks) unlike
+ * stone_wall/wood_wall, with a soft ambient-occlusion gradient rising from
+ * the floor line so an enclosed room reads as grounded rather than flat.
+ */
+function buildInteriorWall(rng: RNG, s: number, h: number): Part[] {
+  const parts: Part[] = [];
+  const topCol: RGB = [150 + rng.jitter(6), 140 + rng.jitter(5), 126 + rng.jitter(5)];
+  const frontCol: RGB = [178 + rng.jitter(8), 168 + rng.jitter(6), 152 + rng.jitter(6)];
+  wallTopAndFront(parts, rng, s, h, topCol, frontCol);
+  // Faint plaster grain only — deliberately no brick/plank pattern. A lone
+  // coarse-scale layer reads as blotchy quilting at tile scale, so this is
+  // fine per-pixel noise only (no `scale`), matching a smooth plastered wall.
+  pushBox(parts, textured(MATERIALS.bone(frontCol), { kind: 'grain', amount: 0.025 }),
+    s * 0.5, h * 0.58, s * 0.50, h * 0.42, 0, 0.12);
+  // Soft AO gradient: overlapping bands darkening toward the floor line
+  const bands = 4;
+  for (let i = 0; i < bands; i++) {
+    const t = i / (bands - 1);
+    const by = h * (0.80 + t * 0.17);
+    const darken = 1 - t * 0.55;
+    const bandCol: RGB = [frontCol[0] * darken, frontCol[1] * darken, frontCol[2] * darken];
+    pushBox(parts, MATERIALS.bone(bandCol), s * 0.5, by, s * 0.50, h * 0.055, 0, 0.05);
+  }
+  // Occasional water stain / crack for texture variety
+  if (rng.float() > 0.6) {
+    pushCapsule(parts, MATERIALS.bone([frontCol[0] * 0.82, frontCol[1] * 0.80, frontCol[2] * 0.76] as RGB),
+      s * (0.2 + rng.float() * 0.6), h * 0.3, s * (0.2 + rng.float() * 0.6) + rng.jitter(s * 0.06), h * 0.7,
+      Math.max(1, s * 0.01), 0.1);
+  }
+  wallBaseShadow(parts, s, h, frontCol);
+  return parts;
+}
+
+/**
+ * Decorative rug/carpet — composites over wood_floor/stone_floor (no floor
+ * slab of its own, same convention as bush/flowers/fence overworld props).
+ */
+function buildRug(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const palettes: RGB[] = [[150, 45, 45], [45, 70, 140], [140, 95, 40], [70, 110, 60]];
+  const base = palettes[Math.floor(rng.float() * palettes.length)];
+  const j = rng.jitter(6);
+  const rugCol: RGB = [base[0] + j, base[1] + j, base[2] + j];
+  const borderCol: RGB = [rugCol[0] * 0.55, rugCol[1] * 0.55, rugCol[2] * 0.55];
+  // Border frame, then a smaller inner field on top
+  pushBox(parts, MATERIALS.cloth(borderCol), s * 0.5, s * 0.5, s * 0.42, s * 0.38, s * 0.03, 0.08);
+  pushBox(parts, textured(MATERIALS.cloth(rugCol), { kind: 'grain', amount: 0.04, scale: 4 }, { kind: 'speckle', amount: 0.02 }),
+    s * 0.5, s * 0.5, s * 0.36, s * 0.32, s * 0.02, 0.08);
+  // Center medallion
+  const accentCol: RGB = [rugCol[0] + 30, rugCol[1] + 20, rugCol[2] + 10];
+  pushEllipse(parts, MATERIALS.cloth(accentCol), s * 0.5, s * 0.5, s * 0.14, s * 0.10, 0.3);
+  pushEllipse(parts, MATERIALS.cloth(borderCol), s * 0.5, s * 0.5, s * 0.07, s * 0.05, 0.3);
+  // Fringe ticks along the top/bottom edges
+  for (let i = 0; i < 5; i++) {
+    const tx = s * (0.16 + i * 0.17);
+    pushCapsule(parts, MATERIALS.cloth(borderCol), tx, s * 0.12, tx, s * 0.08, Math.max(1, s * 0.012), 0.2);
+    pushCapsule(parts, MATERIALS.cloth(borderCol), tx, s * 0.88, tx, s * 0.92, Math.max(1, s * 0.012), 0.2);
+  }
   return parts;
 }
 
@@ -1853,10 +1916,13 @@ export function buildTile(config: TileConfig, s: number, h?: number): Part[] {
     case 'signpost':         return buildSignpost(rng, s, h);
     case 'bucket':           return buildBucket(rng, s);
     case 'gravestone':       return buildGravestoneProp(rng, s);
+    case 'interior_wall':    return buildInteriorWall(rng, s, th);
+    case 'rug':              return buildRug(rng, s);
     case 'stone_floor':
     default:                 return buildStoneFloor(rng, s, config.edges);
   }
 }
 
 export const TILE_KINDS: TileKind[] = ['stone_floor', 'dirt_floor', 'grass_floor', 'wood_floor', 'wood_wall', 'stone_wall', 'crystal_floor', 'wood_door', 'lava_floor', 'ice_floor', 'moss_floor', 'spike_trap', 'stairs_down', 'stairs_up', 'cracked_wall', 'pit', 'water_pool', 'underground_river', 'stalagmite', 'cobweb', 'barrel', 'chain', 'bone_pile', 'shop_counter', 'iron_gate', 'torch_bracket', 'altar', 'anvil', 'bed', 'table', 'bookshelf', 'pillar', 'fountain', 'tree', 'pine_tree', 'dead_tree', 'house', 'ruins', 'fence', 'water', 'bush', 'flowers', 'rock',
-  'lantern', 'crate', 'banner', 'statue', 'shelf', 'cauldron', 'chest', 'well', 'bench', 'planter', 'firewood', 'signpost', 'bucket', 'gravestone'];
+  'lantern', 'crate', 'banner', 'statue', 'shelf', 'cauldron', 'chest', 'well', 'bench', 'planter', 'firewood', 'signpost', 'bucket', 'gravestone',
+  'interior_wall', 'rug'];

@@ -147,13 +147,18 @@ export interface SpriteConfig {
   face?: boolean;
 
   /**
-   * Which way the character looks (for top-down movement).
+   * Which way the character looks (for top-down movement). 8-way compass:
    *   'front' (default) — faces the viewer, both eyes centered
-   *   'back'            — seen from behind; face hidden by hair
-   *   'left' | 'right'  — 3/4 profile; eyes shifted to that side
-   * Geometry-only (no buffer flipping), so it also works in animation frames.
+   *   'back'             — seen from behind; face hidden by hair
+   *   'left' | 'right'   — full profile lean; eyes shifted to that side
+   *   'front-left' | 'front-right' | 'back-left' | 'back-right' — diagonals,
+   *     a lighter lean between the cardinal and the profile
+   * Geometry-only (a torso-lean bias + eye shift, no buffer flipping), so it
+   * also works in animation frames. The lean is shared by every part that
+   * rotates with the upper body — torso, arms, head, cape, shield, weapon —
+   * so equipment turns together with the character in all 8 directions.
    */
-  facing?: 'front' | 'back' | 'left' | 'right';
+  facing?: 'front' | 'back' | 'left' | 'right' | 'front-left' | 'front-right' | 'back-left' | 'back-right';
 }
 
 /** RGBA pixel buffer — the engine's native, DOM-free output. */

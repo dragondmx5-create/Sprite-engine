@@ -1,10 +1,9 @@
-# Visual Roadmap
+# Visual Roadmap — all 5 phases done ✅
 
 Five phases toward a fuller UNDRAL overworld/interior visual set. Reference
 style is the current `examples/village-demo.ts` render (`preview/village.png`)
-— same palette, same tile/character proportions, every phase below must keep
-matching it. Each phase ends with a rendered test PNG and its checkbox here
-gets ticked before moving to the next one. Stop after Phase 1 for review.
+— same palette, same tile/character proportions, every phase below kept
+matching it. Each phase ends with a rendered test PNG, checked off below.
 
 ## Phase 1 — Autotiling ✅ done
 
@@ -86,20 +85,56 @@ Test output: dusk village scene with 3 lit lanterns.
       small village at dusk, 3 lit lanterns (by the door, at a path bend,
       by a bench) each visibly pushing back the gloom with a warm halo.
 
-## Phase 4 — Interior tiles
+## Phase 4 — Interior tiles ✅ done
 
 Stone + wood interior floors (already partly present), interior wall with
 cast shadow, and a rug/carpet tile. Test output: inside a house.
 
-- [ ] Interior wall variant with contact shadow.
-- [ ] Rug/carpet tile.
-- [ ] Test render: house interior.
+- [x] `interior_wall` — flat plaster wall (no brick/plank pattern, unlike
+      stone_wall/wood_wall) with a soft ambient-occlusion gradient rising
+      from the floor line, so an enclosed room reads as grounded. First pass
+      used a lone coarse-scale (5) grain texture on one big face box, which
+      reads as blotchy quilting at tile scale — fixed to a fine per-pixel
+      grain only, matching how every other builder pairs/tunes its texture
+      layers (see tiles.ts's `textured()` doc comment).
+- [x] `rug` — bordered carpet with a center medallion and fringe ticks, no
+      floor slab of its own (composites over wood_floor/stone_floor, same
+      convention as bush/flowers/fence).
+- [x] `npm run typecheck` and `npm run test` pass (127 checks).
+- [x] Test render: `examples/interior-demo.ts` → `preview/interior.png` —
+      inside a house: wood_floor main room with a rug and furniture, a
+      stone_floor kitchen corner, interior_wall perimeter with a door gap.
+      (First render passed a taller-than-tile `height` for the wall cells,
+      which bleeds into the row below since renderScene's tile loop blits
+      every cell at a fixed `col*TS,row*TS` with no per-cell height
+      allowance — fixed by keeping every grid cell, walls included, at the
+      grid's uniform tile height.)
 
-## Phase 5 — Equipment layers
+## Phase 5 — Equipment layers ✅ done
 
 Extend the character `Part[]` system so helmet, cape, shield render as
 separate layers over the body and rotate correctly across all 8 facing
 directions. Test output: one character with/without helmet in 8 directions.
 
-- [ ] Equipment layer system in `skeleton.ts`.
-- [ ] Test render: 8-direction with/without helmet comparison sheet.
+- [x] `SpriteConfig.facing` extended from 4 to 8 values: added
+      `front-left`/`front-right`/`back-left`/`back-right` alongside the
+      existing `front`/`back`/`left`/`right`.
+      `skeleton.ts`'s `FACING_INFO` maps each to a torso-lean bias, an
+      eye-look direction, and a front/back family — reusing the SAME
+      `pelvisRot` lean channel torso-lean animation already rides, so torso,
+      arms, head, cape, shield and weapon (everything on `xUpper`/`xHead`/
+      `xArm`) turn together as one rigid group automatically. No per-
+      equipment-piece rotation code needed.
+      Legs deliberately keep ignoring lean (pre-existing design, so a
+      static facing-turn doesn't fight the walk-cycle leg swing).
+- [x] All `facing === 'back'`-style checks (cape z-order, hair layer, eye
+      visibility, hood face-opening) generalized to the `isBackFacing`
+      family test so the 4 new diagonals behave correctly too.
+- [x] `npm run typecheck` and `npm run test` pass (existing front/back
+      determinism and back-compat checks unaffected).
+- [x] Test render: `examples/facing-demo.ts` → `preview/facing-8way.png` —
+      one character (sword + shield + cape + armor), with and without a
+      helmet, in a 3x3 grid covering all 8 directions plus front twice at
+      center. Lean magnitude tuned twice: first pass (±0.32 rad on left/
+      right) read as the upper body toppling over since legs don't lean;
+      settled on ±0.22/±0.13 rad, which clearly turns without looking broken.

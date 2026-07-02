@@ -42,7 +42,7 @@ src/
   skeleton.ts   — character body builder (head, torso, arms, legs, hair, outfit, weapons, shield)
   creatures.ts  — enemy builders: 11 kinds (insect, worm, crawler, fire_elemental, shadow, burrower, bat, slime, undead, golem, ghost)
   items.ts      — loot builders: 16 kinds (+ fish)
-  tiles.ts      — dungeon tile builders: 57 kinds (+ shop_counter, iron_gate, torch_bracket, altar, anvil, bed, table, bookshelf, pillar, fountain, lantern, crate, banner, statue, shelf, cauldron, chest, well, bench, planter, firewood, signpost, bucket, gravestone)
+  tiles.ts      — dungeon tile builders: 59 kinds (+ shop_counter, iron_gate, torch_bracket, altar, anvil, bed, table, bookshelf, pillar, fountain, lantern, crate, banner, statue, shelf, cauldron, chest, well, bench, planter, firewood, signpost, bucket, gravestone, interior_wall, rug)
   autotile.ts   — grid-level terrain edge blending: 4-bit N/E/S/W bitmask + 8-flag edge/corner computation from a neighbor predicate
   effects.ts    — VFX: slash, impact, projectiles, sparkle, shadow, flash, tint, status effects, water_ripple, smoke, drip + phase-driven builders
   ui.ts         — HUD generators: health/mana/XP bars, inventory slot, dialog box, damage number, button
@@ -104,6 +104,11 @@ generateSprite({ seed, size, supersample, weapon, shield, facing, outfit, hairSt
 //   weapon: 'none'|'dagger'|'sword'|'axe'|'staff'|'bow'|'mace'|'wand'|'hammer'|'fishing_rod'
 //   hairStyle: 'short'|'long'|'spiky'|'bun'|'bald'|'flowing'|'ponytail'
 //   palette: { skin, hair, cloth, leather, metal, hat, cape, pants, accent }
+//   facing: 'front'|'back'|'left'|'right'|'front-left'|'front-right'|'back-left'|'back-right'
+//     8-way compass. A per-facing torso-lean bias (skeleton.ts's FACING_INFO)
+//     feeds the same pelvisRot channel torso-lean animation uses, so helmet/
+//     cape/shield/weapon — anything riding xUpper/xHead/xArm — turns with
+//     the body automatically; no separate rotation per equipment piece.
 generateAnimation(config, 'walk'|'idle'|'attack'|'hit'|'death'|'cast'|'dodge')
 
 // Enemies (11 kinds — UNDRAL layer creatures + ambush types + undead)
@@ -114,13 +119,14 @@ generateEnemyAnimation(config, 'move'|'idle'|'death'|'hit'|'emerge')
 generateItem({ seed, size, kind: 'mushroom'|'crystal'|'dagger'|'torch'|'potion'|'coin'|'rune'|'chest'|'key'|'scroll'|'meat'|'lantern'|'ore'|'firestone'|'bone_shard'|'fish' })
 generateItemAnimation(config, 'idle'|'active'|'pickup')
 
-// Tiles (57 kinds — dungeon floors, walls, doors, traps, props, interiors, overworld)
+// Tiles (59 kinds — dungeon floors, walls, doors, traps, props, interiors, overworld)
 generateTile({ seed, size, kind: 'stone_floor'|'dirt_floor'|'grass_floor'|'wood_floor'|'wood_wall'|'stone_wall'|'crystal_floor'|'wood_door'
   |'lava_floor'|'ice_floor'|'moss_floor'|'spike_trap'|'stairs_down'|'stairs_up'|'cracked_wall'|'pit'
   |'water_pool'|'underground_river'|'stalagmite'|'cobweb'|'barrel'|'chain'|'bone_pile'
   |'shop_counter'|'iron_gate'|'torch_bracket'|'altar'|'anvil'|'bed'|'table'|'bookshelf'|'pillar'|'fountain'
   |'tree'|'pine_tree'|'dead_tree'|'house'|'ruins'|'fence'|'water'|'bush'|'flowers'|'rock'
-  |'lantern'|'crate'|'banner'|'statue'|'shelf'|'cauldron'|'chest'|'well'|'bench'|'planter'|'firewood'|'signpost'|'bucket'|'gravestone' })
+  |'lantern'|'crate'|'banner'|'statue'|'shelf'|'cauldron'|'chest'|'well'|'bench'|'planter'|'firewood'|'signpost'|'bucket'|'gravestone'
+  |'interior_wall'|'rug' })
 // dirt_floor/water take edges: {n,e,s,w,ne,nw,se,sw} — flag sides/corners that
 // touch grass to draw an organic grass fringe (soft path/shore transitions).
 // stone_floor takes the same edges shape blending against dirt instead.
@@ -139,6 +145,13 @@ generateTile({ seed, size, kind: 'stone_floor'|'dirt_floor'|'grass_floor'|'wood_
 // banner/shelf are wall-mounted (paint their own wall backdrop, like
 // bookshelf/torch_bracket); lantern/well/statue/signpost are freestanding
 // and take a `height` for their post/roof/pedestal, like tree/pillar.
+// interior_wall is a flat plaster wall (no brick/plank pattern) with a soft
+// ambient-occlusion gradient at its base — distinct from stone_wall/wood_wall.
+// rug has no floor slab of its own (composites over wood_floor/stone_floor,
+// same convention as bush/flowers/fence). Give every grid cell — including
+// walls — the SAME height as a normal tile; renderScene's tile loop blits
+// each at a fixed col*TS,row*TS with no per-cell height allowance, so an
+// oversized wall sprite bleeds into the row below it.
 
 // Autotiling (grid-level terrain blending, consumed by tiles.ts's edges)
 autotileMask(row, col, matches)   // classic 4-bit N/E/S/W bitmask, 0-15

@@ -48,6 +48,24 @@ function defaultColor(rng: RNG, kind: string): RGB {
   }
 }
 
+/**
+ * Per-facing static lean bias + eye-look direction + front/back family, for
+ * the 8-way compass. `lean` feeds the SAME `pelvisRot` channel torso lean
+ * animation already uses, so every part that rotates with the upper body
+ * (torso, arms, head, cape, shield, weapon) turns together automatically —
+ * no separate rotation math needed per equipment piece.
+ */
+const FACING_INFO: Record<string, { lean: number; look: -1 | 0 | 1; back: boolean }> = {
+  front:          { lean: 0,     look: 0,  back: false },
+  'front-right':  { lean: 0.13,  look: 1,  back: false },
+  right:          { lean: 0.22,  look: 1,  back: false },
+  'back-right':   { lean: 0.13,  look: 1,  back: true },
+  back:           { lean: 0,     look: 0,  back: true },
+  'back-left':    { lean: -0.13, look: -1, back: true },
+  left:           { lean: -0.22, look: -1, back: false },
+  'front-left':   { lean: -0.13, look: -1, back: false },
+};
+
 /** Transform spec for a part: joint rotation, then pelvis rotation, then translate. */
 interface Xform {
   jointAngle?: number; jx?: number; jy?: number;
@@ -92,6 +110,8 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
   const limbLen = (body.limbLength ?? 1) * (1 + rng.jitter(0.05));
   const stanceBase = ipose.stance ?? 1;
   const facing = config.facing ?? 'front';
+  const facingInfo = FACING_INFO[facing] ?? FACING_INFO.front;
+  const isBackFacing = facingInfo.back;
 
   const hairStyle = config.hairStyle ?? 'short';
   const hasCape = outfit.cape ?? false;
@@ -164,7 +184,7 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
   const rootX = snap(pose.rootX * unit);
   const rootY = snap(pose.rootY * unit);
   const headBob = snap(pose.headBob * unit);
-  const lean = pose.torsoLean;
+  const lean = pose.torsoLean + facingInfo.lean;
   const neckY = headCy + headHh;          // neck pivot (for head tilt)
   const pelX = cx, pelY = torsoBot;       // pelvis pivot (for torso lean)
 
@@ -207,8 +227,8 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
 
   // 0) CAPE — a flowing cloak behind the whole body. Drawn first so everything
   // overlaps it; leans with the torso. Flares slightly toward the hem.
-  // Exception: facing='back' → the cape is nearest the viewer, drawn after the body.
-  const drawCapeEarly = hasCape && facing !== 'back';
+  // Exception: back-facing family → the cape is nearest the viewer, drawn after the body.
+  const drawCapeEarly = hasCape && !isBackFacing;
   const placeCape = () => {
     const capeTop = shoulderY + s * 0.01;
     const capeBot = legCy + legHh * 0.4;
@@ -378,19 +398,19 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
   // hood can re-draw them after it paints over the face.
   const drawEyes = () => {
     const eyeY = headCy + headHh * 0.30;
-    const lookSign = facing === 'left' ? -1 : facing === 'right' ? 1 : 0;
+    const lookSign = facingInfo.look;
     const eyeDx = lookSign === 0 ? headHw * 0.42 : headHw * 0.26; // closer together in profile
     const shift = lookSign * headHw * 0.3;                        // whole pair leans that way
     const ew = headHw * 0.13, eh = headHh * 0.2;
     const eyeMat = { ...M.skin, name: 'eye', base: [40, 34, 44] as RGB, specStrength: 0.7, roughness: 0.3 };
     for (const dir of [-1, 1]) box(eyeMat, cx + shift + dir * eyeDx, eyeY, ew, eh, ew * 0.5, 0.4, xHead());
   };
-  if (config.face !== false && facing !== 'back') drawEyes();
+  if (config.face !== false && !isBackFacing) drawEyes();
 
   // 9) HAIR FRONT — chunky fringe across the forehead. When facing away, the
   // back of the head reads as a full hair mass covering the (hidden) face.
   const showHair = hairStyle !== 'bald' && !hairHidden;
-  if (showHair && facing === 'back') {
+  if (showHair && isBackFacing) {
     box(M.hair, cx, headCy + headHh * 0.04, headHw * 0.96, headHh * 0.9, headCorner * 0.85, 0.42, xHead());
   } else if (showHair) {
     // 3/4 view: wider cap covers the crown visible from above, sideburns frame face
@@ -449,7 +469,7 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
     }
     // face opening — the hood is opaque and covers the face drawn in steps 7-8,
     // so re-expose a skin window and the eyes inside the hood rim.
-    if (facing !== 'back') {
+    if (!isBackFacing) {
       box(M.skin, cx, headCy + headHh * 0.18, headHw * 0.7, headHh * 0.52, headHw * 0.32, 0.52, xHead());
       if (config.face !== false) drawEyes();
     }
@@ -498,8 +518,8 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
       cx + headHw * 0.5, headCy - headHh * 0.4, cx + headHw * 1.3, headCy + headHh * 0.5, 0.45, xHead());
   }
 
-  // 10b) CAPE for back-facing — drawn after hair/hat so it covers the body.
-  if (hasCape && facing === 'back') placeCape();
+  // 10b) CAPE for back-facing family — drawn after hair/hat so it covers the body.
+  if (hasCape && isBackFacing) placeCape();
 
   // 11) HELD WEAPON — drawn last (on top) so it stays visible during attack
   // swings. Uses the same shoulder rotation transform as the right arm, so the
