@@ -35,17 +35,31 @@ dirt↔stone) plus deterministic per-tile grass variation.
       with a dirt fringe bottom-right, visibly varied grass texture across
       the whole field.
 
-## Phase 2 — Prop library
+## Phase 2 — Prop library ✅ done
 
 15 new props on the existing SDF pipeline: lantern, barrel, crate, cloth
 banner, stone statue, shelf, cauldron, chest, well, bench, planter, firewood
 stack, wooden signpost, bucket, gravestone. Two new materials: matte metal,
 cloth. Test output: all props in one sprite sheet with shadows.
 
-- [ ] Props implemented in `tiles.ts` (or a new `props.ts`) with `bare`
-      support so they composite over any floor.
-- [ ] Two new material presets added to `materials.ts`.
-- [ ] Sprite-sheet test render.
+- [x] 14 new `TileKind`s in `tiles.ts` (`barrel` already existed — 15 total
+      as requested), all `bare`-compatible so they composite over any floor.
+      `chest`/`gravestone` are static dressing props, distinct from
+      items.ts's animated `chest` and loot.ts's plaque `gravestone`.
+- [x] `matteMetal` material added to `materials.ts` (dull ironwork —
+      cauldron, bucket, lantern cage, chest bands). `cloth` was already a
+      preset from Phase 0, reused as-is for the banner/planter blossoms.
+- [x] `examples/props-demo.ts` — sprite-sheet test render with drop shadows,
+      `preview/props-sheet.png`.
+- [x] `npm run typecheck` and `npm run test` pass (123 checks — the new
+      kinds are picked up automatically by `TILE_KINDS`).
+- [x] Fixed a latent bug found while building the sheet: `blitOver`
+      (`src/scene.ts`) corrupted output when given non-integer pixel
+      offsets (fractional `y` from the sheet's row-centering math silently
+      zeroed every composited pixel). Now rounds to the nearest whole pixel
+      before compositing. Existing call sites all happened to pass integers
+      so this was invisible until now; `village-demo.ts` re-rendered
+      byte-for-byte identical after the fix.
 
 ## Phase 3 — Lighting
 

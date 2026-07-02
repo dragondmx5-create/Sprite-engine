@@ -82,4 +82,13 @@ export const MATERIALS: Record<string, MatFactory> = {
     name: 'glass', base,
     specStrength: 0.95, roughness: 0.06, metallic: false, shadowCoolShift: 0.32,
   }),
+
+  // --- Prop materials (Phase 2) ------------------------------------------
+
+  // Worn ironwork: metallic response without the mirror-bright highlight of
+  // `metal` — cauldrons, buckets, tool heads, cage lanterns.
+  matteMetal: (base) => ({
+    name: 'matteMetal', base,
+    specStrength: 0.28, roughness: 0.55, metallic: true, shadowCoolShift: 0.30,
+  }),
 };

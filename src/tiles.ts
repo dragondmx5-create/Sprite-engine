@@ -11,7 +11,8 @@ import { RNG } from './rng';
 import { MATERIALS } from './materials';
 import { Part, roundedBox, circle, capsule, ellipse } from './shapes';
 
-export type TileKind = 'stone_floor' | 'dirt_floor' | 'grass_floor' | 'wood_floor' | 'wood_wall' | 'stone_wall' | 'crystal_floor' | 'wood_door' | 'lava_floor' | 'ice_floor' | 'moss_floor' | 'spike_trap' | 'stairs_down' | 'stairs_up' | 'cracked_wall' | 'pit' | 'water_pool' | 'underground_river' | 'stalagmite' | 'cobweb' | 'barrel' | 'chain' | 'bone_pile' | 'shop_counter' | 'iron_gate' | 'torch_bracket' | 'altar' | 'anvil' | 'bed' | 'table' | 'bookshelf' | 'pillar' | 'fountain' | 'tree' | 'pine_tree' | 'dead_tree' | 'house' | 'ruins' | 'fence' | 'water' | 'bush' | 'flowers' | 'rock';
+export type TileKind = 'stone_floor' | 'dirt_floor' | 'grass_floor' | 'wood_floor' | 'wood_wall' | 'stone_wall' | 'crystal_floor' | 'wood_door' | 'lava_floor' | 'ice_floor' | 'moss_floor' | 'spike_trap' | 'stairs_down' | 'stairs_up' | 'cracked_wall' | 'pit' | 'water_pool' | 'underground_river' | 'stalagmite' | 'cobweb' | 'barrel' | 'chain' | 'bone_pile' | 'shop_counter' | 'iron_gate' | 'torch_bracket' | 'altar' | 'anvil' | 'bed' | 'table' | 'bookshelf' | 'pillar' | 'fountain' | 'tree' | 'pine_tree' | 'dead_tree' | 'house' | 'ruins' | 'fence' | 'water' | 'bush' | 'flowers' | 'rock'
+  | 'lantern' | 'crate' | 'banner' | 'statue' | 'shelf' | 'cauldron' | 'chest' | 'well' | 'bench' | 'planter' | 'firewood' | 'signpost' | 'bucket' | 'gravestone';
 
 export interface TileConfig {
   kind?: TileKind;
@@ -1237,6 +1238,302 @@ function buildFountain(rng: RNG, s: number, _h?: number): Part[] {
   return parts;
 }
 
+// ---- Phase 2 prop library (village/dungeon dressing) ------------------------
+
+function buildCrate(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const floorCol = floorBase(parts, rng, s);
+  const woodCol: RGB = [122 + rng.jitter(10), 88 + rng.jitter(8), 52 + rng.jitter(6)];
+  pushEllipse(parts, MATERIALS.bone([floorCol[0] * 0.45, floorCol[1] * 0.45, floorCol[2] * 0.42] as RGB),
+    s * 0.52, s * 0.88, s * 0.22, s * 0.05, 0.05);
+  // Front face
+  pushBox(parts, MATERIALS.leather(woodCol), s * 0.5, s * 0.62, s * 0.22, s * 0.24, s * 0.02, 0.14);
+  const seam: RGB = [woodCol[0] * 0.72, woodCol[1] * 0.72, woodCol[2] * 0.68];
+  pushCapsule(parts, MATERIALS.leather(seam), s * 0.5, s * 0.40, s * 0.5, s * 0.84, Math.max(1, s * 0.005), 0.06);
+  // Corner battens
+  const batten = MATERIALS.leather([woodCol[0] * 0.6, woodCol[1] * 0.6, woodCol[2] * 0.56] as RGB);
+  pushBox(parts, batten, s * 0.30, s * 0.62, s * 0.02, s * 0.24, s * 0.006, 0.1);
+  pushBox(parts, batten, s * 0.70, s * 0.62, s * 0.02, s * 0.24, s * 0.006, 0.1);
+  // Top surface (foreshortened)
+  pushBox(parts, MATERIALS.leather([woodCol[0] + 14, woodCol[1] + 10, woodCol[2] + 6] as RGB),
+    s * 0.5, s * 0.40, s * 0.22, s * 0.06, s * 0.015, 0.12);
+  pushCapsule(parts, MATERIALS.leather(seam), s * 0.30, s * 0.40, s * 0.70, s * 0.40, Math.max(1, s * 0.004), 0.05);
+  pushCapsule(parts, MATERIALS.leather(seam), s * 0.5, s * 0.35, s * 0.5, s * 0.45, Math.max(1, s * 0.004), 0.05);
+  return parts;
+}
+
+function buildCauldron(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const floorCol = floorBase(parts, rng, s);
+  pushEllipse(parts, MATERIALS.bone([floorCol[0] * 0.45, floorCol[1] * 0.45, floorCol[2] * 0.42] as RGB),
+    s * 0.5, s * 0.88, s * 0.24, s * 0.05, 0.05);
+  const ironCol: RGB = [42 + rng.jitter(5), 40 + rng.jitter(4), 40 + rng.jitter(4)];
+  const legMat = MATERIALS.matteMetal(ironCol);
+  pushCapsule(parts, legMat, s * 0.36, s * 0.60, s * 0.30, s * 0.84, Math.max(1.2, s * 0.02), 0.3);
+  pushCapsule(parts, legMat, s * 0.64, s * 0.60, s * 0.70, s * 0.84, Math.max(1.2, s * 0.02), 0.3);
+  // Pot body
+  pushEllipse(parts, MATERIALS.matteMetal(ironCol), s * 0.5, s * 0.55, s * 0.24, s * 0.18, 0.5);
+  // Rim
+  pushEllipse(parts, MATERIALS.matteMetal([ironCol[0] + 18, ironCol[1] + 16, ironCol[2] + 16] as RGB),
+    s * 0.5, s * 0.40, s * 0.22, s * 0.06, 0.3);
+  // Bubbling brew
+  const brewCol: RGB = [90 + rng.jitter(20), 190 + rng.jitter(20), 110 + rng.jitter(15)];
+  pushEllipse(parts, MATERIALS.ember(brewCol), s * 0.5, s * 0.40, s * 0.16, s * 0.035, 0.5);
+  // Handles
+  pushCircle(parts, legMat, s * 0.28, s * 0.42, s * 0.025, 0.4);
+  pushCircle(parts, legMat, s * 0.72, s * 0.42, s * 0.025, 0.4);
+  return parts;
+}
+
+/** Closed storage chest — a static dressing prop (see items.ts's `chest` for the animated, openable loot version). */
+function buildChestProp(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const floorCol = floorBase(parts, rng, s);
+  pushEllipse(parts, MATERIALS.bone([floorCol[0] * 0.45, floorCol[1] * 0.45, floorCol[2] * 0.42] as RGB),
+    s * 0.52, s * 0.88, s * 0.22, s * 0.05, 0.05);
+  const woodCol: RGB = [120 + rng.jitter(10), 80 + rng.jitter(8), 46 + rng.jitter(6)];
+  // Body
+  pushBox(parts, MATERIALS.leather(woodCol), s * 0.5, s * 0.70, s * 0.20, s * 0.14, s * 0.02, 0.14);
+  // Domed lid, flush with the body's width so it reads as a cap, not a brim
+  const lidCol: RGB = [woodCol[0] + 10, woodCol[1] + 7, woodCol[2] + 4];
+  pushEllipse(parts, MATERIALS.leather(lidCol), s * 0.5, s * 0.54, s * 0.20, s * 0.09, 0.5);
+  pushBox(parts, MATERIALS.leather([lidCol[0] + 14, lidCol[1] + 10, lidCol[2] + 6] as RGB),
+    s * 0.5, s * 0.50, s * 0.17, s * 0.02, s * 0.01, 0.3);
+  // Iron corner bands wrapping over lid and body
+  const bandMat = MATERIALS.matteMetal([70, 64, 58]);
+  pushCapsule(parts, bandMat, s * 0.30, s * 0.46, s * 0.30, s * 0.84, Math.max(1, s * 0.014), 0.15);
+  pushCapsule(parts, bandMat, s * 0.70, s * 0.46, s * 0.70, s * 0.84, Math.max(1, s * 0.014), 0.15);
+  // Lock plate
+  pushBox(parts, bandMat, s * 0.5, s * 0.62, s * 0.035, s * 0.03, s * 0.008, 0.3);
+  pushCircle(parts, MATERIALS.gold([210, 175, 75] as RGB), s * 0.5, s * 0.62, s * 0.012, 0.5);
+  return parts;
+}
+
+function buildWell(rng: RNG, s: number, h?: number): Part[] {
+  const parts: Part[] = [];
+  const floorCol = floorBase(parts, rng, s);
+  const th = h ?? s * 1.7;
+  pushEllipse(parts, MATERIALS.bone([floorCol[0] * 0.45, floorCol[1] * 0.45, floorCol[2] * 0.42] as RGB),
+    s * 0.5, th * 0.94, s * 0.3, s * 0.06, 0.05);
+  const stoneCol: RGB = [96 + rng.jitter(6), 90 + rng.jitter(5), 82 + rng.jitter(5)];
+  pushEllipse(parts, MATERIALS.bone(stoneCol), s * 0.5, th * 0.68, s * 0.26, s * 0.16, 0.3);
+  pushEllipse(parts, MATERIALS.bone([stoneCol[0] * 0.5, stoneCol[1] * 0.5, stoneCol[2] * 0.48] as RGB),
+    s * 0.5, th * 0.62, s * 0.18, s * 0.08, 0.3);
+  pushEllipse(parts, MATERIALS.bone([stoneCol[0] + 16, stoneCol[1] + 13, stoneCol[2] + 10] as RGB),
+    s * 0.5, th * 0.58, s * 0.19, s * 0.09, 0.3);
+  // Roof posts + gabled roof
+  const postMat = MATERIALS.leather([102, 68, 42]);
+  pushCapsule(parts, postMat, s * 0.28, th * 0.90, s * 0.28, th * 0.30, Math.max(1.2, s * 0.03), 0.3);
+  pushCapsule(parts, postMat, s * 0.72, th * 0.90, s * 0.72, th * 0.30, Math.max(1.2, s * 0.03), 0.3);
+  pushBox(parts, MATERIALS.leather([120, 55, 40]), s * 0.5, th * 0.22, s * 0.34, th * 0.05, s * 0.02, 0.2);
+  pushCapsule(parts, postMat, s * 0.28, th * 0.34, s * 0.72, th * 0.34, Math.max(1.2, s * 0.018), 0.3);
+  // Rope + bucket dangling into the well
+  pushCapsule(parts, MATERIALS.bone([170, 150, 110]), s * 0.5, th * 0.36, s * 0.5, th * 0.55, Math.max(1, s * 0.008), 0.1);
+  pushBox(parts, MATERIALS.leather([110, 78, 46]), s * 0.5, th * 0.58, s * 0.05, s * 0.05, s * 0.01, 0.2);
+  return parts;
+}
+
+function buildBench(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const floorCol = floorBase(parts, rng, s);
+  const woodCol: RGB = [118 + rng.jitter(8), 82 + rng.jitter(6), 50 + rng.jitter(5)];
+  pushEllipse(parts, MATERIALS.bone([floorCol[0] * 0.45, floorCol[1] * 0.45, floorCol[2] * 0.42] as RGB),
+    s * 0.5, s * 0.88, s * 0.32, s * 0.05, 0.05);
+  const legMat = MATERIALS.leather([woodCol[0] * 0.7, woodCol[1] * 0.7, woodCol[2] * 0.66] as RGB);
+  pushCapsule(parts, legMat, s * 0.24, s * 0.62, s * 0.24, s * 0.84, Math.max(1, s * 0.014), 0.15);
+  pushCapsule(parts, legMat, s * 0.76, s * 0.62, s * 0.76, s * 0.84, Math.max(1, s * 0.014), 0.15);
+  // Seat
+  pushBox(parts, MATERIALS.leather(woodCol), s * 0.5, s * 0.62, s * 0.34, s * 0.045, s * 0.01, 0.15);
+  // Backrest
+  pushBox(parts, MATERIALS.leather([woodCol[0] - 6, woodCol[1] - 5, woodCol[2] - 4] as RGB),
+    s * 0.5, s * 0.40, s * 0.32, s * 0.04, s * 0.01, 0.15);
+  pushCapsule(parts, legMat, s * 0.24, s * 0.62, s * 0.24, s * 0.36, Math.max(1, s * 0.012), 0.15);
+  pushCapsule(parts, legMat, s * 0.76, s * 0.62, s * 0.76, s * 0.36, Math.max(1, s * 0.012), 0.15);
+  return parts;
+}
+
+function buildPlanter(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const floorCol = floorBase(parts, rng, s);
+  pushEllipse(parts, MATERIALS.bone([floorCol[0] * 0.45, floorCol[1] * 0.45, floorCol[2] * 0.42] as RGB),
+    s * 0.5, s * 0.86, s * 0.18, s * 0.045, 0.05);
+  const potCol: RGB = [140 + rng.jitter(10), 88 + rng.jitter(8), 60 + rng.jitter(6)];
+  pushBox(parts, MATERIALS.bone(potCol), s * 0.5, s * 0.72, s * 0.15, s * 0.12, s * 0.02, 0.2);
+  pushEllipse(parts, MATERIALS.bone([potCol[0] + 15, potCol[1] + 10, potCol[2] + 6] as RGB), s * 0.5, s * 0.60, s * 0.16, s * 0.03, 0.2);
+  pushEllipse(parts, MATERIALS.bone([45, 35, 28]), s * 0.5, s * 0.60, s * 0.13, s * 0.02, 0.15);
+  // Foliage + blossoms
+  const leafMat = MATERIALS.flesh([48 + rng.jitter(8), 100 + rng.jitter(10), 44 + rng.jitter(6)] as RGB);
+  pushCircle(parts, leafMat, s * 0.5, s * 0.46, s * 0.13, 0.3);
+  const palettes: RGB[] = [[225, 120, 150], [235, 200, 90], [150, 170, 235]];
+  for (let i = 0; i < 3; i++) {
+    const col = palettes[i % palettes.length];
+    const ang = (i / 3) * Math.PI * 2;
+    pushCircle(parts, MATERIALS.cloth(col), s * 0.5 + Math.cos(ang) * s * 0.08, s * 0.40 + Math.sin(ang) * s * 0.05, s * 0.03, 0.4);
+  }
+  return parts;
+}
+
+function buildFirewood(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const floorCol = floorBase(parts, rng, s);
+  pushEllipse(parts, MATERIALS.bone([floorCol[0] * 0.45, floorCol[1] * 0.45, floorCol[2] * 0.42] as RGB),
+    s * 0.5, s * 0.86, s * 0.26, s * 0.05, 0.05);
+  const barkCol: RGB = [92 + rng.jitter(10), 62 + rng.jitter(8), 40 + rng.jitter(6)];
+  const woodMat = MATERIALS.leather(barkCol);
+  const ringCol: RGB = [barkCol[0] + 40, barkCol[1] + 30, barkCol[2] + 18];
+  for (let i = 0; i < 4; i++) {
+    const lx = s * (0.2 + i * 0.2);
+    pushCapsule(parts, woodMat, lx - s * 0.09, s * 0.7, lx + s * 0.09, s * 0.7, s * 0.075, 0.6);
+    pushCircle(parts, MATERIALS.bone(ringCol), lx + s * 0.09, s * 0.7, s * 0.06, 0.4);
+  }
+  for (let i = 0; i < 3; i++) {
+    const lx = s * (0.3 + i * 0.2);
+    pushCapsule(parts, woodMat, lx - s * 0.09, s * 0.55, lx + s * 0.09, s * 0.55, s * 0.065, 0.6);
+    pushCircle(parts, MATERIALS.bone(ringCol), lx + s * 0.09, s * 0.55, s * 0.05, 0.4);
+  }
+  return parts;
+}
+
+function buildSignpost(rng: RNG, s: number, h?: number): Part[] {
+  const parts: Part[] = [];
+  const floorCol = floorBase(parts, rng, s);
+  const th = h ?? s * 1.6;
+  pushEllipse(parts, MATERIALS.bone([floorCol[0] * 0.45, floorCol[1] * 0.45, floorCol[2] * 0.42] as RGB),
+    s * 0.5, th * 0.96, s * 0.14, s * 0.04, 0.05);
+  const postCol: RGB = [110 + rng.jitter(8), 78 + rng.jitter(6), 48 + rng.jitter(5)];
+  pushCapsule(parts, MATERIALS.leather(postCol), s * 0.5, th * 0.94, s * 0.5, th * 0.34, Math.max(1.2, s * 0.035), 0.3);
+  const signCol: RGB = [130 + rng.jitter(8), 96 + rng.jitter(6), 60 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.leather(signCol), s * 0.5, th * 0.24, s * 0.28, th * 0.09, s * 0.015, 0.15);
+  pushCapsule(parts, MATERIALS.leather([signCol[0] * 0.75, signCol[1] * 0.75, signCol[2] * 0.72] as RGB),
+    s * 0.5 - s * 0.24, th * 0.24, s * 0.5 + s * 0.24, th * 0.24, Math.max(1, s * 0.004), 0.06);
+  // Carved mark
+  pushCapsule(parts, MATERIALS.bone([50, 44, 38]), s * 0.5 - s * 0.1, th * 0.24, s * 0.5 + s * 0.1, th * 0.24, Math.max(1, s * 0.01), 0.1);
+  return parts;
+}
+
+function buildBucket(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const floorCol = floorBase(parts, rng, s);
+  pushEllipse(parts, MATERIALS.bone([floorCol[0] * 0.45, floorCol[1] * 0.45, floorCol[2] * 0.42] as RGB),
+    s * 0.5, s * 0.86, s * 0.14, s * 0.035, 0.05);
+  const woodCol: RGB = [130 + rng.jitter(10), 92 + rng.jitter(8), 55 + rng.jitter(6)];
+  pushBox(parts, MATERIALS.leather(woodCol), s * 0.5, s * 0.68, s * 0.11, s * 0.14, s * 0.01, 0.16);
+  const bandMat = MATERIALS.matteMetal([120, 116, 110]);
+  pushBox(parts, bandMat, s * 0.5, s * 0.60, s * 0.12, s * 0.01, s * 0.004, 0.3);
+  pushBox(parts, bandMat, s * 0.5, s * 0.76, s * 0.115, s * 0.01, s * 0.004, 0.3);
+  pushEllipse(parts, MATERIALS.leather([woodCol[0] + 12, woodCol[1] + 8, woodCol[2] + 5] as RGB), s * 0.5, s * 0.56, s * 0.11, s * 0.025, 0.2);
+  pushCapsule(parts, bandMat, s * 0.40, s * 0.54, s * 0.5, s * 0.44, Math.max(1, s * 0.012), 0.3);
+  pushCapsule(parts, bandMat, s * 0.5, s * 0.44, s * 0.60, s * 0.54, Math.max(1, s * 0.012), 0.3);
+  return parts;
+}
+
+/** Standalone graveyard marker (see loot.ts's `gravestone` for the death-drop marker with a name plaque). */
+function buildGravestoneProp(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const floorCol = floorBase(parts, rng, s);
+  pushEllipse(parts, MATERIALS.bone([floorCol[0] * 0.45, floorCol[1] * 0.45, floorCol[2] * 0.42] as RGB),
+    s * 0.5, s * 0.88, s * 0.2, s * 0.05, 0.05);
+  const stoneCol: RGB = [96 + rng.jitter(6), 92 + rng.jitter(5), 88 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(stoneCol), s * 0.5, s * 0.58, s * 0.14, s * 0.26, s * 0.05, 0.4);
+  pushEllipse(parts, MATERIALS.bone(stoneCol), s * 0.5, s * 0.34, s * 0.14, s * 0.06, 0.4);
+  if (rng.float() > 0.4) {
+    pushCircle(parts, MATERIALS.flesh([50 + rng.jitter(8), 92 + rng.jitter(10), 42 + rng.jitter(6)] as RGB),
+      s * 0.5 + rng.jitter(s * 0.05), s * 0.62, s * 0.05, 0.15);
+  }
+  pushCapsule(parts, MATERIALS.bone([stoneCol[0] * 0.6, stoneCol[1] * 0.6, stoneCol[2] * 0.58] as RGB),
+    s * 0.44, s * 0.42, s * 0.48, s * 0.66, Math.max(1, s * 0.006), 0.1);
+  return parts;
+}
+
+function buildStatue(rng: RNG, s: number, h?: number): Part[] {
+  const parts: Part[] = [];
+  const floorCol = floorBase(parts, rng, s);
+  const th = h ?? s * 1.8;
+  pushEllipse(parts, MATERIALS.bone([floorCol[0] * 0.45, floorCol[1] * 0.45, floorCol[2] * 0.42] as RGB),
+    s * 0.5, th * 0.97, s * 0.2, s * 0.05, 0.05);
+  const stoneCol: RGB = [124 + rng.jitter(8), 120 + rng.jitter(6), 112 + rng.jitter(6)];
+  const stone = textured(MATERIALS.bone(stoneCol), { kind: 'grain', amount: 0.04 });
+  pushBox(parts, MATERIALS.bone([stoneCol[0] - 20, stoneCol[1] - 18, stoneCol[2] - 16] as RGB),
+    s * 0.5, th * 0.88, s * 0.18, th * 0.07, s * 0.02, 0.2);
+  pushCapsule(parts, stone, s * 0.5, th * 0.80, s * 0.5, th * 0.55, s * 0.09, 0.3);
+  pushCapsule(parts, stone, s * 0.5, th * 0.56, s * 0.5, th * 0.30, s * 0.11, 0.4);
+  pushCircle(parts, stone, s * 0.5, th * 0.22, s * 0.09, 0.5);
+  pushCapsule(parts, stone, s * 0.5, th * 0.38, s * 0.32, th * 0.24, Math.max(1.2, s * 0.045), 0.35);
+  pushCapsule(parts, MATERIALS.bone([stoneCol[0] * 0.7, stoneCol[1] * 0.72, stoneCol[2] * 0.68] as RGB),
+    s * 0.44, th * 0.30, s * 0.42, th * 0.70, Math.max(1, s * 0.012), 0.1);
+  return parts;
+}
+
+/** Wall-mounted storage shelf with jars/pots (see bookshelf for the book-lined version). */
+function buildShelf(rng: RNG, s: number, h?: number): Part[] {
+  const parts: Part[] = [];
+  const th = h ?? s;
+  const wallCol: RGB = [65 + rng.jitter(6), 60 + rng.jitter(5), 56 + rng.jitter(5)];
+  const topCol: RGB = [wallCol[0] - 12, wallCol[1] - 11, wallCol[2] - 10];
+  wallTopAndFront(parts, rng, s, th, topCol, wallCol);
+  const woodCol: RGB = [108 + rng.jitter(8), 74 + rng.jitter(6), 44 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.leather(woodCol), s * 0.5, th * 0.48, s * 0.42, th * 0.025, s * 0.01, 0.15);
+  pushBox(parts, MATERIALS.leather(woodCol), s * 0.5, th * 0.72, s * 0.42, th * 0.025, s * 0.01, 0.15);
+  const bracket = MATERIALS.matteMetal([90, 86, 80]);
+  pushCapsule(parts, bracket, s * 0.14, th * 0.48, s * 0.14, th * 0.72, Math.max(1, s * 0.008), 0.2);
+  pushCapsule(parts, bracket, s * 0.86, th * 0.48, s * 0.86, th * 0.72, Math.max(1, s * 0.008), 0.2);
+  const jarCols: RGB[] = [[90, 140, 150], [150, 110, 60], [110, 150, 90]];
+  for (let i = 0; i < 3; i++) {
+    pushBox(parts, MATERIALS.glass(jarCols[i]), s * (0.24 + i * 0.24), th * 0.42, s * 0.045, th * 0.045, s * 0.01, 0.3);
+  }
+  for (let i = 0; i < 2; i++) {
+    pushCircle(parts, MATERIALS.bone([150 + rng.jitter(10), 130 + rng.jitter(8), 100 + rng.jitter(8)] as RGB),
+      s * (0.32 + i * 0.32), th * 0.68, s * 0.04, 0.25);
+  }
+  return parts;
+}
+
+/** Wall-mounted cloth banner with an emblem. */
+function buildBanner(rng: RNG, s: number, h?: number): Part[] {
+  const parts: Part[] = [];
+  const th = h ?? s * 1.6;
+  const wallCol: RGB = [58 + rng.jitter(6), 54 + rng.jitter(5), 50 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(wallCol), s * 0.5, th * 0.5, s * 0.5, th * 0.5, 0, 0.05);
+  const poleMat = MATERIALS.matteMetal([110, 102, 90]);
+  pushCapsule(parts, poleMat, s * 0.2, th * 0.08, s * 0.8, th * 0.08, Math.max(1.2, s * 0.02), 0.4);
+  pushCircle(parts, poleMat, s * 0.18, th * 0.08, s * 0.025, 0.5);
+  pushCircle(parts, poleMat, s * 0.82, th * 0.08, s * 0.025, 0.5);
+  const clothCol: RGB = rng.float() > 0.5
+    ? [160 + rng.jitter(20), 40 + rng.jitter(10), 44 + rng.jitter(10)]
+    : [50 + rng.jitter(10), 70 + rng.jitter(15), 150 + rng.jitter(20)];
+  pushBox(parts, MATERIALS.cloth(clothCol), s * 0.5, th * 0.5, s * 0.30, th * 0.4, s * 0.02, 0.1);
+  // Swallowtail notch at the bottom
+  const notch: RGB = [clothCol[0] * 0.8, clothCol[1] * 0.8, clothCol[2] * 0.8];
+  pushCapsule(parts, MATERIALS.cloth(notch), s * 0.5 - s * 0.06, th * 0.86, s * 0.5, th * 0.98, Math.max(1, s * 0.012), 0.15);
+  pushCapsule(parts, MATERIALS.cloth(notch), s * 0.5 + s * 0.06, th * 0.86, s * 0.5, th * 0.98, Math.max(1, s * 0.012), 0.15);
+  // Emblem + fold shading
+  pushCircle(parts, MATERIALS.gold([210 + rng.jitter(15), 175 + rng.jitter(10), 80 + rng.jitter(10)] as RGB), s * 0.5, th * 0.36, s * 0.07, 0.4);
+  pushCapsule(parts, MATERIALS.cloth([clothCol[0] * 0.7, clothCol[1] * 0.7, clothCol[2] * 0.7] as RGB),
+    s * 0.38, th * 0.2, s * 0.38, th * 0.75, Math.max(1, s * 0.006), 0.08);
+  return parts;
+}
+
+/** Freestanding street lantern (see torch_bracket for the wall-mounted version). */
+function buildLantern(rng: RNG, s: number, h?: number): Part[] {
+  const parts: Part[] = [];
+  const floorCol = floorBase(parts, rng, s);
+  const th = h ?? s * 1.9;
+  pushEllipse(parts, MATERIALS.bone([floorCol[0] * 0.45, floorCol[1] * 0.45, floorCol[2] * 0.42] as RGB),
+    s * 0.5, th * 0.97, s * 0.14, s * 0.04, 0.05);
+  const poleMat = MATERIALS.matteMetal([70 + rng.jitter(6), 66 + rng.jitter(5), 60 + rng.jitter(5)] as RGB);
+  pushBox(parts, poleMat, s * 0.5, th * 0.90, s * 0.08, th * 0.03, s * 0.01, 0.25);
+  pushCapsule(parts, poleMat, s * 0.5, th * 0.88, s * 0.5, th * 0.30, Math.max(1.2, s * 0.03), 0.35);
+  const cageMat = MATERIALS.matteMetal([56, 52, 48]);
+  pushBox(parts, cageMat, s * 0.5, th * 0.20, s * 0.11, th * 0.10, s * 0.01, 0.25);
+  const glowCol: RGB = [255, 190 + rng.jitter(15), 100 + rng.jitter(15)];
+  pushBox(parts, MATERIALS.glass(glowCol), s * 0.5, th * 0.20, s * 0.08, th * 0.075, s * 0.008, 0.3);
+  pushEllipse(parts, poleMat, s * 0.5, th * 0.09, s * 0.09, s * 0.03, 0.3);
+  pushCircle(parts, poleMat, s * 0.5, th * 0.05, s * 0.02, 0.5);
+  // Warm glow halo (static hint; darkness.ts wires the actual light source)
+  pushCircle(parts, MATERIALS.ember([255, 200, 110]), s * 0.5, th * 0.20, s * 0.18, 0.12);
+  return parts;
+}
+
 // ---- trees, buildings, fences (3/4 perspective tall props) ------------------
 
 function buildTree(rng: RNG, s: number, h: number): Part[] {
@@ -1542,9 +1839,24 @@ export function buildTile(config: TileConfig, s: number, h?: number): Part[] {
     case 'bush':             return buildBush(rng, s);
     case 'flowers':          return buildFlowers(rng, s);
     case 'rock':             return buildRock(rng, s);
+    case 'lantern':          return buildLantern(rng, s, h);
+    case 'crate':            return buildCrate(rng, s);
+    case 'banner':           return buildBanner(rng, s, h);
+    case 'statue':           return buildStatue(rng, s, h);
+    case 'shelf':            return buildShelf(rng, s, h);
+    case 'cauldron':         return buildCauldron(rng, s);
+    case 'chest':            return buildChestProp(rng, s);
+    case 'well':             return buildWell(rng, s, h);
+    case 'bench':            return buildBench(rng, s);
+    case 'planter':          return buildPlanter(rng, s);
+    case 'firewood':         return buildFirewood(rng, s);
+    case 'signpost':         return buildSignpost(rng, s, h);
+    case 'bucket':           return buildBucket(rng, s);
+    case 'gravestone':       return buildGravestoneProp(rng, s);
     case 'stone_floor':
     default:                 return buildStoneFloor(rng, s, config.edges);
   }
 }
 
-export const TILE_KINDS: TileKind[] = ['stone_floor', 'dirt_floor', 'grass_floor', 'wood_floor', 'wood_wall', 'stone_wall', 'crystal_floor', 'wood_door', 'lava_floor', 'ice_floor', 'moss_floor', 'spike_trap', 'stairs_down', 'stairs_up', 'cracked_wall', 'pit', 'water_pool', 'underground_river', 'stalagmite', 'cobweb', 'barrel', 'chain', 'bone_pile', 'shop_counter', 'iron_gate', 'torch_bracket', 'altar', 'anvil', 'bed', 'table', 'bookshelf', 'pillar', 'fountain', 'tree', 'pine_tree', 'dead_tree', 'house', 'ruins', 'fence', 'water', 'bush', 'flowers', 'rock'];
+export const TILE_KINDS: TileKind[] = ['stone_floor', 'dirt_floor', 'grass_floor', 'wood_floor', 'wood_wall', 'stone_wall', 'crystal_floor', 'wood_door', 'lava_floor', 'ice_floor', 'moss_floor', 'spike_trap', 'stairs_down', 'stairs_up', 'cracked_wall', 'pit', 'water_pool', 'underground_river', 'stalagmite', 'cobweb', 'barrel', 'chain', 'bone_pile', 'shop_counter', 'iron_gate', 'torch_bracket', 'altar', 'anvil', 'bed', 'table', 'bookshelf', 'pillar', 'fountain', 'tree', 'pine_tree', 'dead_tree', 'house', 'ruins', 'fence', 'water', 'bush', 'flowers', 'rock',
+  'lantern', 'crate', 'banner', 'statue', 'shelf', 'cauldron', 'chest', 'well', 'bench', 'planter', 'firewood', 'signpost', 'bucket', 'gravestone'];

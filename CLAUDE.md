@@ -37,12 +37,12 @@ src/
   field.ts      — Felzenszwalb-Huttenlocher EDT -> inward distance -> fake normals
   color.ts      — tone ramp (5-stop warm/cool), quantize, smoothstep
   lighting.ts   — Blinn-Phong shading with painterly diffuse ramp
-  materials.ts  — 12 preset materials: skin, cloth, leather, metal, hair, chitin, flesh, gem, bone, ember, gold, glass
+  materials.ts  — 13 preset materials: skin, cloth, leather, metal, hair, chitin, flesh, gem, bone, ember, gold, glass, matteMetal
   engine.ts     — resolveRenderOpts + renderParts + generateSprite/Enemy/Item/Tile
   skeleton.ts   — character body builder (head, torso, arms, legs, hair, outfit, weapons, shield)
   creatures.ts  — enemy builders: 11 kinds (insect, worm, crawler, fire_elemental, shadow, burrower, bat, slime, undead, golem, ghost)
   items.ts      — loot builders: 16 kinds (+ fish)
-  tiles.ts      — dungeon tile builders: 30 kinds (+ shop_counter, iron_gate, torch_bracket, altar, anvil, bed, table, bookshelf, pillar, fountain)
+  tiles.ts      — dungeon tile builders: 57 kinds (+ shop_counter, iron_gate, torch_bracket, altar, anvil, bed, table, bookshelf, pillar, fountain, lantern, crate, banner, statue, shelf, cauldron, chest, well, bench, planter, firewood, signpost, bucket, gravestone)
   autotile.ts   — grid-level terrain edge blending: 4-bit N/E/S/W bitmask + 8-flag edge/corner computation from a neighbor predicate
   effects.ts    — VFX: slash, impact, projectiles, sparkle, shadow, flash, tint, status effects, water_ripple, smoke, drip + phase-driven builders
   ui.ts         — HUD generators: health/mana/XP bars, inventory slot, dialog box, damage number, button
@@ -114,12 +114,13 @@ generateEnemyAnimation(config, 'move'|'idle'|'death'|'hit'|'emerge')
 generateItem({ seed, size, kind: 'mushroom'|'crystal'|'dagger'|'torch'|'potion'|'coin'|'rune'|'chest'|'key'|'scroll'|'meat'|'lantern'|'ore'|'firestone'|'bone_shard'|'fish' })
 generateItemAnimation(config, 'idle'|'active'|'pickup')
 
-// Tiles (43 kinds — dungeon floors, walls, doors, traps, props, interiors, overworld)
+// Tiles (57 kinds — dungeon floors, walls, doors, traps, props, interiors, overworld)
 generateTile({ seed, size, kind: 'stone_floor'|'dirt_floor'|'grass_floor'|'wood_floor'|'wood_wall'|'stone_wall'|'crystal_floor'|'wood_door'
   |'lava_floor'|'ice_floor'|'moss_floor'|'spike_trap'|'stairs_down'|'stairs_up'|'cracked_wall'|'pit'
   |'water_pool'|'underground_river'|'stalagmite'|'cobweb'|'barrel'|'chain'|'bone_pile'
   |'shop_counter'|'iron_gate'|'torch_bracket'|'altar'|'anvil'|'bed'|'table'|'bookshelf'|'pillar'|'fountain'
-  |'tree'|'pine_tree'|'dead_tree'|'house'|'ruins'|'fence'|'water'|'bush'|'flowers'|'rock' })
+  |'tree'|'pine_tree'|'dead_tree'|'house'|'ruins'|'fence'|'water'|'bush'|'flowers'|'rock'
+  |'lantern'|'crate'|'banner'|'statue'|'shelf'|'cauldron'|'chest'|'well'|'bench'|'planter'|'firewood'|'signpost'|'bucket'|'gravestone' })
 // dirt_floor/water take edges: {n,e,s,w,ne,nw,se,sw} — flag sides/corners that
 // touch grass to draw an organic grass fringe (soft path/shore transitions).
 // stone_floor takes the same edges shape blending against dirt instead.
@@ -132,6 +133,12 @@ generateTile({ seed, size, kind: 'stone_floor'|'dirt_floor'|'grass_floor'|'wood_
 // their built-in stone slab when composited over an interior floor.
 // Cambria-style buildings: compose wood_wall perimeter + wood_floor interior
 // + bare furniture props in the scene tile grid (leave a wall gap as a door).
+// tiles.ts's chest/gravestone are static dressing props — distinct from
+// items.ts's animated openable `chest` ItemKind and loot.ts's named-plaque
+// `gravestone` LootMarkerKind (same word, different module, different job).
+// banner/shelf are wall-mounted (paint their own wall backdrop, like
+// bookshelf/torch_bracket); lantern/well/statue/signpost are freestanding
+// and take a `height` for their post/roof/pedestal, like tree/pillar.
 
 // Autotiling (grid-level terrain blending, consumed by tiles.ts's edges)
 autotileMask(row, col, matches)   // classic 4-bit N/E/S/W bitmask, 0-15

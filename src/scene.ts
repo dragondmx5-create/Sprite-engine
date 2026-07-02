@@ -51,15 +51,20 @@ export interface SceneLayer {
 export function blitOver(dst: SpriteBuffer, src: SpriteBuffer, ox: number, oy: number): void {
   const sw = src.width, sh = src.height;
   const dw = dst.width, dh = dst.height;
+  // Snap to whole pixels first. Using the raw fractional offset in the
+  // source-index math below produces negative/non-integer indices (reads
+  // undefined -> NaN -> every written pixel clamps to 0), silently blitting
+  // nothing whenever a caller passes a non-integer position.
+  const iox = Math.round(ox), ioy = Math.round(oy);
 
-  const x0 = Math.max(0, ox) | 0;
-  const y0 = Math.max(0, oy) | 0;
-  const x1 = Math.min(dw, ox + sw) | 0;
-  const y1 = Math.min(dh, oy + sh) | 0;
+  const x0 = Math.max(0, iox);
+  const y0 = Math.max(0, ioy);
+  const x1 = Math.min(dw, iox + sw);
+  const y1 = Math.min(dh, ioy + sh);
 
   for (let y = y0; y < y1; y++) {
     for (let x = x0; x < x1; x++) {
-      const si = ((y - oy) * sw + (x - ox)) * 4;
+      const si = ((y - ioy) * sw + (x - iox)) * 4;
       const sa = src.data[si + 3];
       if (sa === 0) continue;
 
