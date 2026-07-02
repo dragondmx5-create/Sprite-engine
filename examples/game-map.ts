@@ -7,7 +7,7 @@
 // =============================================================================
 import { deflateSync } from 'node:zlib';
 import { writeFileSync } from 'node:fs';
-import { generateTile, generateSprite, generateEnemy, generateItem, generateShadow, generateLightGlow, lanternLight } from '../src/index';
+import { generateTile, generateSprite, generateEnemy, generateItem, generateShadow, generateLightGlow, lanternLight, valueNoise2D } from '../src/index';
 import { renderScene, blitOver, type SceneEntity } from '../src/scene';
 import { autotileEdges, gridMatcher } from '../src/autotile';
 import type { SpriteBuffer } from '../src/types';
@@ -23,18 +23,67 @@ const kinds: string[] = new Array(COLS * ROWS).fill('grass_floor');
 const at = (r: number, c: number) => kinds[r * COLS + c];
 const set = (r: number, c: number, k: string) => { if (r >= 0 && r < ROWS && c >= 0 && c < COLS) kinds[r * COLS + c] = k; };
 
-// Main east-west road (stops before the river).
+/**
+ * An irregular, organic blob rather than a hard-edged rectangle — every
+ * hand-placed rect/circle region reads as an obviously "square" tool shape
+ * once you notice the pattern. A rasterized circle (even noise-perturbed)
+ * looks like a blocky diamond/cross at only 2-3 tiles of radius — too few
+ * grid cells for curvature to read at all — so this grows the patch as a
+ * deterministic random walk from the center instead (the standard technique
+ * for carving organic blobs/caves on a coarse tile grid): each step queues
+ * its still-grass neighbors with a chance to skip, so the frontier grows
+ * raggedly rather than as a filled disc. Never eats an already-placed
+ * road/plaza/building cell.
+ */
+function irregularPatch(kind: string, centerR: number, centerC: number, count: number, seed: number) {
+  let s = (seed >>> 0) || 1;
+  const rand = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+  const visited = new Set<string>();
+  const frontier: [number, number][] = [[Math.round(centerR), Math.round(centerC)]];
+  let placed = 0;
+  while (placed < count && frontier.length) {
+    const idx = Math.floor(rand() * frontier.length);
+    const [cr, cc] = frontier.splice(idx, 1)[0];
+    const key = `${cr},${cc}`;
+    if (visited.has(key)) continue;
+    visited.add(key);
+    if (cr < 0 || cr >= ROWS || cc < 0 || cc >= COLS) continue;
+    // Keep exploring PAST a cell that's already something else (e.g. the
+    // seed landing on a road tile) instead of dying there — otherwise a
+    // patch whose center happens to brush an existing feature silently
+    // places zero tiles.
+    if (at(cr, cc) === 'grass_floor') { set(cr, cc, kind); placed++; }
+    for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      if (rand() > 0.3) frontier.push([cr + dr, cc + dc]);
+    }
+  }
+}
+
+// Main east-west road (stops before the river) — width wanders between a
+// narrow 1-tile footpath and a wide 5-tile stretch instead of a uniform
+// band, so it doesn't read as one long straight rectangle.
 for (let c = 0; c < 26; c++) {
-  const center = 8 + Math.round(Math.sin(c * 0.4));
-  for (let r = center - 1; r <= center + 1; r++) set(r, c, 'dirt_floor');
+  const center = 8 + Math.round(Math.sin(c * 0.4) * 1.3);
+  const wn = valueNoise2D(c * 0.15, 3.3);
+  const half = wn > 0.72 ? 2 : wn < 0.22 ? 0 : 1;
+  for (let r = center - half; r <= center + half; r++) set(r, c, 'dirt_floor');
 }
 // North spur up to house A's door (col 19).
 for (let r = 6; r <= 8; r++) set(r, 19, 'dirt_floor');
 // River along the east edge.
 for (let r = 0; r < ROWS; r++) for (let c = 26; c < COLS; c++) set(r, c, 'water');
-// Stone plaza + connecting dirt spur (dirt<->stone transition).
-for (let r = 9; r <= 11; r++) for (let c = 3; c <= 6; c++) set(r, c, 'stone_floor');
+// Stone plaza: an irregular blob (not a hard rectangle) + connecting spur.
+irregularPatch('stone_floor', 10, 4.5, 18, 40);
 for (let r = 9; r <= 11; r++) set(r, 7, 'dirt_floor');
+// A handful of scattered worn-dirt clearings so the lawn isn't one uniform
+// grass_floor field — well clear of buildings/props. dirt_floor (not
+// moss_floor: its grey dungeon-stone palette reads as a broken hole cut
+// into the grass rather than a natural ground variant) picks up the same
+// autotiled grass fringe as the road, so these blend softly, not as hard
+// tile-edged rectangles.
+irregularPatch('dirt_floor', 1.5, 11, 14, 71);
+irregularPatch('dirt_floor', 5, 23.5, 8, 133);
+irregularPatch('dirt_floor', 13, 18, 11, 205);
 // House A interior (Cambria-style: interior_wall perimeter this time, to
 // show it alongside wood_wall which village-demo.ts already demonstrates).
 // The floor fills the WHOLE footprint, walls included — walls are added
