@@ -54,16 +54,25 @@ function defaultColor(rng: RNG, kind: string): RGB {
  * animation already uses, so every part that rotates with the upper body
  * (torso, arms, head, cape, shield, weapon) turns together automatically —
  * no separate rotation math needed per equipment piece.
+ *
+ * Kept deliberately small: pelvisRot pivots at the hips, and on a chibi the
+ * head/torso lever arm above that pivot is huge relative to body height, so
+ * even a modest angle swings the head sideways by a lot of pixels — and
+ * since legs don't share this rotation (xLeg ignores torso lean; a walk
+ * cycle needs legs free to swing independently of any facing lean), too
+ * large a lean reads as the upper body twisting loose from a planted lower
+ * body ("crooked") instead of a subtle facing bias. These values are the
+ * ceiling before that mismatch becomes visible.
  */
 const FACING_INFO: Record<string, { lean: number; look: -1 | 0 | 1; back: boolean }> = {
-  front:          { lean: 0,     look: 0,  back: false },
-  'front-right':  { lean: 0.06,  look: 1,  back: false },
-  right:          { lean: 0.11,  look: 1,  back: false },
-  'back-right':   { lean: 0.06,  look: 1,  back: true },
-  back:           { lean: 0,     look: 0,  back: true },
-  'back-left':    { lean: -0.06, look: -1, back: true },
-  left:           { lean: -0.11, look: -1, back: false },
-  'front-left':   { lean: -0.06, look: -1, back: false },
+  front:          { lean: 0,      look: 0,  back: false },
+  'front-right':  { lean: 0.025,  look: 1,  back: false },
+  right:          { lean: 0.045,  look: 1,  back: false },
+  'back-right':   { lean: 0.025,  look: 1,  back: true },
+  back:           { lean: 0,      look: 0,  back: true },
+  'back-left':    { lean: -0.025, look: -1, back: true },
+  left:           { lean: -0.045, look: -1, back: false },
+  'front-left':   { lean: -0.025, look: -1, back: false },
 };
 
 /** Transform spec for a part: joint rotation, then pelvis rotation, then translate. */
