@@ -11,17 +11,22 @@ import { RNG } from './rng';
 import { MATERIALS } from './materials';
 import { Part, roundedBox, circle, capsule, ellipse } from './shapes';
 
-export type TileKind = 'stone_floor' | 'dirt_floor' | 'grass_floor' | 'stone_wall' | 'crystal_floor' | 'wood_door' | 'lava_floor' | 'ice_floor' | 'moss_floor' | 'spike_trap' | 'stairs_down' | 'stairs_up' | 'cracked_wall' | 'pit' | 'water_pool' | 'underground_river' | 'stalagmite' | 'cobweb' | 'barrel' | 'chain' | 'bone_pile' | 'shop_counter' | 'iron_gate' | 'torch_bracket' | 'altar' | 'anvil' | 'bed' | 'table' | 'bookshelf' | 'pillar' | 'fountain' | 'tree' | 'pine_tree' | 'dead_tree' | 'house' | 'ruins' | 'fence';
+export type TileKind = 'stone_floor' | 'dirt_floor' | 'grass_floor' | 'stone_wall' | 'crystal_floor' | 'wood_door' | 'lava_floor' | 'ice_floor' | 'moss_floor' | 'spike_trap' | 'stairs_down' | 'stairs_up' | 'cracked_wall' | 'pit' | 'water_pool' | 'underground_river' | 'stalagmite' | 'cobweb' | 'barrel' | 'chain' | 'bone_pile' | 'shop_counter' | 'iron_gate' | 'torch_bracket' | 'altar' | 'anvil' | 'bed' | 'table' | 'bookshelf' | 'pillar' | 'fountain' | 'tree' | 'pine_tree' | 'dead_tree' | 'house' | 'ruins' | 'fence' | 'water' | 'bush' | 'flowers' | 'rock';
 
 export interface TileConfig {
   kind?: TileKind;
   seed?: number | string;
   /**
-   * Which sides of this tile touch grass (for path tiles). Flagged sides get
-   * an irregular grass fringe drawn over the edge so paths blend organically
-   * into the surrounding grass instead of ending in hard tile seams.
+   * Which sides/corners of this tile touch grass (for path/water tiles).
+   * Flagged sides get an irregular grass fringe drawn over the edge, flagged
+   * corners get a small grass tuft, so terrain blends organically instead of
+   * ending in hard tile seams. Corner flags are only needed when neither
+   * adjacent side is flagged (inner corners of a path bend).
    */
-  edges?: { n?: boolean; e?: boolean; s?: boolean; w?: boolean };
+  edges?: {
+    n?: boolean; e?: boolean; s?: boolean; w?: boolean;
+    ne?: boolean; nw?: boolean; se?: boolean; sw?: boolean;
+  };
 }
 
 // ---- helpers ----------------------------------------------------------------
@@ -158,6 +163,19 @@ function grassFringe(parts: Part[], rng: RNG, s: number, edges?: TileConfig['edg
   if (edges.s) blobs((t) => t, () => 1 + rng.jitter(0.03));
   if (edges.w) blobs(() => rng.jitter(0.03), (t) => t);
   if (edges.e) blobs(() => 1 + rng.jitter(0.03), (t) => t);
+  // Inner-corner tufts where only a diagonal neighbor is grass
+  const tuft = (px: number, py: number) => {
+    for (let i = 0; i < 3; i++) {
+      const j = rng.jitter(8);
+      const col: RGB = [58 + j, 92 + j, 40 + j];
+      pushCircle(parts, MATERIALS.flesh(col),
+        (px + rng.jitter(0.05)) * s, (py + rng.jitter(0.05)) * s, s * (0.045 + rng.float() * 0.035), 0.06);
+    }
+  };
+  if (edges.nw) tuft(0, 0);
+  if (edges.ne) tuft(1, 0);
+  if (edges.sw) tuft(0, 1);
+  if (edges.se) tuft(1, 1);
 }
 
 function buildDirtFloor(rng: RNG, s: number, edges?: TileConfig['edges']): Part[] {
@@ -348,6 +366,114 @@ function buildGrassFloor(rng: RNG, s: number): Part[] {
     const py = s * (0.12 + rng.float() * 0.76);
     pushCircle(parts, MATERIALS.flesh([92 + rng.jitter(8), 70 + rng.jitter(6), 46 + rng.jitter(5)] as RGB),
       px, py, s * (0.018 + rng.float() * 0.012), 0.1);
+  }
+  return parts;
+}
+
+/**
+ * Overworld water (lake/river). Sides flagged in `edges` touch grass and get
+ * a dark waterline plus a grass overhang so shores read organically.
+ */
+function buildWater(rng: RNG, s: number, edges?: TileConfig['edges']): Part[] {
+  const parts: Part[] = [];
+  // Tiny jitter only: adjacent water tiles must read as one continuous body,
+  // per-tile brightness differences show up as a checkerboard on flat water.
+  const j = rng.jitter(1.5);
+  const waterCol: RGB = [30 + j, 72 + j, 118 + j];
+  pushBox(parts, MATERIALS.glass(waterCol), s * 0.5, s * 0.5, s * 0.50, s * 0.50, 0, 0.06);
+  // Drifting highlight streaks (calm surface)
+  for (let i = 0; i < 3; i++) {
+    const wy = s * (0.15 + rng.float() * 0.7);
+    const wx = s * (0.1 + rng.float() * 0.5);
+    const len = s * (0.12 + rng.float() * 0.16);
+    pushCapsule(parts, MATERIALS.glass([waterCol[0] + 26, waterCol[1] + 30, waterCol[2] + 26] as RGB),
+      wx, wy, wx + len, wy, Math.max(1, s * 0.008), 0.1);
+  }
+  // Occasional sparkle
+  if (rng.float() > 0.5) {
+    pushCircle(parts, MATERIALS.glass([waterCol[0] + 60, waterCol[1] + 65, waterCol[2] + 55] as RGB),
+      s * (0.25 + rng.float() * 0.5), s * (0.25 + rng.float() * 0.5), Math.max(1, s * 0.014), 0.3);
+  }
+  // Dark waterline under the grass overhang on shore sides
+  if (edges) {
+    const lineCol: RGB = [waterCol[0] * 0.55, waterCol[1] * 0.55, waterCol[2] * 0.6];
+    const line = (ax: number, ay: number, bx: number, by: number) =>
+      pushCapsule(parts, MATERIALS.glass(lineCol), ax * s, ay * s, bx * s, by * s, Math.max(1.2, s * 0.02), 0.08);
+    if (edges.n) line(0, 0.03, 1, 0.03);
+    if (edges.s) line(0, 0.97, 1, 0.97);
+    if (edges.w) line(0.03, 0, 0.03, 1);
+    if (edges.e) line(0.97, 0, 0.97, 1);
+  }
+  grassFringe(parts, rng, s, edges);
+  return parts;
+}
+
+/** Leafy bush prop — overlapping foliage lobes, composited over terrain. */
+function buildBush(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5;
+  pushEllipse(parts, MATERIALS.bone([28, 26, 22]), cx, s * 0.82, s * 0.30, s * 0.06, 0.05);
+  const leafCol: RGB = [46 + rng.jitter(10), 98 + rng.jitter(12), 42 + rng.jitter(8)];
+  const leaf = MATERIALS.flesh(leafCol);
+  const leafDark = MATERIALS.flesh([leafCol[0] * 0.68, leafCol[1] * 0.72, leafCol[2] * 0.64] as RGB);
+  const leafLight = MATERIALS.flesh([leafCol[0] + 18, leafCol[1] + 22, leafCol[2] + 12] as RGB);
+  // Back mass, then side lobes, then light top
+  pushEllipse(parts, leafDark, cx, s * 0.62, s * 0.34, s * 0.24, 0.3);
+  pushCircle(parts, leaf, cx - s * 0.18, s * 0.62, s * 0.17, 0.32);
+  pushCircle(parts, leaf, cx + s * 0.17, s * 0.60, s * 0.16, 0.32);
+  pushCircle(parts, leaf, cx, s * 0.52, s * 0.19, 0.35);
+  pushCircle(parts, leafDark, cx + s * 0.05, s * 0.68, s * 0.10, 0.25);
+  pushCircle(parts, leafLight, cx - s * 0.07, s * 0.44, s * 0.10, 0.28);
+  // A few berries on some bushes
+  if (rng.float() > 0.5) {
+    for (let i = 0; i < 3; i++) {
+      pushCircle(parts, MATERIALS.gem([190 + rng.jitter(20), 50, 60]),
+        cx + rng.jitter(s * 0.22), s * (0.5 + rng.float() * 0.18), Math.max(1, s * 0.022), 0.6);
+    }
+  }
+  return parts;
+}
+
+/** Flower patch prop — a few colored blossoms with leaves, no base tile. */
+function buildFlowers(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const palettes: RGB[] = [[225, 210, 235], [235, 200, 90], [220, 120, 150], [150, 170, 235]];
+  const petal = palettes[Math.floor(rng.float() * palettes.length)];
+  const leafMat = MATERIALS.flesh([50 + rng.jitter(8), 100 + rng.jitter(10), 44 + rng.jitter(6)]);
+  const n = 3 + Math.floor(rng.float() * 3);
+  for (let i = 0; i < n; i++) {
+    const fx = s * (0.18 + rng.float() * 0.64);
+    const fy = s * (0.2 + rng.float() * 0.6);
+    // Leaf tuft under the blossom
+    pushCircle(parts, leafMat, fx + rng.jitter(s * 0.04), fy + s * 0.05, s * (0.06 + rng.float() * 0.025), 0.1);
+    // Petals — 4 dots around a warm center
+    const pr = Math.max(1.4, s * 0.035);
+    const fm = MATERIALS.cloth([petal[0] + rng.jitter(15), petal[1] + rng.jitter(15), petal[2] + rng.jitter(15)] as RGB);
+    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) {
+      pushCircle(parts, fm, fx + dx * pr * 1.1, fy + dy * pr * 1.1, pr, 0.3);
+    }
+    pushCircle(parts, MATERIALS.gold([230, 190, 70]), fx, fy, Math.max(1, pr * 0.7), 0.5);
+  }
+  return parts;
+}
+
+/** Boulder prop — rounded gray rock with moss, composited over terrain. */
+function buildRock(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5;
+  pushEllipse(parts, MATERIALS.bone([28, 26, 22]), cx + s * 0.02, s * 0.78, s * 0.26, s * 0.06, 0.05);
+  const rockCol: RGB = [104 + rng.jitter(10), 100 + rng.jitter(8), 94 + rng.jitter(8)];
+  const rock = MATERIALS.bone(rockCol);
+  // Main boulder + secondary lump
+  pushEllipse(parts, rock, cx, s * 0.58, s * 0.26, s * 0.20, 0.45);
+  pushEllipse(parts, rock, cx + s * 0.16, s * 0.66, s * 0.13, s * 0.10, 0.4);
+  // Crack line
+  pushCapsule(parts, MATERIALS.bone([rockCol[0] * 0.6, rockCol[1] * 0.6, rockCol[2] * 0.58] as RGB),
+    cx - s * 0.08, s * 0.48, cx - s * 0.02 + rng.jitter(s * 0.04), s * 0.64, Math.max(1, s * 0.008), 0.1);
+  // Moss cap on some rocks
+  if (rng.float() > 0.4) {
+    pushEllipse(parts, MATERIALS.flesh([56 + rng.jitter(8), 96 + rng.jitter(10), 44 + rng.jitter(6)]),
+      cx - s * 0.06, s * 0.44, s * 0.14, s * 0.06, 0.2);
   }
   return parts;
 }
@@ -1067,13 +1193,29 @@ function buildHouse(rng: RNG, s: number, h: number): Part[] {
   pushCircle(parts, MATERIALS.gold([190, 170, 70]), cx - s * 0.03, h * 0.78, Math.max(1, s * 0.014), 0.5);
   // Stone doorstep
   pushBox(parts, MATERIALS.bone([98, 92, 82]), cx - s * 0.10, h * 0.905, s * 0.13, h * 0.012, s * 0.006, 0.2);
-  // Window
-  pushBox(parts, MATERIALS.glass([80, 120, 160]), cx + s * 0.16, h * 0.54, s * 0.07, h * 0.06, s * 0.008, 0.3);
-  pushBox(parts, MATERIALS.leather([60, 45, 30]), cx + s * 0.16, h * 0.54, s * 0.08, s * 0.003, s * 0.002, 0.2);
-  pushBox(parts, MATERIALS.leather([60, 45, 30]), cx + s * 0.16, h * 0.54, s * 0.003, h * 0.07, s * 0.002, 0.2);
-  // Second window (left side)
-  pushBox(parts, MATERIALS.glass([80, 120, 160]), cx - s * 0.26, h * 0.54, s * 0.06, h * 0.05, s * 0.008, 0.3);
-  pushBox(parts, MATERIALS.leather([60, 45, 30]), cx - s * 0.26, h * 0.54, s * 0.003, h * 0.06, s * 0.002, 0.2);
+  // Windows — small warm-lit panes with wooden shutters (half-timber cottage)
+  const frameMat = MATERIALS.leather([60, 45, 30]);
+  const shutterMat = MATERIALS.leather([wallCol[0] * 0.5, wallCol[1] * 0.48, wallCol[2] * 0.45] as RGB);
+  const windowAt = (wx: number, wy: number) => {
+    // shutters first (behind the frame edges)
+    pushBox(parts, shutterMat, wx - s * 0.075, wy, s * 0.022, h * 0.048, s * 0.006, 0.25);
+    pushBox(parts, shutterMat, wx + s * 0.075, wy, s * 0.022, h * 0.048, s * 0.006, 0.25);
+    // warm glowing pane
+    pushBox(parts, MATERIALS.glass([200, 165, 90]), wx, wy, s * 0.05, h * 0.042, s * 0.008, 0.3);
+    // cross frame
+    pushBox(parts, frameMat, wx, wy, s * 0.055, s * 0.0035, s * 0.002, 0.2);
+    pushBox(parts, frameMat, wx, wy, s * 0.0035, h * 0.046, s * 0.002, 0.2);
+    // sill
+    pushBox(parts, frameMat, wx, wy + h * 0.055, s * 0.065, s * 0.006, s * 0.003, 0.2);
+  };
+  windowAt(cx + s * 0.16, h * 0.53);
+  windowAt(cx - s * 0.26, h * 0.53);
+  // Half-timber diagonal braces between the corner beams and the roof line
+  const brace = MATERIALS.leather([wallCol[0] * 0.55, wallCol[1] * 0.55, wallCol[2] * 0.52] as RGB);
+  pushCapsule(parts, brace, cx - s * 0.40, h * 0.44, cx - s * 0.30, h * 0.38, Math.max(1, s * 0.009), 0.15);
+  pushCapsule(parts, brace, cx + s * 0.32, h * 0.44, cx + s * 0.22, h * 0.38, Math.max(1, s * 0.009), 0.15);
+  // Lintel beam across the top of the wall
+  pushBox(parts, brace, cx - s * 0.04, h * 0.375, s * 0.38, h * 0.008, s * 0.004, 0.15);
   // Roof — large, prominent, muted shingle red
   const roofCol: RGB = [94 + rng.jitter(8), 46 + rng.jitter(6), 34 + rng.jitter(4)];
   const roof = MATERIALS.leather(roofCol);
@@ -1199,9 +1341,13 @@ export function buildTile(config: TileConfig, s: number, h?: number): Part[] {
     case 'house':            return buildHouse(rng, s, th);
     case 'ruins':            return buildRuins(rng, s, th);
     case 'fence':            return buildFence(rng, s);
+    case 'water':            return buildWater(rng, s, config.edges);
+    case 'bush':             return buildBush(rng, s);
+    case 'flowers':          return buildFlowers(rng, s);
+    case 'rock':             return buildRock(rng, s);
     case 'stone_floor':
     default:                 return buildStoneFloor(rng, s);
   }
 }
 
-export const TILE_KINDS: TileKind[] = ['stone_floor', 'dirt_floor', 'grass_floor', 'stone_wall', 'crystal_floor', 'wood_door', 'lava_floor', 'ice_floor', 'moss_floor', 'spike_trap', 'stairs_down', 'stairs_up', 'cracked_wall', 'pit', 'water_pool', 'underground_river', 'stalagmite', 'cobweb', 'barrel', 'chain', 'bone_pile', 'shop_counter', 'iron_gate', 'torch_bracket', 'altar', 'anvil', 'bed', 'table', 'bookshelf', 'pillar', 'fountain', 'tree', 'pine_tree', 'dead_tree', 'house', 'ruins', 'fence'];
+export const TILE_KINDS: TileKind[] = ['stone_floor', 'dirt_floor', 'grass_floor', 'stone_wall', 'crystal_floor', 'wood_door', 'lava_floor', 'ice_floor', 'moss_floor', 'spike_trap', 'stairs_down', 'stairs_up', 'cracked_wall', 'pit', 'water_pool', 'underground_river', 'stalagmite', 'cobweb', 'barrel', 'chain', 'bone_pile', 'shop_counter', 'iron_gate', 'torch_bracket', 'altar', 'anvil', 'bed', 'table', 'bookshelf', 'pillar', 'fountain', 'tree', 'pine_tree', 'dead_tree', 'house', 'ruins', 'fence', 'water', 'bush', 'flowers', 'rock'];
