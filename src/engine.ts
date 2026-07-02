@@ -19,6 +19,7 @@ import { buildTile, type TileConfig } from './tiles';
 import { distanceField, fieldToNormals } from './field';
 import { makeShadeContext, shade } from './lighting';
 import { clamp255, quantizeColor } from './color';
+import { fbm2D } from './noise';
 import type { Part } from './shapes';
 
 const DEFAULT_LIGHT: Light = {
@@ -125,10 +126,35 @@ export function renderParts(parts: Part[], opts: RenderOpts): SpriteBuffer {
       for (let x = 0; x < cw; x++) {
         const li = y * cw + x;
         if (!mask[li]) continue;
-        shade(ctx, nx[li], ny[li], nz[li], out);
+
+        // 'bump' layers perturb the NORMAL before shading, so light/shadow
+        // actually roll across the noise-driven relief — this is what a
+        // pure color-dither pass (grain/speckle) can never fake, and what
+        // makes a surface read as bumpy/creased instead of flat-lit-then-
+        // tinted. Applied first, then renormalized, then shaded once.
+        let pnx = nx[li], pny = ny[li], pnz = nz[li];
         if (texLayers) {
           for (let ti = 0; ti < texLayers.length; ti++) {
             const t = texLayers[ti];
+            if (t.kind !== 'bump') continue;
+            const cellX = texCellsX![ti], cellY = texCellsY![ti];
+            const px = (cx0 + x) / cellX, py = (cy0 + y) / cellY;
+            const salt = ti * 131;
+            // Two decorrelated fbm samples perturb the normal's x/y independently.
+            const dx = fbm2D(px, py, 3, salt) - 0.5;
+            const dy = fbm2D(px + 43.7, py + 91.3, 3, salt) - 0.5;
+            pnx += dx * t.amount;
+            pny += dy * t.amount;
+          }
+          const len = Math.hypot(pnx, pny, pnz) || 1;
+          pnx /= len; pny /= len; pnz /= len;
+        }
+        shade(ctx, pnx, pny, pnz, out);
+
+        if (texLayers) {
+          for (let ti = 0; ti < texLayers.length; ti++) {
+            const t = texLayers[ti];
+            if (t.kind === 'bump') continue;
             const salt = ti * 7919;
             const n = hash2((((cx0 + x) / texCellsX![ti]) | 0) + salt, (((cy0 + y) / texCellsY![ti]) | 0) + salt);
             // speckle: sparse strong dots; grain: dense gentle noise

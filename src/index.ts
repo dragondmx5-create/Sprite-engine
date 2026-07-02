@@ -20,8 +20,9 @@ import {
 } from './animation';
 
 export { generateSprite, generateEnemy, generateItem, generateTile };
-export type { SpriteBuffer, SpriteConfig, Material, RGB, Vec3 } from './types';
+export type { SpriteBuffer, SpriteConfig, Material, RGB, Vec3, TextureLayer } from './types';
 export { MATERIALS } from './materials';
+export { valueNoise2D, fbm2D } from './noise';
 
 // ---- Enemy / loot API (UNDRAL) ---------------------------------------------
 export { buildCreature, CREATURE_KINDS } from './creatures';

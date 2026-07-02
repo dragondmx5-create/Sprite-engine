@@ -36,6 +36,7 @@ src/
   shapes.ts     — SDF primitives: circle, ellipse, capsule, roundedBox, union, transforms + GPU SDF descriptors
   field.ts      — Felzenszwalb-Huttenlocher EDT -> inward distance -> fake normals
   color.ts      — tone ramp (5-stop warm/cool), quantize, smoothstep
+  noise.ts      — deterministic smooth value noise (valueNoise2D) + fractal sum (fbm2D), source for the 'bump' texture layer
   lighting.ts   — Blinn-Phong shading with painterly diffuse ramp
   materials.ts  — 13 preset materials: skin, cloth, leather, metal, hair, chitin, flesh, gem, bone, ember, gold, glass, matteMetal
   engine.ts     — resolveRenderOpts + renderParts + generateSprite/Enemy/Item/Tile
@@ -92,6 +93,7 @@ npx esbuild src/index.ts --bundle --format=iife --global-name=SpriteEngine --out
 - Item/enemy/effect builders take `(phase: 0..1, amp: 0..1)` for animation. Pure function of phase — no state.
 - Item animations: mushroom sways, crystal pulses, dagger glint slides, torch flame flickers, potion glows, coin spins, rune strokes pulse in sequence, chest lid opens, key pendulums, scroll seal pulses.
 - Effect animations: slash arc sweeps in, impact rays expand, sparkle rotates+pulses, fireball breathes+corona, magic bolt crackles.
+- Texture layers: `'grain'`/`'speckle'` only dither color post-shading — a surface stays perfectly flat-lit no matter how much is piled on. Add a `'bump'` layer (noise.ts's fbm2D perturbs the shading normal pre-shade) whenever a surface should read as having real relief instead of a flat plane with dots painted on — grass/dirt/stone floors, water, and any flowing cloth (cape, banner, rug, robe) all carry one. `amount` ~0.15-0.4; low `scale` (1.5-3) reads as soft creases/wrinkles, higher `scale` (6+) as fine roughness.
 
 ## API quick reference
 

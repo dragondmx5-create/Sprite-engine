@@ -74,7 +74,7 @@ function pushEllipse(parts: Part[], mat: Part['material'], cx: number, cy: numbe
  * order like paint passes — combine a broad mottle (scale 4-6), a mid
  * speckle, and a fine grain for hand-textured depth.
  */
-type Tex = { kind: 'grain' | 'speckle'; amount: number; scale?: number; sx?: number; sy?: number };
+type Tex = { kind: 'grain' | 'speckle' | 'bump'; amount: number; scale?: number; sx?: number; sy?: number };
 function textured(mat: Part['material'], ...layers: Tex[]): Part['material'] {
   return { ...mat, texture: layers };
 }
@@ -156,7 +156,7 @@ function buildStoneFloor(rng: RNG, s: number, edges?: TileConfig['edges']): Part
       const cy = gap + bw / 2 + row * (bw + gap) + rng.jitter(s * 0.02);
       const hw = bw / 2 - 1 + rng.jitter(s * 0.01);
       const hh = bw / 2 - 1 + rng.jitter(s * 0.01);
-      pushBox(parts, textured(MATERIALS.bone(base), { kind: 'grain', amount: 0.04, scale: 3 }, { kind: 'grain', amount: 0.05 }), cx, cy, hw, hh, s * 0.016, 0.16);
+      pushBox(parts, textured(MATERIALS.bone(base), { kind: 'grain', amount: 0.04, scale: 3 }, { kind: 'grain', amount: 0.05 }, { kind: 'bump', amount: 0.3, scale: 2.5 }), cx, cy, hw, hh, s * 0.016, 0.16);
       // Subtle surface variation
       if (rng.float() > 0.4) {
         pushCircle(parts, MATERIALS.bone([base[0] + 8, base[1] + 6, base[2] + 4] as RGB),
@@ -219,8 +219,8 @@ function edgeFringe(parts: Part[], rng: RNG, s: number, edges: TileConfig['edges
 
 function buildDirtFloor(rng: RNG, s: number, edges?: TileConfig['edges']): Part[] {
   const parts: Part[] = [];
-  const base: RGB = [112 + rng.jitter(14), 84 + rng.jitter(10), 56 + rng.jitter(8)];
-  pushBox(parts, textured(MATERIALS.flesh(base), { kind: 'grain', amount: 0.06, scale: 4 }, { kind: 'grain', amount: 0.06 }, { kind: 'speckle', amount: 0.04 }), s * 0.5, s * 0.5, s * 0.50, s * 0.50, s * 0.015, 0.08);
+  const base: RGB = [122 + rng.jitter(14), 80 + rng.jitter(10), 46 + rng.jitter(8)];
+  pushBox(parts, textured(MATERIALS.flesh(base), { kind: 'grain', amount: 0.06, scale: 4 }, { kind: 'grain', amount: 0.06 }, { kind: 'speckle', amount: 0.04 }, { kind: 'bump', amount: 0.28, scale: 3 }), s * 0.5, s * 0.5, s * 0.50, s * 0.50, s * 0.015, 0.08);
   // Darker dirt patches
   for (let i = 0; i < 2; i++) {
     const px = s * (0.2 + rng.float() * 0.6), py = s * (0.2 + rng.float() * 0.6);
@@ -393,14 +393,16 @@ function buildGrassFloor(rng: RNG, s: number): Part[] {
   // Small jitter only — large per-tile brightness differences read as a grid
   // over a big lawn; variation should come from the patches/blades instead.
   const j = rng.jitter(4);
-  const base: RGB = [58 + j, 92 + j, 40 + j];
-  // Speckled base — dense light/dark leaf dots do most of the "dense turf" work
-  pushBox(parts, textured(MATERIALS.flesh(base), { kind: 'grain', amount: 0.05, scale: 5 }, { kind: 'speckle', amount: 0.06 }, { kind: 'grain', amount: 0.03 }), s * 0.5, s * 0.5, s * 0.50, s * 0.50, 0, 0.08);
+  const base: RGB = [50 + j, 96 + j, 34 + j];
+  // Speckled base — dense light/dark leaf dots do most of the "dense turf"
+  // work, and a fine bump layer gives the turf actual noise-driven relief
+  // (light rolls across it) instead of a flat plane with dots painted on.
+  pushBox(parts, textured(MATERIALS.flesh(base), { kind: 'grain', amount: 0.05, scale: 5 }, { kind: 'speckle', amount: 0.06 }, { kind: 'grain', amount: 0.03 }, { kind: 'bump', amount: 0.22, scale: 1.6 }), s * 0.5, s * 0.5, s * 0.50, s * 0.50, 0, 0.08);
   // Darker grass patches
   for (let i = 0; i < 3; i++) {
     const px = s * (0.08 + rng.float() * 0.84);
     const py = s * (0.08 + rng.float() * 0.84);
-    pushCircle(parts, textured(MATERIALS.flesh([base[0] * 0.78, base[1] * 0.84, base[2] * 0.76] as RGB), { kind: 'speckle', amount: 0.05 }, { kind: 'grain', amount: 0.03 }),
+    pushCircle(parts, textured(MATERIALS.flesh([base[0] * 0.78, base[1] * 0.84, base[2] * 0.76] as RGB), { kind: 'speckle', amount: 0.05 }, { kind: 'grain', amount: 0.03 }, { kind: 'bump', amount: 0.2, scale: 1.6 }),
       px, py, s * (0.06 + rng.float() * 0.04), 0.06);
   }
   // Lighter grass highlights
@@ -586,7 +588,7 @@ function buildRug(rng: RNG, s: number, h?: number): Part[] {
   const borderCol: RGB = [rugCol[0] * 0.55, rugCol[1] * 0.55, rugCol[2] * 0.55];
   // Border frame, then a smaller inner field on top
   pushBox(parts, MATERIALS.cloth(borderCol), s * 0.5, th * 0.5, s * 0.44, th * 0.44, short * 0.05, 0.08);
-  pushBox(parts, textured(MATERIALS.cloth(rugCol), { kind: 'grain', amount: 0.04, scale: 4 }, { kind: 'speckle', amount: 0.02 }),
+  pushBox(parts, textured(MATERIALS.cloth(rugCol), { kind: 'grain', amount: 0.04, scale: 4 }, { kind: 'speckle', amount: 0.02 }, { kind: 'bump', amount: 0.25, scale: 2.5 }),
     s * 0.5, th * 0.5, s * 0.37, th * 0.37, short * 0.04, 0.08);
   // Center medallion
   const accentCol: RGB = [rugCol[0] + 30, rugCol[1] + 20, rugCol[2] + 10];
@@ -611,7 +613,7 @@ function buildWater(rng: RNG, s: number, edges?: TileConfig['edges']): Part[] {
   // per-tile brightness differences show up as a checkerboard on flat water.
   const j = rng.jitter(1.5);
   const waterCol: RGB = [30 + j, 72 + j, 118 + j];
-  pushBox(parts, textured(MATERIALS.glass(waterCol), { kind: 'grain', amount: 0.04, sx: 7, sy: 1 }, { kind: 'grain', amount: 0.025, sx: 3, sy: 1 }),
+  pushBox(parts, textured(MATERIALS.glass(waterCol), { kind: 'grain', amount: 0.04, sx: 7, sy: 1 }, { kind: 'grain', amount: 0.025, sx: 3, sy: 1 }, { kind: 'bump', amount: 0.18, sx: 8, sy: 2 }),
     s * 0.5, s * 0.5, s * 0.50, s * 0.50, 0, 0.06);
   // Drifting highlight streaks (calm surface)
   for (let i = 0; i < 3; i++) {
@@ -1578,7 +1580,7 @@ function buildBanner(rng: RNG, s: number, h?: number): Part[] {
   const clothCol: RGB = rng.float() > 0.5
     ? [160 + rng.jitter(20), 40 + rng.jitter(10), 44 + rng.jitter(10)]
     : [50 + rng.jitter(10), 70 + rng.jitter(15), 150 + rng.jitter(20)];
-  pushBox(parts, textured(MATERIALS.cloth(clothCol), { kind: 'grain', amount: 0.04, sx: 1, sy: 3 }, { kind: 'grain', amount: 0.03 }),
+  pushBox(parts, textured(MATERIALS.cloth(clothCol), { kind: 'grain', amount: 0.04, sx: 1, sy: 3 }, { kind: 'grain', amount: 0.03 }, { kind: 'bump', amount: 0.3, sx: 1, sy: 2.5 }),
     s * 0.5, th * 0.5, s * 0.30, th * 0.4, s * 0.02, 0.1);
   // Swallowtail notch at the bottom
   const notch: RGB = [clothCol[0] * 0.8, clothCol[1] * 0.8, clothCol[2] * 0.8];

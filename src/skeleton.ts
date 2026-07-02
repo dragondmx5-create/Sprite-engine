@@ -17,7 +17,7 @@
 // deterministic pose numbers differ. Pose application performs no RNG calls.
 // =============================================================================
 
-import type { RGB, SpriteConfig } from './types';
+import type { RGB, SpriteConfig, TextureLayer } from './types';
 import { RNG } from './rng';
 import { MATERIALS } from './materials';
 import { Part, SDF, roundedBox, capsule, circle, ellipse, union, rotatedAround, translated } from './shapes';
@@ -144,7 +144,9 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
     leather: MATERIALS.leather(col.leather),
     metal: MATERIALS.metal(col.metal),
     hat: MATERIALS[hatMatName](hat === 'crown' ? col.metal : col.hat),
-    cape: MATERIALS.cloth(capeCol),
+    // Bump layer gives the cape actual cloth-fold relief (light rolls across
+    // the wrinkles) instead of a flat plane of solid color.
+    cape: { ...MATERIALS.cloth(capeCol), texture: [{ kind: 'bump', amount: 0.3, scale: 2.2 }] as TextureLayer[] },
     accent: MATERIALS.cloth(accentCol),
     gold: MATERIALS.gold([220, 195, 80]),
     gem: MATERIALS.gem([150, 70, 210]),

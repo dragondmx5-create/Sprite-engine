@@ -42,14 +42,22 @@ export interface Material {
    * mid speckle for clumps, a fine grain (scale 1) for tooth.
    *   'grain'   — luminance noise per cell (dirt, stone, wood)
    *   'speckle' — sparse strong light/dark dots (grass, foliage)
+   *   'bump'    — perturbs the shading NORMAL (via noise.ts's smooth fbm),
+   *               not just color, so light/shadow actually roll across the
+   *               relief instead of a flat-lit pixel getting tinted. This is
+   *               what makes turf/rough stone/cloth folds read as real
+   *               surface relief rather than a flat plane with dots painted
+   *               on. `amount` ~0.15..0.5; lower scale (2-3) + higher amount
+   *               reads as soft creases/wrinkles, higher scale (6+) reads as
+   *               fine roughness.
    */
   texture?: TextureLayer | TextureLayer[];
 }
 
 /** One octave of the material texture stack. */
 export interface TextureLayer {
-  kind: 'grain' | 'speckle';
-  /** Strength of the luminance perturbation, ~0.03..0.15. */
+  kind: 'grain' | 'speckle' | 'bump';
+  /** Strength of the perturbation: luminance for grain/speckle (~0.03..0.15), normal displacement for bump (~0.15..0.5). */
   amount: number;
   /** Pixel cell size of the pattern (1 = every output pixel). Default 1. */
   scale?: number;
