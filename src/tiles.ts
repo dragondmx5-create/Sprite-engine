@@ -2136,46 +2136,86 @@ function buildDeadTree(rng: RNG, s: number, h: number): Part[] {
  * The right side wall is a darker vertical strip, which is what sells the
  * building as a volume with height rather than a flat facade.
  */
+/**
+ * Half-timber cottage: a whitewashed plaster wall carrying a dark exposed
+ * timber frame (corner posts, a mid rail, and diagonal braces — real Tudor
+ * framing, not two token corner marks), a stone foundation course the wall
+ * sits on, window flower boxes, and a proper gabled canopy over the door.
+ * The point of all of this is CONTRAST: earlier this was ~30 parts that were
+ * all variations of one flat brown, which reads as a single blob no matter
+ * how many seams you draw on it. Plaster-white against near-black timber
+ * against slate roof against grey stone is what makes a silhouette read as
+ * "built from parts" instead of "one shape with some scratches."
+ */
 function buildHouse(rng: RNG, s: number, h: number): Part[] {
   const parts: Part[] = [];
   const cx = s * 0.5;
-  // NO oval drop shadow: a building sits flush on the ground (an ellipse
-  // reads as floating). Just a thin contact line under the base, drawn
-  // slightly narrower than the walls so it never peeks past the corners.
 
-  const wallCol: RGB = [136 + rng.jitter(10), 104 + rng.jitter(8), 72 + rng.jitter(6)];
-  const wallDark: RGB = [wallCol[0] * 0.62, wallCol[1] * 0.62, wallCol[2] * 0.58];
-  const wall = textured(MATERIALS.leather(wallCol), { kind: 'grain', amount: 0.04, scale: 4 }, { kind: 'grain', amount: 0.05 });
+  const wallCol: RGB = [222 + rng.jitter(8), 210 + rng.jitter(7), 186 + rng.jitter(6)]; // whitewashed plaster
+  const wallDark: RGB = [wallCol[0] * 0.74, wallCol[1] * 0.74, wallCol[2] * 0.72];
+  const wall = textured(MATERIALS.bone(wallCol), { kind: 'grain', amount: 0.04, scale: 4 }, { kind: 'grain', amount: 0.03 });
+  const timberCol: RGB = [46 + rng.jitter(5), 33 + rng.jitter(4), 24 + rng.jitter(3)]; // near-black oak
+  const timber = textured(MATERIALS.leather(timberCol), { kind: 'grain', amount: 0.05, sx: 1, sy: 4 });
+  const timberLit: RGB = [timberCol[0] + 20, timberCol[1] + 15, timberCol[2] + 10];
+  // Computed here (not down with the rest of the roof) so the door canopy
+  // below can reuse the same tile color instead of inventing its own.
+  const roofCol: RGB = [96 + rng.jitter(8), 48 + rng.jitter(6), 36 + rng.jitter(4)];
 
   // --- WALLS (drawn first, roof overhangs them) --------------------------
   const wallTop = h * 0.42, wallBot = h * 0.92;
   const wallCy = (wallTop + wallBot) / 2, wallHh = (wallBot - wallTop) / 2;
-  // Thin ground contact line hugging the base of the walls
-  pushBox(parts, MATERIALS.bone([30, 28, 24]), cx + s * 0.005, wallBot + h * 0.006, s * 0.46, h * 0.008, s * 0.004, 0.05);
-  // Right side wall — in shade, sells the depth
-  pushBox(parts, textured(MATERIALS.leather(wallDark), { kind: 'grain', amount: 0.05 }),
-    cx + s * 0.40, wallCy, s * 0.075, wallHh, s * 0.008, 0.15);
-  // Vertical siding seams on the side wall
-  pushCapsule(parts, MATERIALS.leather([wallDark[0] * 0.8, wallDark[1] * 0.8, wallDark[2] * 0.8] as RGB),
-    cx + s * 0.40, wallTop + h * 0.02, cx + s * 0.40, wallBot - h * 0.02, Math.max(1, s * 0.004), 0.06);
-  // Front wall
-  pushBox(parts, wall, cx - s * 0.065, wallCy, s * 0.395, wallHh, s * 0.008, 0.2);
-  // Horizontal plank seams
-  const seam = MATERIALS.leather([wallCol[0] * 0.72, wallCol[1] * 0.72, wallCol[2] * 0.68] as RGB);
-  for (let i = 0; i < 3; i++) {
-    const sy = h * (0.52 + i * 0.115);
-    pushCapsule(parts, seam, cx - s * 0.45, sy, cx + s * 0.32, sy, Math.max(1, s * 0.004), 0.06);
+  // Stone foundation course the whole building sits on — a distinct grey
+  // material breaks the "everything is one wood/plaster family" sameness
+  // and reads as the building actually bearing weight on the ground.
+  const stoneCol: RGB = [126 + rng.jitter(8), 122 + rng.jitter(7), 114 + rng.jitter(6)];
+  pushBox(parts, textured(MATERIALS.bone(stoneCol), { kind: 'grain', amount: 0.05, scale: 3 }, { kind: 'speckle', amount: 0.03, scale: 2 }),
+    cx - s * 0.01, wallBot + h * 0.028, s * 0.475, h * 0.038, s * 0.006, 0.15);
+  for (let i = 0; i < 6; i++) {
+    const fx = cx - s * 0.46 + i * s * 0.185 + rng.jitter(s * 0.02);
+    pushCapsule(parts, MATERIALS.bone([stoneCol[0] * 0.6, stoneCol[1] * 0.6, stoneCol[2] * 0.58] as RGB),
+      fx, wallBot + h * 0.014, fx, wallBot + h * 0.042, Math.max(1, s * 0.004), 0.08);
   }
-  // Corner beams + half-timber braces
-  const beam = MATERIALS.leather([wallCol[0] * 0.52, wallCol[1] * 0.52, wallCol[2] * 0.49] as RGB);
-  pushBox(parts, beam, cx - s * 0.445, wallCy, s * 0.018, wallHh, s * 0.006, 0.2);
-  pushBox(parts, beam, cx + s * 0.315, wallCy, s * 0.018, wallHh, s * 0.006, 0.2);
-  pushCapsule(parts, beam, cx - s * 0.44, h * 0.52, cx - s * 0.34, h * 0.45, Math.max(1, s * 0.009), 0.15);
-  pushCapsule(parts, beam, cx + s * 0.31, h * 0.52, cx + s * 0.21, h * 0.45, Math.max(1, s * 0.009), 0.15);
+  // Thin ground contact line hugging the base of the foundation
+  pushBox(parts, MATERIALS.bone([28, 26, 22]), cx + s * 0.005, wallBot + h * 0.068, s * 0.48, h * 0.008, s * 0.004, 0.05);
 
-  // Windows — warm-lit panes with shutters
-  const frameMat = MATERIALS.leather([60, 45, 30]);
-  const shutterMat = MATERIALS.leather([wallCol[0] * 0.5, wallCol[1] * 0.48, wallCol[2] * 0.45] as RGB);
+  // Right side wall — in shade, sells the depth
+  pushBox(parts, textured(MATERIALS.bone(wallDark), { kind: 'grain', amount: 0.05 }),
+    cx + s * 0.40, wallCy, s * 0.075, wallHh, s * 0.008, 0.15);
+  pushBox(parts, timber, cx + s * 0.40, wallTop + h * 0.02, s * 0.014, h * 0.02, s * 0.004, 0.2);
+  pushBox(parts, timber, cx + s * 0.40, wallBot - h * 0.02, s * 0.014, h * 0.02, s * 0.004, 0.2);
+
+  // Front wall — plain plaster field; the timber frame goes on top
+  pushBox(parts, wall, cx - s * 0.065, wallCy, s * 0.395, wallHh, s * 0.008, 0.2);
+
+  // --- Exposed timber frame: corner posts, a mid rail, and a real brace
+  // pattern (not two stray diagonals) — this is what actually reads as
+  // "half-timber cottage" instead of "brown box with lines on it".
+  const postL = cx - s * 0.44, postR = cx + s * 0.30;
+  pushBox(parts, timber, postL, wallCy, s * 0.016, wallHh, s * 0.005, 0.2);
+  pushBox(parts, timber, postR, wallCy, s * 0.016, wallHh, s * 0.005, 0.2);
+  const midPost = cx - s * 0.07;
+  pushBox(parts, timber, midPost, wallCy, s * 0.013, wallHh, s * 0.004, 0.15);
+  const midRailY = h * 0.70;
+  pushBox(parts, timber, (postL + postR) / 2, midRailY, (postR - postL) / 2, s * 0.011, s * 0.004, 0.15);
+  // Herringbone braces filling the upper-left and upper-right panels between
+  // the posts and the mid rail — the signature Tudor X/V pattern.
+  const braceMat = timber;
+  pushCapsule(parts, braceMat, postL, wallTop + h * 0.015, midPost, midRailY, Math.max(1, s * 0.010), 0.15);
+  pushCapsule(parts, braceMat, midPost, wallTop + h * 0.015, postR, midRailY, Math.max(1, s * 0.010), 0.15);
+  // Lower panel gets a shallower pair of feet-braces instead of a full X,
+  // so the door/windows below still have clear open wall to sit on.
+  pushCapsule(parts, braceMat, postL, wallBot - h * 0.02, postL + s * 0.10, midRailY + h * 0.02, Math.max(1, s * 0.008), 0.12);
+  pushCapsule(parts, braceMat, postR, wallBot - h * 0.02, postR - s * 0.10, midRailY + h * 0.02, Math.max(1, s * 0.008), 0.12);
+  // A lit highlight edge along each post's left face (catching the same
+  // light the walls do) so the timber reads as round-ish stock, not a flat
+  // painted stripe.
+  pushCapsule(parts, MATERIALS.leather(timberLit), postL - s * 0.006, wallTop + h * 0.02, postL - s * 0.006, wallBot - h * 0.02, Math.max(1, s * 0.003), 0.1);
+
+  // Windows — warm-lit panes with shutters AND a small flower box beneath
+  const frameMat = MATERIALS.leather([50, 37, 26]);
+  const shutterMat = MATERIALS.leather([54 + rng.jitter(5), 92 + rng.jitter(6), 58 + rng.jitter(5)] as RGB);
+  const boxMat = MATERIALS.leather(timberCol);
+  const flowerCols: RGB[] = [[220, 90, 100], [235, 205, 90], [225, 235, 245]];
   const windowAt = (wx: number, wy: number) => {
     pushBox(parts, shutterMat, wx - s * 0.075, wy, s * 0.022, h * 0.042, s * 0.006, 0.25);
     pushBox(parts, shutterMat, wx + s * 0.075, wy, s * 0.022, h * 0.042, s * 0.006, 0.25);
@@ -2183,20 +2223,33 @@ function buildHouse(rng: RNG, s: number, h: number): Part[] {
     pushBox(parts, frameMat, wx, wy, s * 0.055, s * 0.0035, s * 0.002, 0.2);
     pushBox(parts, frameMat, wx, wy, s * 0.0035, h * 0.040, s * 0.002, 0.2);
     pushBox(parts, frameMat, wx, wy + h * 0.048, s * 0.065, s * 0.006, s * 0.003, 0.2);
+    // Flower box: a little wooden trough with a scatter of blossoms peeking over
+    pushBox(parts, boxMat, wx, wy + h * 0.064, s * 0.068, h * 0.014, s * 0.004, 0.2);
+    for (let i = 0; i < 4; i++) {
+      const fx2 = wx - s * 0.05 + i * s * 0.034 + rng.jitter(s * 0.008);
+      pushCircle(parts, MATERIALS.cloth(flowerCols[i % flowerCols.length]), fx2, wy + h * 0.056, Math.max(1, s * 0.011), 0.4);
+    }
   };
   windowAt(cx + s * 0.14, h * 0.60);
   windowAt(cx - s * 0.28, h * 0.60);
 
-  // Door with a small gabled canopy
+  // Door with a real gabled canopy on two support posts (the old comment
+  // promised this and never drew it) plus a stone doorstep.
   const doorCol: RGB = [95 + rng.jitter(8), 65 + rng.jitter(6), 42 + rng.jitter(5)];
   pushBox(parts, MATERIALS.leather(doorCol), cx - s * 0.08, h * 0.815, s * 0.095, h * 0.105, s * 0.012, 0.25);
-  // thin lintel beam over the door
-  pushBox(parts, frameMat, cx - s * 0.08, h * 0.705, s * 0.115, h * 0.010, s * 0.005, 0.15);
+  pushBox(parts, timber, cx - s * 0.08 - s * 0.05, h * 0.86, s * 0.008, h * 0.06, s * 0.003, 0.15); // door-frame jambs
+  pushBox(parts, timber, cx - s * 0.08 + s * 0.05, h * 0.86, s * 0.008, h * 0.06, s * 0.003, 0.15);
   pushCircle(parts, MATERIALS.gold([190, 170, 70]), cx - s * 0.015, h * 0.82, Math.max(1, s * 0.014), 0.5);
+  // Canopy: two little posts holding up a small peaked roof over the step
+  const canL = cx - s * 0.08 - s * 0.06, canR = cx - s * 0.08 + s * 0.06, canTopY = h * 0.735;
+  pushBox(parts, timber, canL, h * 0.78, s * 0.009, h * 0.05, s * 0.003, 0.15);
+  pushBox(parts, timber, canR, h * 0.78, s * 0.009, h * 0.05, s * 0.003, 0.15);
+  pushBox(parts, MATERIALS.leather([roofCol[0] + 10, roofCol[1] + 6, roofCol[2] + 4] as RGB),
+    cx - s * 0.08, canTopY, s * 0.11, h * 0.014, s * 0.006, 0.25);
+  pushEllipse(parts, MATERIALS.bone([32, 30, 26]), cx - s * 0.08, h * 0.775, s * 0.10, h * 0.01, 0.1); // canopy underside shadow
   pushBox(parts, MATERIALS.bone([98, 92, 82]), cx - s * 0.08, h * 0.925, s * 0.125, h * 0.012, s * 0.006, 0.2);
 
   // --- ROOF: sloped plane seen from above --------------------------------
-  const roofCol: RGB = [96 + rng.jitter(8), 48 + rng.jitter(6), 36 + rng.jitter(4)];
   const rowSeam = MATERIALS.leather([roofCol[0] * 0.62, roofCol[1] * 0.62, roofCol[2] * 0.62] as RGB);
   // Four shingle rows: wider + darker toward the eave (foreshortened slope
   // catching less sky light). Slight right offset per row = viewing angle.
