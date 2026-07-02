@@ -162,6 +162,25 @@ export function renderParts(parts: Part[], opts: RenderOpts): SpriteBuffer {
           for (let ti = 0; ti < texLayers.length; ti++) {
             const t = texLayers[ti];
             if (t.kind === 'bump') continue;
+            if (t.kind === 'bitmap') {
+              // Real hand-authored pixels, tiled 1:1 (one source pixel per
+              // OUTPUT pixel — same "share a value across supersamples"
+              // reasoning as grain/speckle's own cell hashing) and BLENDED
+              // into the already-shaded color rather than replacing it, so
+              // the SDF bevel's own light/shadow still reads through and
+              // the surface doesn't look like a flat image pasted onto a
+              // rounded shape.
+              const bm = t.bitmap;
+              if (!bm) continue;
+              const bx = ((cx0 + x) / ss | 0) % bm.width;
+              const by = ((cy0 + y) / ss | 0) % bm.height;
+              const bi = (by * bm.width + bx) * 4;
+              const a = t.amount;
+              out[0] = out[0] * (1 - a) + bm.data[bi] * a;
+              out[1] = out[1] * (1 - a) + bm.data[bi + 1] * a;
+              out[2] = out[2] * (1 - a) + bm.data[bi + 2] * a;
+              continue;
+            }
             const salt = ti * 7919;
             const n = hash2((((cx0 + x) / texCellsX![ti]) | 0) + salt, (((cy0 + y) / texCellsY![ti]) | 0) + salt);
             // speckle: sparse strong dots; grain: dense gentle noise

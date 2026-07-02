@@ -11,6 +11,7 @@ import { RNG } from './rng';
 import { MATERIALS } from './materials';
 import { Part, roundedBox, circle, capsule, ellipse, union } from './shapes';
 import { fbm2D } from './noise';
+import { BITMAP_TEXTURES } from './textures';
 
 export type TileKind = 'stone_floor' | 'dirt_floor' | 'grass_floor' | 'wood_floor' | 'wood_wall' | 'stone_wall' | 'crystal_floor' | 'wood_door' | 'lava_floor' | 'ice_floor' | 'moss_floor' | 'spike_trap' | 'stairs_down' | 'stairs_up' | 'cracked_wall' | 'pit' | 'water_pool' | 'underground_river' | 'stalagmite' | 'cobweb' | 'barrel' | 'chain' | 'bone_pile' | 'shop_counter' | 'iron_gate' | 'torch_bracket' | 'altar' | 'anvil' | 'bed' | 'table' | 'bookshelf' | 'pillar' | 'fountain' | 'tree' | 'pine_tree' | 'dead_tree' | 'house' | 'ruins' | 'fence' | 'water' | 'bush' | 'flowers' | 'rock'
   | 'lantern' | 'crate' | 'banner' | 'statue' | 'shelf' | 'cauldron' | 'chest' | 'well' | 'bench' | 'planter' | 'firewood' | 'signpost' | 'bucket' | 'gravestone'
@@ -75,7 +76,7 @@ function pushEllipse(parts: Part[], mat: Part['material'], cx: number, cy: numbe
  * order like paint passes — combine a broad mottle (scale 4-6), a mid
  * speckle, and a fine grain for hand-textured depth.
  */
-type Tex = { kind: 'grain' | 'speckle' | 'bump'; amount: number; scale?: number; sx?: number; sy?: number };
+type Tex = { kind: 'grain' | 'speckle' | 'bump' | 'bitmap'; amount: number; scale?: number; sx?: number; sy?: number; bitmap?: { width: number; height: number; data: Uint8ClampedArray } };
 function textured(mat: Part['material'], ...layers: Tex[]): Part['material'] {
   return { ...mat, texture: layers };
 }
@@ -157,7 +158,11 @@ function buildStoneFloor(rng: RNG, s: number, edges?: TileConfig['edges']): Part
       const cy = gap + bw / 2 + row * (bw + gap) + rng.jitter(s * 0.02);
       const hw = bw / 2 - 1 + rng.jitter(s * 0.01);
       const hh = bw / 2 - 1 + rng.jitter(s * 0.01);
-      pushBox(parts, textured(MATERIALS.bone(base), { kind: 'grain', amount: 0.04, scale: 3 }, { kind: 'grain', amount: 0.05 }, { kind: 'bump', amount: 0.3, scale: 2.5 }), cx, cy, hw, hh, s * 0.016, 0.16);
+      // TRIAL: a real hand-painted cobblestone bitmap blended in at 0.55
+      // opacity — bump still perturbs the normal for actual 3D relief (a
+      // bitmap layer only touches color, per types.ts), and grain is
+      // dropped since the bitmap already carries per-pixel structure.
+      pushBox(parts, textured(MATERIALS.bone(base), { kind: 'bitmap', amount: 0.55, bitmap: BITMAP_TEXTURES.cobblestone }, { kind: 'bump', amount: 0.3, scale: 2.5 }), cx, cy, hw, hh, s * 0.016, 0.16);
       // Subtle surface variation
       if (rng.float() > 0.4) {
         pushCircle(parts, MATERIALS.bone([base[0] + 8, base[1] + 6, base[2] + 4] as RGB),

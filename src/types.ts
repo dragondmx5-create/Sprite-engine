@@ -50,16 +50,27 @@ export interface Material {
    *               on. `amount` ~0.15..0.5; lower scale (2-3) + higher amount
    *               reads as soft creases/wrinkles, higher scale (6+) reads as
    *               fine roughness.
+   *   'bitmap'  — tiles a small embedded RGBA source (see textures.ts) over
+   *               the shape and blends it into the ALREADY-SHADED pixel at
+   *               `amount` opacity. Unlike the others this carries real hue
+   *               variation, not just luminance — hand-authored/photographed
+   *               texture has irregularity procedural noise can't fake. It's
+   *               a blend, not a paste: the SDF bevel's own light/shadow
+   *               still shows through underneath, so it doesn't look stamped
+   *               flat onto a rounded shape. Opt-in and tiny (one 16-32px
+   *               source tile) — everything else on this page stays pure
+   *               math with zero external assets; only parts that explicitly
+   *               reach for a bitmap layer pull one in.
    */
   texture?: TextureLayer | TextureLayer[];
 }
 
 /** One octave of the material texture stack. */
 export interface TextureLayer {
-  kind: 'grain' | 'speckle' | 'bump';
-  /** Strength of the perturbation: luminance for grain/speckle (~0.03..0.15), normal displacement for bump (~0.15..0.5). */
+  kind: 'grain' | 'speckle' | 'bump' | 'bitmap';
+  /** Strength of the perturbation: luminance for grain/speckle (~0.03..0.15), normal displacement for bump (~0.15..0.5), blend opacity for bitmap (~0.5..0.9). */
   amount: number;
-  /** Pixel cell size of the pattern (1 = every output pixel). Default 1. */
+  /** Pixel cell size of the pattern (1 = every output pixel). Default 1. Unused for 'bitmap' (uses the source's own native size). */
   scale?: number;
   /**
    * Anisotropic cell overrides — stretch the pattern along one axis.
@@ -68,6 +79,8 @@ export interface TextureLayer {
    */
   sx?: number;
   sy?: number;
+  /** Only for kind: 'bitmap' — a small tileable RGBA source, sampled 1:1 (one source pixel per output pixel) and wrapped at its own width/height. */
+  bitmap?: { width: number; height: number; data: Uint8ClampedArray };
 }
 
 /** A light, expressed as the direction FROM the surface TOWARD the light. */
