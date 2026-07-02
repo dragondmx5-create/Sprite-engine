@@ -178,9 +178,10 @@ isVisible(entity, cameraX, cameraY, viewW, viewH)  // viewport culling
 
 // Darkness / fog-of-war (UNDRAL "darkness = death" mechanic)
 generateDarknessOverlay(width, height, lights, ambientLight)  // black overlay with light holes
-generateLightGlow(width, height, lights)                      // colored light tint layer
+generateLightGlow(width, height, lights, strength?)           // colored light tint layer (strength default 0.3; go lower, ~0.12-0.18, for a daytime/dusk tint with no darkness overlay)
 isInDarkness(x, y, lights, ambientLight, threshold)           // point-in-darkness check
 torchFlicker(phase, seed)                                     // deterministic radius wobble
+lanternLight(x, y, { radius?, intensity?, color?, phase?, seed? })  // warm small-radius LightSource for a lit lantern prop; feeds both the overlay and the glow from one call
 
 // Sprite caching (LRU, default 512 entries)
 cachedSprite(config), cachedEnemy(config), cachedItem(config), cachedTile(config)

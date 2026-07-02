@@ -61,15 +61,30 @@ cloth. Test output: all props in one sprite sheet with shadows.
       so this was invisible until now; `village-demo.ts` re-rendered
       byte-for-byte identical after the fix.
 
-## Phase 3 — Lighting
+## Phase 3 — Lighting ✅ done
 
 Extend `darkness.ts`: lanterns become warm-colored light sources (small
 radius, orange tint) that also cast a soft daytime tint onto nearby grass.
 Test output: dusk village scene with 3 lit lanterns.
 
-- [ ] `darkness.ts` light-source model extended for daytime tint blending.
-- [ ] Lantern prop (Phase 2) wired as a light source.
-- [ ] Test render: dusk scene, 3 lanterns lit.
+- [x] `lanternLight(x, y, opts)` added to `darkness.ts` — warm, small-radius
+      `LightSource` factory (default orange `[255,176,86]`, radius 46,
+      optional deterministic `torchFlicker`-driven wobble via `phase`/`seed`).
+      One call feeds both the night darkness overlay and a standalone glow.
+- [x] `generateLightGlow` gained an optional `strength` param (default 0.3,
+      unchanged/back-compat) so the same glow function that punches torch
+      holes at night can also lay a gentle ~0.2-strength warm tint on a
+      daytime/dusk scene with no darkness overlay at all.
+- [x] Phase 2's `lantern` prop wired as an actual light source: its screen
+      position feeds `lanternLight`, and the resulting `LightSource` drives
+      both `generateLightGlow` (bloom) and `generateDarknessOverlay` (dusk
+      gloom) composited on top of the rendered scene.
+- [x] `npm run typecheck` and `npm run test` pass; `village-demo.ts` and
+      `props-demo.ts` re-render unchanged (no regressions from the
+      `darkness.ts`/`index.ts` additions).
+- [x] Test render: `examples/dusk-demo.ts` → `preview/dusk-village.png` —
+      small village at dusk, 3 lit lanterns (by the door, at a path bend,
+      by a bench) each visibly pushing back the gloom with a warm halo.
 
 ## Phase 4 — Interior tiles
 

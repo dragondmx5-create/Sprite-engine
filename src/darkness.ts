@@ -78,12 +78,17 @@ export function generateDarknessOverlay(
 /**
  * Generate a colored light glow buffer (additive layer).
  * Used for torch flicker, lava glow, crystal shimmer — drawn UNDER the
- * darkness overlay so it tints the scene within the lit area.
+ * darkness overlay so it tints the scene within the lit area. `strength`
+ * scales how strong the tint reads (default 0.3, same as before this param
+ * existed); pass something gentler (~0.12-0.18) to blit a light source's
+ * glow onto a full-daylight scene without a darkness overlay at all — e.g.
+ * a lit lantern warming the grass around it at dusk.
  */
 export function generateLightGlow(
   width: number,
   height: number,
   lights: LightSource[],
+  strength = 0.3,
 ): SpriteBuffer {
   const data = new Uint8ClampedArray(width * height * 4);
 
@@ -101,7 +106,7 @@ export function generateLightGlow(
 
         if (dist < radius) {
           const t = dist / radius;
-          const falloff = (1 - t * t) * intensity * 0.3;
+          const falloff = (1 - t * t) * intensity * strength;
           r += color[0] * falloff;
           g += color[1] * falloff;
           b += color[2] * falloff;
@@ -154,4 +159,34 @@ export function torchFlicker(phase: number, seed = 0): number {
   const p2 = Math.sin(phase * Math.PI * 2 * 7.1 + seed * 1.3) * 0.02;
   const p3 = Math.sin(phase * Math.PI * 2 * 1.3 + seed * 0.7) * 0.06;
   return 1 + p1 + p2 + p3;
+}
+
+export interface LanternLightOptions {
+  /** Base radius before flicker. Lanterns are a small, local pool of light — default 46. */
+  radius?: number;
+  /** 0..1 brightness at center. Default 0.85 (a touch softer than a full torch). */
+  intensity?: number;
+  /** Warm tint. Default a soft orange candle-glow, matching tiles.ts's `lantern` prop glass. */
+  color?: RGB;
+  /** 0..1 animation phase — when given, radius wobbles via `torchFlicker` (deterministic, no boiling). Omit for a static light. */
+  phase?: number;
+  /** Per-lantern flicker variance so identical lanterns don't flicker in lockstep. */
+  seed?: number;
+}
+
+/**
+ * Build a warm, small-radius `LightSource` for a lit lantern prop at (x, y).
+ * One call covers both night-time darkness holes (`generateDarknessOverlay`)
+ * and a soft daytime/dusk tint (`generateLightGlow` with a low `strength`) —
+ * the same light source feeds either, or both.
+ */
+export function lanternLight(x: number, y: number, opts: LanternLightOptions = {}): LightSource {
+  const radius = opts.radius ?? 46;
+  const flicker = opts.phase !== undefined ? torchFlicker(opts.phase, opts.seed ?? 0) : 1;
+  return {
+    x, y,
+    radius: radius * flicker,
+    intensity: opts.intensity ?? 0.85,
+    color: opts.color ?? [255, 176, 86],
+  };
 }

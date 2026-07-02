@@ -62,8 +62,8 @@ export { renderScene, blitOver, createBuffer, isVisible } from './scene';
 export type { SceneEntity, SceneLayer } from './scene';
 
 // ---- Darkness / lighting system (UNDRAL) -----------------------------------
-export { generateDarknessOverlay, generateLightGlow, isInDarkness, torchFlicker } from './darkness';
-export type { LightSource } from './darkness';
+export { generateDarknessOverlay, generateLightGlow, isInDarkness, torchFlicker, lanternLight } from './darkness';
+export type { LightSource, LanternLightOptions } from './darkness';
 
 // ---- Pixel font / text rendering ----------------------------------------
 export { renderText, renderNumber, measureText } from './font';
