@@ -43,6 +43,7 @@ src/
   creatures.ts  — enemy builders: 11 kinds (insect, worm, crawler, fire_elemental, shadow, burrower, bat, slime, undead, golem, ghost)
   items.ts      — loot builders: 16 kinds (+ fish)
   tiles.ts      — dungeon tile builders: 30 kinds (+ shop_counter, iron_gate, torch_bracket, altar, anvil, bed, table, bookshelf, pillar, fountain)
+  autotile.ts   — grid-level terrain edge blending: 4-bit N/E/S/W bitmask + 8-flag edge/corner computation from a neighbor predicate
   effects.ts    — VFX: slash, impact, projectiles, sparkle, shadow, flash, tint, status effects, water_ripple, smoke, drip + phase-driven builders
   ui.ts         — HUD generators: health/mana/XP bars, inventory slot, dialog box, damage number, button
   font.ts       — 5x7 bitmap pixel font: renderText, renderNumber, measureText (ASCII 32-126, no external files)
@@ -121,10 +122,21 @@ generateTile({ seed, size, kind: 'stone_floor'|'dirt_floor'|'grass_floor'|'wood_
   |'tree'|'pine_tree'|'dead_tree'|'house'|'ruins'|'fence'|'water'|'bush'|'flowers'|'rock' })
 // dirt_floor/water take edges: {n,e,s,w,ne,nw,se,sw} — flag sides/corners that
 // touch grass to draw an organic grass fringe (soft path/shore transitions).
+// stone_floor takes the same edges shape blending against dirt instead.
+// Compute edges per grid cell with autotile.ts instead of hand-rolled lookups:
+//   autotileEdges(row, col, gridMatcher(kindsGrid, cols, rows, k => k === 'grass_floor'))
+// grass_floor picks one of 5 deterministic decor variants (bare/tuft/flowers/
+// pebbles/leaves) from its own seed — seed grass tiles by grid coordinate
+// (e.g. `grass-${row}-${col}`) for stable, non-repeating variety across a lawn.
 // Props (bed/table/bookshelf/barrel/shop_counter/...) take bare: true to skip
 // their built-in stone slab when composited over an interior floor.
 // Cambria-style buildings: compose wood_wall perimeter + wood_floor interior
 // + bare furniture props in the scene tile grid (leave a wall gap as a door).
+
+// Autotiling (grid-level terrain blending, consumed by tiles.ts's edges)
+autotileMask(row, col, matches)   // classic 4-bit N/E/S/W bitmask, 0-15
+autotileEdges(row, col, matches)  // full {n,e,s,w,ne,nw,se,sw} edge/corner flags
+gridMatcher(grid, cols, rows, isMatch, outside?)  // bind a predicate to a flat row-major grid
 
 // Loot / death markers (UNDRAL permadeath drops)
 generateLootMarker({ kind: 'loot_bag'|'skull'|'gravestone'|'blood_stain', seed, size, color })

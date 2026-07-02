@@ -8,6 +8,7 @@ import { deflateSync } from 'node:zlib';
 import { writeFileSync } from 'node:fs';
 import { generateTile, generateSprite, generateEnemy, generateItem, generateShadow } from '../src/index';
 import { renderScene, type SceneEntity } from '../src/scene';
+import { autotileEdges, gridMatcher } from '../src/autotile';
 import type { SpriteBuffer } from '../src/types';
 function crc32(b:Uint8Array){let c=~0;for(let i=0;i<b.length;i++){c^=b[i];for(let k=0;k<8;k++)c=(c>>>1)^(0xedb88320&-(c&1));}return ~c>>>0;}
 function chunk(t:string,d:Uint8Array){const tt=Uint8Array.from(t,ch=>ch.charCodeAt(0));const body=new Uint8Array(tt.length+d.length);body.set(tt);body.set(d,tt.length);const o=new Uint8Array(4+body.length+4);const dv=new DataView(o.buffer);dv.setUint32(0,d.length);o.set(body,4);dv.setUint32(4+body.length,crc32(body));return o;}
@@ -25,24 +26,30 @@ for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++) {
   if (c >= 21 && (c - 21) + Math.round(Math.sin(r*0.8)) >= 0 && c>=22-((r%5)?0:1)) k = 'water';
   kinds.push(k);
 }
+// Small stone plaza on open ground, with a short dirt spur leading up to it —
+// exercises the dirt<->stone autotile transition alongside the road's
+// grass<->dirt one.
+for (let r=12; r<=14; r++) for (let c=14; c<=16; c++) kinds[r*COLS+c] = 'stone_floor';
+for (let r=12; r<=14; r++) for (let c=12; c<=13; c++) kinds[r*COLS+c] = 'dirt_floor';
 // Cambria-style open building: wood walls around a plank-floor interior
 const B = { r0: 1, r1: 6, c0: 13, c1: 19, doorC: 16 };
 for (let r=B.r0; r<=B.r1; r++) for (let c=B.c0; c<=B.c1; c++) {
   const isWall = (r===B.r0 || r===B.r1 || c===B.c0 || c===B.c1) && !(r===B.r1 && c===B.doorC);
   kinds[r*COLS+c] = isWall ? 'wood_wall' : 'wood_floor';
 }
-const at = (r:number,c:number)=> (r<0||r>=ROWS||c<0||c>=COLS)?'grass_floor':kinds[r*COLS+c];
-const isG = (r:number,c:number)=> at(r,c)==='grass_floor';
+// Autotiled edge blending: grass creeps over dirt_floor/water, dirt crumbles
+// onto stone_floor. Computed once per grid via autotile.ts instead of each
+// caller hand-rolling neighbor lookups.
+const isGrass = gridMatcher(kinds, COLS, ROWS, (k) => k === 'grass_floor');
+const isDirt = gridMatcher(kinds, COLS, ROWS, (k) => k === 'dirt_floor');
 const tiles = kinds.map((k,i)=>{
   const r=(i/COLS)|0, c=i%COLS;
   let edges;
-  if (k==='dirt_floor' || k==='water') {
-    const n=isG(r-1,c), s_=isG(r+1,c), w=isG(r,c-1), e=isG(r,c+1);
-    edges = { n, s: s_, w, e,
-      nw: !n && !w && isG(r-1,c-1), ne: !n && !e && isG(r-1,c+1),
-      sw: !s_ && !w && isG(r+1,c-1), se: !s_ && !e && isG(r+1,c+1) };
-  }
-  return generateTile({ kind: k as any, seed: `t${i%7}`, size: TS, supersample: 2, outline: false, edges } as any);
+  if (k==='dirt_floor' || k==='water') edges = autotileEdges(r, c, isGrass);
+  else if (k==='stone_floor') edges = autotileEdges(r, c, isDirt);
+  // Per-coordinate seed so grass tiles pick a stable, non-repeating decor
+  // variant (flowers/pebbles/leaves/tuft/bare) across the whole lawn.
+  return generateTile({ kind: k as any, seed: `t${r}_${c}`, size: TS, supersample: 2, outline: false, edges } as any);
 });
 const entities: SceneEntity[] = [];
 const shadows: SceneEntity[] = [];

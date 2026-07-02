@@ -33,6 +33,10 @@ export type { ItemConfig, ItemKind } from './items';
 export { buildTile, TILE_KINDS } from './tiles';
 export type { TileConfig, TileKind } from './tiles';
 
+// ---- Autotiling (grid-level terrain edge blending) --------------------------
+export { autotileMask, autotileEdges, gridMatcher } from './autotile';
+export type { EdgeFlags, CellMatcher } from './autotile';
+
 // ---- Effects (combat / status) ---------------------------------------------
 export {
   generateShadow, generateSlashEffect, generateImpactEffect,

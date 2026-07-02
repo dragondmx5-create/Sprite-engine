@@ -17,11 +17,14 @@ export interface TileConfig {
   kind?: TileKind;
   seed?: number | string;
   /**
-   * Which sides/corners of this tile touch grass (for path/water tiles).
-   * Flagged sides get an irregular grass fringe drawn over the edge, flagged
-   * corners get a small grass tuft, so terrain blends organically instead of
-   * ending in hard tile seams. Corner flags are only needed when neither
-   * adjacent side is flagged (inner corners of a path bend).
+   * Which sides/corners of this tile touch the neighboring terrain it blends
+   * into: grass for dirt_floor/water (grass creeps over the path/shore),
+   * dirt for stone_floor (dirt crumbles onto a plaza edge). Flagged sides
+   * get an irregular fringe drawn over the edge, flagged corners get a small
+   * tuft, so terrain blends organically instead of ending in hard tile
+   * seams. Corner flags are only needed when neither adjacent side is
+   * flagged (inner corners of a path bend). Compute these per grid cell with
+   * autotile.ts's `autotileEdges` instead of hand-rolling neighbor lookups.
    */
   edges?: {
     n?: boolean; e?: boolean; s?: boolean; w?: boolean;
@@ -134,7 +137,7 @@ function floorBase(parts: Part[], rng: RNG, s: number) {
 
 // ---- tile builders ----------------------------------------------------------
 
-function buildStoneFloor(rng: RNG, s: number): Part[] {
+function buildStoneFloor(rng: RNG, s: number, edges?: TileConfig['edges']): Part[] {
   const parts: Part[] = [];
   const warmth = rng.jitter(5);
   // Warm grout base
@@ -165,20 +168,32 @@ function buildStoneFloor(rng: RNG, s: number): Part[] {
     pushCapsule(parts, MATERIALS.bone([36 + warmth, 32 + warmth, 26 + warmth] as RGB), ax, ay,
       ax + rng.jitter(s * 0.22), ay + rng.jitter(s * 0.22), Math.max(1, s * 0.007), 0.08);
   }
+  // Dirt crumbling onto the edges that touch a dirt path/yard
+  edgeFringe(parts, rng, s, edges, 'dirt');
   return parts;
 }
 
 /**
- * Irregular grass fringe along the flagged edges of a path tile. Color matches
- * the grass_floor base so the fringe blends with neighboring grass tiles.
+ * Base color of a terrain's fringe blobs, keyed by the neighboring tile kind
+ * so any pair of adjacent floors can blend without hardcoding one terrain.
+ * Matches the base tone each builder uses for its own floor.
  */
-function grassFringe(parts: Part[], rng: RNG, s: number, edges?: TileConfig['edges']) {
+type FringeTerrain = 'grass' | 'dirt';
+function fringeColor(terrain: FringeTerrain, j: number): RGB {
+  return terrain === 'grass' ? [58 + j, 92 + j, 40 + j] : [112 + j, 84 + j, 56 + j];
+}
+
+/**
+ * Irregular fringe of `terrain`-colored blobs along the flagged edges of a
+ * tile (e.g. grass creeping over a dirt path, or dirt crumbling onto a stone
+ * plaza). Shared by every tile kind that takes `edges`.
+ */
+function edgeFringe(parts: Part[], rng: RNG, s: number, edges: TileConfig['edges'] | undefined, terrain: FringeTerrain) {
   if (!edges) return;
   const blobs = (fx: (t: number) => number, fy: (t: number) => number) => {
     for (let i = 0; i < 5; i++) {
       const t = (i + 0.5) / 5 + rng.jitter(0.06);
-      const j = rng.jitter(8);
-      const col: RGB = [58 + j, 92 + j, 40 + j];
+      const col = fringeColor(terrain, rng.jitter(8));
       pushCircle(parts, MATERIALS.flesh(col), fx(t) * s, fy(t) * s, s * (0.055 + rng.float() * 0.05), 0.06);
     }
   };
@@ -186,11 +201,10 @@ function grassFringe(parts: Part[], rng: RNG, s: number, edges?: TileConfig['edg
   if (edges.s) blobs((t) => t, () => 1 + rng.jitter(0.03));
   if (edges.w) blobs(() => rng.jitter(0.03), (t) => t);
   if (edges.e) blobs(() => 1 + rng.jitter(0.03), (t) => t);
-  // Inner-corner tufts where only a diagonal neighbor is grass
+  // Inner-corner tufts where only a diagonal neighbor matches
   const tuft = (px: number, py: number) => {
     for (let i = 0; i < 3; i++) {
-      const j = rng.jitter(8);
-      const col: RGB = [58 + j, 92 + j, 40 + j];
+      const col = fringeColor(terrain, rng.jitter(8));
       pushCircle(parts, MATERIALS.flesh(col),
         (px + rng.jitter(0.05)) * s, (py + rng.jitter(0.05)) * s, s * (0.045 + rng.float() * 0.035), 0.06);
     }
@@ -226,7 +240,7 @@ function buildDirtFloor(rng: RNG, s: number, edges?: TileConfig['edges']): Part[
       ax, ay, ax + rng.jitter(s * 0.15), ay + rng.jitter(s * 0.08), Math.max(1, s * 0.006), 0.15);
   }
   // Grass creeping over the edges that touch grass tiles
-  grassFringe(parts, rng, s, edges);
+  edgeFringe(parts, rng, s, edges, 'grass');
   return parts;
 }
 
@@ -364,6 +378,14 @@ function buildMossFloor(rng: RNG, s: number): Part[] {
   return parts;
 }
 
+/**
+ * Deterministic per-tile decoration variants for grass_floor. Selected by
+ * hashing the tile's own RNG stream — same seed (e.g. a `row-col` coordinate
+ * string) always picks the same variant, so a lawn reads as varied but
+ * stable rather than boiling between renders.
+ */
+const GRASS_VARIANTS = ['bare', 'tuft', 'flowers', 'pebbles', 'leaves'] as const;
+
 function buildGrassFloor(rng: RNG, s: number): Part[] {
   const parts: Part[] = [];
   // Small jitter only — large per-tile brightness differences read as a grid
@@ -402,19 +424,51 @@ function buildGrassFloor(rng: RNG, s: number): Part[] {
     pushCircle(parts, MATERIALS.flesh([92 + rng.jitter(8), 70 + rng.jitter(6), 46 + rng.jitter(5)] as RGB),
       px, py, s * (0.018 + rng.float() * 0.012), 0.1);
   }
-  // Occasional taller tuft — a small V of two blades
-  if (rng.float() > 0.55) {
-    const tx = s * (0.15 + rng.float() * 0.7), ty = s * (0.2 + rng.float() * 0.65);
-    const tuftMat = MATERIALS.flesh([base[0] * 0.8, base[1] * 0.92, base[2] * 0.78] as RGB);
-    pushCapsule(parts, tuftMat, tx, ty, tx - s * 0.025, ty - s * 0.055, Math.max(1, s * 0.011), 0.12);
-    pushCapsule(parts, tuftMat, tx, ty, tx + s * 0.028, ty - s * 0.05, Math.max(1, s * 0.011), 0.12);
-  }
-  // Rare meadow flower — tiny bright speck on ~1 in 5 tiles
-  if (rng.float() > 0.8) {
-    const fx = s * (0.15 + rng.float() * 0.7), fy = s * (0.2 + rng.float() * 0.6);
-    const petal: RGB = rng.float() > 0.5 ? [235, 228, 210] : [230, 205, 95];
-    pushCircle(parts, MATERIALS.cloth(petal), fx, fy, Math.max(1, s * 0.018), 0.35);
-    pushCircle(parts, MATERIALS.gold([225, 185, 70]), fx, fy, Math.max(1, s * 0.009), 0.5);
+  // Per-tile decorative variant — one of 5 deterministic looks, picked from
+  // the RNG the tile was seeded with. Callers that seed grass tiles by grid
+  // coordinate (e.g. `grass-${row}-${col}`) get a stable, non-repeating mix
+  // across a lawn instead of every tile rolling the same independent chances.
+  const variant = GRASS_VARIANTS[Math.floor(rng.float() * GRASS_VARIANTS.length) % GRASS_VARIANTS.length];
+  switch (variant) {
+    case 'bare':
+      break;
+    case 'tuft': {
+      // A small V of two taller blades
+      const tx = s * (0.15 + rng.float() * 0.7), ty = s * (0.2 + rng.float() * 0.65);
+      const tuftMat = MATERIALS.flesh([base[0] * 0.8, base[1] * 0.92, base[2] * 0.78] as RGB);
+      pushCapsule(parts, tuftMat, tx, ty, tx - s * 0.025, ty - s * 0.055, Math.max(1, s * 0.011), 0.12);
+      pushCapsule(parts, tuftMat, tx, ty, tx + s * 0.028, ty - s * 0.05, Math.max(1, s * 0.011), 0.12);
+      break;
+    }
+    case 'flowers': {
+      // A tiny meadow blossom
+      const fx = s * (0.15 + rng.float() * 0.7), fy = s * (0.2 + rng.float() * 0.6);
+      const petal: RGB = rng.float() > 0.5 ? [235, 228, 210] : [230, 205, 95];
+      pushCircle(parts, MATERIALS.cloth(petal), fx, fy, Math.max(1, s * 0.018), 0.35);
+      pushCircle(parts, MATERIALS.gold([225, 185, 70]), fx, fy, Math.max(1, s * 0.009), 0.5);
+      break;
+    }
+    case 'pebbles': {
+      // A couple of small stones nestled in the turf
+      const n = 2 + Math.floor(rng.float() * 2);
+      for (let i = 0; i < n; i++) {
+        const px = s * (0.15 + rng.float() * 0.7), py = s * (0.2 + rng.float() * 0.65);
+        const j2 = rng.jitter(10);
+        pushCircle(parts, MATERIALS.bone([120 + j2, 116 + j2, 108 + j2] as RGB),
+          px, py, s * (0.02 + rng.float() * 0.015), 0.2);
+      }
+      break;
+    }
+    case 'leaves': {
+      // Fallen autumn-colored leaf flecks
+      const n = 2 + Math.floor(rng.float() * 2);
+      for (let i = 0; i < n; i++) {
+        const lx = s * (0.15 + rng.float() * 0.7), ly = s * (0.2 + rng.float() * 0.65);
+        const leafCol: RGB = rng.float() > 0.5 ? [180 + rng.jitter(20), 95 + rng.jitter(15), 30 + rng.jitter(10)] : [195 + rng.jitter(15), 150 + rng.jitter(15), 45 + rng.jitter(10)];
+        pushEllipse(parts, MATERIALS.leather(leafCol), lx, ly, s * 0.025, s * 0.013, 0.3);
+      }
+      break;
+    }
   }
   return parts;
 }
@@ -513,7 +567,7 @@ function buildWater(rng: RNG, s: number, edges?: TileConfig['edges']): Part[] {
     if (edges.w) line(0.03, 0, 0.03, 1);
     if (edges.e) line(0.97, 0, 0.97, 1);
   }
-  grassFringe(parts, rng, s, edges);
+  edgeFringe(parts, rng, s, edges, 'grass');
   return parts;
 }
 
@@ -1489,7 +1543,7 @@ export function buildTile(config: TileConfig, s: number, h?: number): Part[] {
     case 'flowers':          return buildFlowers(rng, s);
     case 'rock':             return buildRock(rng, s);
     case 'stone_floor':
-    default:                 return buildStoneFloor(rng, s);
+    default:                 return buildStoneFloor(rng, s, config.edges);
   }
 }
 
