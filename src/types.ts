@@ -31,6 +31,35 @@ export interface Material {
   metallic: boolean;
   /** How far shadows shift toward cool/blue (0..1). Gives painterly depth. */
   shadowCoolShift: number;
+  /**
+   * Optional per-pixel surface texture layered over the shading — the
+   * hand-dithered grain that makes terrain/foliage read detailed instead of
+   * airbrushed. Deterministic (position-hash), so it never boils between
+   * frames of the same sprite.
+   *
+   * Accepts a single layer or a STACK of layers applied in order — combine
+   * scales like paint passes: a broad mottle (scale 4-6) for patchiness, a
+   * mid speckle for clumps, a fine grain (scale 1) for tooth.
+   *   'grain'   — luminance noise per cell (dirt, stone, wood)
+   *   'speckle' — sparse strong light/dark dots (grass, foliage)
+   */
+  texture?: TextureLayer | TextureLayer[];
+}
+
+/** One octave of the material texture stack. */
+export interface TextureLayer {
+  kind: 'grain' | 'speckle';
+  /** Strength of the luminance perturbation, ~0.03..0.15. */
+  amount: number;
+  /** Pixel cell size of the pattern (1 = every output pixel). Default 1. */
+  scale?: number;
+  /**
+   * Anisotropic cell overrides — stretch the pattern along one axis.
+   * sx: 6, sy: 1 → horizontal streaks (water drift, wood boards);
+   * sx: 1, sy: 6 → vertical streaks (bark, plank walls). Default = scale.
+   */
+  sx?: number;
+  sy?: number;
 }
 
 /** A light, expressed as the direction FROM the surface TOWARD the light. */
@@ -44,8 +73,10 @@ export interface Light {
 export interface SpriteConfig {
   /** Same seed + same config => byte-identical sprite, always. */
   seed?: number | string;
-  /** Logical output size in px (square). Default 64. */
+  /** Logical output width in px. Default 48. */
   size?: number;
+  /** Logical output height in px. Defaults to size (square). */
+  height?: number;
   /** Internal supersample factor for AA + smoother gradients. Default 2. */
   supersample?: number;
 
@@ -86,24 +117,28 @@ export interface SpriteConfig {
     hat?: RGB;
     cape?: RGB;
     pants?: RGB;
+    accent?: RGB;
   };
 
   /** Outfit composition. */
   outfit?: {
-    torso?: 'cloth' | 'leather'; // default 'cloth'
+    torso?: 'cloth' | 'leather' | 'robe' | 'chainmail' | 'vest'; // default 'cloth'
     armor?: boolean;             // metal chestplate + pauldrons. default false
     belt?: boolean;              // leather belt. default true
-    hat?: 'none' | 'cap' | 'hat' | 'hood'; // headwear. default 'none'
+    hat?: 'none' | 'cap' | 'hat' | 'hood' | 'wizard' | 'crown' | 'helmet' | 'bandana'; // headwear
     cape?: boolean;              // flowing cloak behind the body. default false
     coat?: boolean;              // long coat extending past waist. default false
     boots?: boolean;             // tall boots on legs. default false
+    gloves?: boolean;            // gauntlets / gloves on hands. default false
+    scarf?: boolean;             // neck scarf / muffler. default false
+    shoulderpad?: boolean;       // decorative shoulder pads (non-armor). default false
   };
 
   /** Hairstyle. Default 'short' (the original look). 'bald' draws no hair. */
   hairStyle?: 'short' | 'long' | 'spiky' | 'bun' | 'bald' | 'flowing' | 'ponytail';
 
   /** Weapon held in the right hand. Follows arm rotation during animations. */
-  weapon?: 'none' | 'dagger' | 'sword' | 'axe' | 'staff';
+  weapon?: 'none' | 'dagger' | 'sword' | 'axe' | 'staff' | 'bow' | 'mace' | 'wand' | 'hammer' | 'fishing_rod';
 
   /** Round buckler shield on the left arm. */
   shield?: boolean;
