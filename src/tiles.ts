@@ -162,6 +162,21 @@ function buildStoneFloor(rng: RNG, s: number, edges?: TileConfig['edges']): Part
         pushCircle(parts, MATERIALS.bone([base[0] + 8, base[1] + 6, base[2] + 4] as RGB),
           cx + rng.jitter(bw * 0.18), cy + rng.jitter(bw * 0.18), s * 0.03, 0.08);
       }
+      // Chipped corner — a grout-colored nick eating into one corner. Old
+      // pavement is never four perfect rectangles; one broken corner per
+      // few flags is what sells the wear.
+      if (rng.float() > 0.55) {
+        const ccx = cx + (rng.float() > 0.5 ? hw : -hw);
+        const ccy = cy + (rng.float() > 0.5 ? hh : -hh);
+        pushCircle(parts, MATERIALS.bone([44 + warmth, 40 + warmth, 34 + warmth] as RGB),
+          ccx, ccy, s * (0.02 + rng.float() * 0.015), 0.12);
+      }
+      // Faint wear scratch across the face
+      if (rng.float() > 0.6) {
+        const wx = cx + rng.jitter(hw * 0.5), wy = cy + rng.jitter(hh * 0.5);
+        pushCapsule(parts, MATERIALS.bone([base[0] - 14, base[1] - 13, base[2] - 12] as RGB),
+          wx, wy, wx + rng.jitter(hw * 0.8), wy + rng.jitter(hh * 0.5), Math.max(1, s * 0.005), 0.06);
+      }
     }
   }
   // Occasional crack
@@ -208,17 +223,27 @@ function fringeColor(terrain: FringeTerrain, j: number): RGB {
  */
 function edgeFringe(parts: Part[], rng: RNG, s: number, edges: TileConfig['edges'] | undefined, terrain: FringeTerrain) {
   if (!edges) return;
-  const blobs = (fx: (t: number) => number, fy: (t: number) => number) => {
+  const blobs = (fx: (t: number) => number, fy: (t: number) => number, ix: number, iy: number) => {
     for (let i = 0; i < 5; i++) {
       const t = (i + 0.5) / 5 + rng.jitter(0.06);
       const col = fringeColor(terrain, rng.jitter(8));
       pushCircle(parts, MATERIALS.flesh(col), fx(t) * s, fy(t) * s, s * (0.055 + rng.float() * 0.05), 0.06);
     }
+    // Dithered speck band just inside the blob fringe — scattered small dots
+    // trailing off into the tile, so the transition dissolves pixel-art-style
+    // instead of ending at the blob arc. (ix, iy) points into the tile.
+    for (let i = 0; i < 4; i++) {
+      const t = rng.float();
+      const col = fringeColor(terrain, rng.jitter(8));
+      const inset = 0.07 + rng.float() * 0.07;
+      pushCircle(parts, MATERIALS.flesh(col),
+        (fx(t) + ix * inset) * s, (fy(t) + iy * inset) * s, s * (0.016 + rng.float() * 0.016), 0.08);
+    }
   };
-  if (edges.n) blobs((t) => t, () => rng.jitter(0.03));
-  if (edges.s) blobs((t) => t, () => 1 + rng.jitter(0.03));
-  if (edges.w) blobs(() => rng.jitter(0.03), (t) => t);
-  if (edges.e) blobs(() => 1 + rng.jitter(0.03), (t) => t);
+  if (edges.n) blobs((t) => t, () => rng.jitter(0.03), 0, 1);
+  if (edges.s) blobs((t) => t, () => 1 + rng.jitter(0.03), 0, -1);
+  if (edges.w) blobs(() => rng.jitter(0.03), (t) => t, 1, 0);
+  if (edges.e) blobs(() => 1 + rng.jitter(0.03), (t) => t, -1, 0);
   // Inner-corner tufts where only a diagonal neighbor matches
   const tuft = (px: number, py: number) => {
     for (let i = 0; i < 3; i++) {
@@ -237,19 +262,45 @@ function buildDirtFloor(rng: RNG, s: number, edges?: TileConfig['edges']): Part[
   const parts: Part[] = [];
   const base: RGB = [122 + rng.jitter(14), 80 + rng.jitter(10), 46 + rng.jitter(8)];
   pushBox(parts, textured(MATERIALS.flesh(base), { kind: 'grain', amount: 0.06, scale: 4 }, { kind: 'grain', amount: 0.06 }, { kind: 'speckle', amount: 0.04 }, { kind: 'bump', amount: 0.28, scale: 3 }), s * 0.5, s * 0.5, s * 0.50, s * 0.50, s * 0.015, 0.08);
-  // Darker dirt patches
-  for (let i = 0; i < 2; i++) {
-    const px = s * (0.2 + rng.float() * 0.6), py = s * (0.2 + rng.float() * 0.6);
-    pushCircle(parts, MATERIALS.flesh([base[0] * 0.82, base[1] * 0.82, base[2] * 0.8] as RGB),
-      px, py, s * (0.06 + rng.float() * 0.04), 0.06);
+  // Dense clod mottle — trodden earth is many small lumps each catching its
+  // own light, and this pass is most of what separates a "cobbled path" read
+  // from a flat brown plane: a dozen soft overlapping clods in varied browns
+  // (some redder, some greyer) with real roundness so the shading pipeline
+  // models each one, not just tints it.
+  const clods = 10 + Math.floor(rng.float() * 4);
+  for (let i = 0; i < clods; i++) {
+    const px = s * (0.06 + rng.float() * 0.88), py = s * (0.06 + rng.float() * 0.88);
+    const cr = s * (0.05 + rng.float() * 0.06);
+    const jc = rng.jitter(16);
+    const warm = rng.float() > 0.5 ? 7 : -9;
+    const col: RGB = [base[0] + jc + warm, base[1] + jc * 0.9 + warm * 0.6, base[2] + jc * 0.8];
+    pushEllipse(parts, textured(MATERIALS.flesh(col), { kind: 'grain', amount: 0.05 }, { kind: 'bump', amount: 0.2, scale: 2 }),
+      px, py, cr, cr * (0.62 + rng.float() * 0.24), 0.18);
   }
-  // Pebbles
-  for (let i = 0; i < 4; i++) {
-    const px = s * (0.1 + rng.float() * 0.8), py = s * (0.1 + rng.float() * 0.8);
-    const pr = s * (0.018 + rng.float() * 0.015);
+  // Darker damp patches sunk between the clods
+  for (let i = 0; i < 3; i++) {
+    const px = s * (0.15 + rng.float() * 0.7), py = s * (0.15 + rng.float() * 0.7);
+    pushEllipse(parts, textured(MATERIALS.flesh([base[0] * 0.78, base[1] * 0.78, base[2] * 0.76] as RGB), { kind: 'grain', amount: 0.05 }),
+      px, py, s * (0.06 + rng.float() * 0.05), s * (0.04 + rng.float() * 0.03), 0.08);
+  }
+  // Pebbles — contact shadow first, stone on top, so each reads as sitting
+  // ON the path (a bare bright dot floats instead of settling in).
+  const stones = 5 + Math.floor(rng.float() * 3);
+  for (let i = 0; i < stones; i++) {
+    const px = s * (0.08 + rng.float() * 0.84), py = s * (0.08 + rng.float() * 0.84);
+    const pr = s * (0.016 + rng.float() * 0.016);
     const j = rng.jitter(10);
-    pushCircle(parts, MATERIALS.bone([base[0] * 0.65 + j, base[1] * 0.65 + j, base[2] * 0.65 + j] as RGB),
-      px, py, pr, 0.2);
+    pushEllipse(parts, MATERIALS.flesh([base[0] * 0.55, base[1] * 0.55, base[2] * 0.52] as RGB),
+      px + pr * 0.25, py + pr * 0.5, pr * 1.15, pr * 0.6, 0.08);
+    pushCircle(parts, MATERIALS.bone([base[0] * 0.68 + j, base[1] * 0.68 + j, base[2] * 0.68 + j] as RGB),
+      px, py, pr, 0.3);
+  }
+  // Stray grass sprigs surviving in the packed dirt
+  const sprigs = Math.floor(rng.float() * 3);
+  for (let i = 0; i < sprigs; i++) {
+    const gx = s * (0.12 + rng.float() * 0.76), gy = s * (0.15 + rng.float() * 0.7);
+    pushCapsule(parts, MATERIALS.flesh([54 + rng.jitter(8), 92 + rng.jitter(10), 38 + rng.jitter(6)] as RGB),
+      gx, gy, gx + rng.jitter(s * 0.015), gy - s * (0.028 + rng.float() * 0.015), Math.max(1, s * 0.008), 0.1);
   }
   // Occasional twig
   if (rng.float() > 0.6) {
@@ -414,28 +465,31 @@ function buildGrassFloor(rng: RNG, s: number): Part[] {
   // work, and a fine bump layer gives the turf actual noise-driven relief
   // (light rolls across it) instead of a flat plane with dots painted on.
   pushBox(parts, textured(MATERIALS.flesh(base), { kind: 'grain', amount: 0.05, scale: 5 }, { kind: 'speckle', amount: 0.06 }, { kind: 'grain', amount: 0.03 }, { kind: 'bump', amount: 0.22, scale: 1.6 }), s * 0.5, s * 0.5, s * 0.50, s * 0.50, 0, 0.08);
-  // Darker grass patches
+  // Darker grass patches — shadow patches lean blue-green, so the turf gets
+  // actual hue variation (Cambria mottle), not just darker copies of one green.
   for (let i = 0; i < 3; i++) {
     const px = s * (0.08 + rng.float() * 0.84);
     const py = s * (0.08 + rng.float() * 0.84);
-    pushCircle(parts, textured(MATERIALS.flesh([base[0] * 0.78, base[1] * 0.84, base[2] * 0.76] as RGB), { kind: 'speckle', amount: 0.05 }, { kind: 'grain', amount: 0.03 }, { kind: 'bump', amount: 0.2, scale: 1.6 }),
+    pushCircle(parts, textured(MATERIALS.flesh([base[0] * 0.72, base[1] * 0.84, base[2] * 0.88] as RGB), { kind: 'speckle', amount: 0.05 }, { kind: 'grain', amount: 0.03 }, { kind: 'bump', amount: 0.2, scale: 1.6 }),
       px, py, s * (0.06 + rng.float() * 0.04), 0.06);
   }
-  // Lighter grass highlights
-  for (let i = 0; i < 2; i++) {
+  // Lighter grass highlights — sun patches lean yellow-green
+  for (let i = 0; i < 3; i++) {
     const px = s * (0.15 + rng.float() * 0.7);
     const py = s * (0.15 + rng.float() * 0.7);
-    pushCircle(parts, textured(MATERIALS.flesh([base[0] + 12, base[1] + 15, base[2] + 8] as RGB), { kind: 'speckle', amount: 0.05 }, { kind: 'grain', amount: 0.03 }),
+    pushCircle(parts, textured(MATERIALS.flesh([base[0] + 16, base[1] + 15, base[2] + 2] as RGB), { kind: 'speckle', amount: 0.05 }, { kind: 'grain', amount: 0.03 }),
       px, py, s * (0.04 + rng.float() * 0.03), 0.05);
   }
-  // Individual grass blades — short angled strokes, darker than the turf
+  // Individual grass blades — mixed dark and sunlit strokes; the light ones
+  // are what read as blades catching the sun instead of uniform stubble.
   const bladeMat = MATERIALS.flesh([base[0] * 0.72, base[1] * 0.80, base[2] * 0.70] as RGB);
-  const blades = 4 + Math.floor(rng.float() * 3);
+  const bladeLitMat = MATERIALS.flesh([base[0] + 22, base[1] + 24, base[2] + 6] as RGB);
+  const blades = 6 + Math.floor(rng.float() * 4);
   for (let i = 0; i < blades; i++) {
     const bx = s * (0.08 + rng.float() * 0.84);
     const by = s * (0.12 + rng.float() * 0.8);
     const lean = rng.jitter(s * 0.02);
-    pushCapsule(parts, bladeMat, bx, by, bx + lean, by - s * (0.035 + rng.float() * 0.02), Math.max(1, s * 0.010), 0.1);
+    pushCapsule(parts, i % 3 === 2 ? bladeLitMat : bladeMat, bx, by, bx + lean, by - s * (0.035 + rng.float() * 0.02), Math.max(1, s * 0.010), 0.1);
   }
   // Dirt specks
   for (let i = 0; i < 2; i++) {
@@ -461,11 +515,21 @@ function buildGrassFloor(rng: RNG, s: number): Part[] {
       break;
     }
     case 'flowers': {
-      // A tiny meadow blossom
+      // A meadow blossom with a ring of petal dots around the core — a lone
+      // filled circle reads as a paint blob; the petal ring is what makes it
+      // read "flower" at 3-4px. Occasionally a second smaller bud beside it.
       const fx = s * (0.15 + rng.float() * 0.7), fy = s * (0.2 + rng.float() * 0.6);
       const petal: RGB = rng.float() > 0.5 ? [235, 228, 210] : [230, 205, 95];
-      pushCircle(parts, MATERIALS.cloth(petal), fx, fy, Math.max(1, s * 0.018), 0.35);
+      const petalMat = MATERIALS.cloth(petal);
+      const pr = Math.max(1, s * 0.011);
+      for (let i = 0; i < 4; i++) {
+        const ang = (i / 4) * Math.PI * 2 + rng.jitter(0.2);
+        pushCircle(parts, petalMat, fx + Math.cos(ang) * pr * 1.35, fy + Math.sin(ang) * pr * 1.35, pr, 0.35);
+      }
       pushCircle(parts, MATERIALS.gold([225, 185, 70]), fx, fy, Math.max(1, s * 0.009), 0.5);
+      if (rng.float() > 0.55) {
+        pushCircle(parts, petalMat, fx + rng.jitter(s * 0.08) + s * 0.06, fy + rng.jitter(s * 0.05), Math.max(1, s * 0.012), 0.4);
+      }
       break;
     }
     case 'pebbles': {
@@ -665,8 +729,8 @@ function buildBush(rng: RNG, s: number): Part[] {
   pushEllipse(parts, MATERIALS.bone([33, 36, 26]), cx, s * 0.82, s * 0.30, s * 0.06, 0.05);
   const leafCol: RGB = [46 + rng.jitter(10), 98 + rng.jitter(12), 42 + rng.jitter(8)];
   const leaf = textured(MATERIALS.flesh(leafCol), { kind: 'grain', amount: 0.05, scale: 4 }, { kind: 'speckle', amount: 0.07 });
-  const leafDark = textured(MATERIALS.flesh([leafCol[0] * 0.68, leafCol[1] * 0.72, leafCol[2] * 0.64] as RGB), { kind: 'speckle', amount: 0.06 }, { kind: 'grain', amount: 0.04 });
-  const leafLight = textured(MATERIALS.flesh([leafCol[0] + 18, leafCol[1] + 22, leafCol[2] + 12] as RGB), { kind: 'speckle', amount: 0.07 }, { kind: 'grain', amount: 0.04 });
+  const leafDark = textured(MATERIALS.flesh([leafCol[0] * 0.60, leafCol[1] * 0.70, leafCol[2] * 0.74] as RGB), { kind: 'speckle', amount: 0.06 }, { kind: 'grain', amount: 0.04 });
+  const leafLight = textured(MATERIALS.flesh([leafCol[0] + 24, leafCol[1] + 24, leafCol[2] + 4] as RGB), { kind: 'speckle', amount: 0.07 }, { kind: 'grain', amount: 0.04 });
   // Back mass, then side lobes, then light top
   pushEllipse(parts, leafDark, cx, s * 0.62, s * 0.34, s * 0.24, 0.3);
   pushCircle(parts, leaf, cx - s * 0.18, s * 0.62, s * 0.17, 0.32);
@@ -674,6 +738,21 @@ function buildBush(rng: RNG, s: number): Part[] {
   pushCircle(parts, leaf, cx, s * 0.52, s * 0.19, 0.35);
   pushCircle(parts, leafDark, cx + s * 0.05, s * 0.68, s * 0.10, 0.25);
   pushCircle(parts, leafLight, cx - s * 0.07, s * 0.44, s * 0.10, 0.28);
+  // Rim scallop — small clumps around the outline so the bush silhouette is
+  // bunched leaves, matching the tree canopy treatment. Dark below, base at
+  // the sides, one sunlit clump up top.
+  const rimN = 6 + Math.floor(rng.float() * 3);
+  for (let i = 0; i < rimN; i++) {
+    const ang = (i / rimN) * Math.PI * 2 + rng.jitter(0.25);
+    const px = cx + Math.cos(ang) * s * 0.28 + rng.jitter(s * 0.02);
+    const py = s * 0.58 + Math.sin(ang) * s * 0.20 + rng.jitter(s * 0.015);
+    const mat = Math.sin(ang) > 0.35 ? leafDark : Math.sin(ang) < -0.4 ? leafLight : leaf;
+    pushCircle(parts, mat, px, py, s * (0.05 + rng.float() * 0.03), 0.35);
+  }
+  // Tiny sunlit leaf dots on the light side
+  for (let i = 0; i < 3; i++) {
+    pushCircle(parts, leafLight, cx - s * 0.12 + rng.float() * s * 0.2, s * (0.40 + rng.float() * 0.1), Math.max(1, s * 0.02), 0.3);
+  }
   // A few berries on some bushes
   if (rng.float() > 0.5) {
     for (let i = 0; i < 3; i++) {
@@ -1696,21 +1775,38 @@ function buildTree(rng: RNG, s: number, h: number): Part[] {
   pushEllipse(parts, MATERIALS.bone([33, 36, 26]), cx + s * 0.02, h * 0.93, s * 0.24, s * 0.06, 0.05);
   // Trunk — long vertical with bark texture
   const trunkCol: RGB = [82 + rng.jitter(8), 58 + rng.jitter(6), 38 + rng.jitter(5)];
-  const trunk = textured(MATERIALS.leather(trunkCol), { kind: 'grain', amount: 0.06, sx: 1, sy: 5 });
+  const trunk = textured(MATERIALS.leather(trunkCol), { kind: 'grain', amount: 0.06, sx: 1, sy: 5 }, { kind: 'bump', amount: 0.25, sx: 2, sy: 6 });
   const trunkDark = MATERIALS.leather([trunkCol[0] * 0.7, trunkCol[1] * 0.7, trunkCol[2] * 0.65] as RGB);
+  const trunkLight = MATERIALS.leather([trunkCol[0] + 18, trunkCol[1] + 14, trunkCol[2] + 8] as RGB);
   pushCapsule(parts, trunk, cx, h * 0.90, cx - s * 0.01, h * 0.42, s * 0.085, 0.4);
-  // Bark details
-  pushCapsule(parts, trunkDark, cx - s * 0.03, h * 0.82, cx - s * 0.02, h * 0.55, Math.max(1, s * 0.012), 0.15);
-  pushCapsule(parts, trunkDark, cx + s * 0.02, h * 0.75, cx + s * 0.03, h * 0.52, Math.max(1, s * 0.01), 0.12);
-  // Root bulge
+  // Root flares — the trunk splays into the ground instead of ending in a
+  // straight-cut cylinder, which is what anchors the tree to the tile.
+  pushCapsule(parts, trunk, cx - s * 0.02, h * 0.84, cx - s * 0.13, h * 0.915, s * 0.028, 0.35);
+  pushCapsule(parts, trunk, cx + s * 0.02, h * 0.85, cx + s * 0.12, h * 0.92, s * 0.026, 0.35);
   pushEllipse(parts, trunk, cx, h * 0.91, s * 0.12, h * 0.025, 0.3);
+  // Bark ridges — alternating dark furrows and one lit ridge, wandering
+  // slightly so the bark reads gnarled rather than pinstriped.
+  const ridges = 3 + Math.floor(rng.float() * 2);
+  for (let i = 0; i < ridges; i++) {
+    const rx = cx + s * (-0.045 + (i / Math.max(1, ridges - 1)) * 0.09) + rng.jitter(s * 0.01);
+    const y0 = h * (0.80 + rng.float() * 0.05), y1 = h * (0.48 + rng.float() * 0.08);
+    pushCapsule(parts, i === 1 ? trunkLight : trunkDark, rx, y0, rx + rng.jitter(s * 0.02), y1, Math.max(1, s * 0.010), 0.15);
+  }
+  // Knot hole
+  if (rng.float() > 0.55) {
+    const ky = h * (0.6 + rng.float() * 0.15);
+    pushEllipse(parts, trunkDark, cx + rng.jitter(s * 0.03), ky, s * 0.022, s * 0.03, 0.4);
+  }
   // Canopy — big lush mass built from overlapping lobes (reads like foliage,
   // not a single balloon).
   const leafCol: RGB = [42 + rng.jitter(12), 95 + rng.jitter(15), 38 + rng.jitter(10)];
-  const leaf = textured(MATERIALS.flesh(leafCol), { kind: 'grain', amount: 0.05, scale: 4 }, { kind: 'speckle', amount: 0.07 });
-  const leafLight: RGB = [leafCol[0] + 20, leafCol[1] + 25, leafCol[2] + 15];
-  const leafDark: RGB = [leafCol[0] * 0.65, leafCol[1] * 0.7, leafCol[2] * 0.6];
-  const leafDarkMat = textured(MATERIALS.flesh(leafDark), { kind: 'speckle', amount: 0.06 }, { kind: 'grain', amount: 0.04 });
+  const leaf = textured(MATERIALS.flesh(leafCol), { kind: 'grain', amount: 0.05, scale: 4 }, { kind: 'speckle', amount: 0.07 }, { kind: 'bump', amount: 0.3, scale: 2.5 });
+  // Highlights lean yellow-green (sunlit) and shadows lean blue-green — the
+  // hue split, not just the value split, is what gives the canopy the
+  // painted Cambria look instead of one green at three brightnesses.
+  const leafLight: RGB = [leafCol[0] + 26, leafCol[1] + 27, leafCol[2] + 4];
+  const leafDark: RGB = [leafCol[0] * 0.58, leafCol[1] * 0.68, leafCol[2] * 0.72];
+  const leafDarkMat = textured(MATERIALS.flesh(leafDark), { kind: 'speckle', amount: 0.06 }, { kind: 'grain', amount: 0.04 }, { kind: 'bump', amount: 0.25, scale: 2 });
   const leafLightMat = textured(MATERIALS.flesh(leafLight), { kind: 'speckle', amount: 0.07 }, { kind: 'grain', amount: 0.04 });
   // Back shadow mass — widest layer, sits behind everything
   pushEllipse(parts, leafDarkMat, cx, h * 0.30, s * 0.46, h * 0.21, 0.3);
@@ -1723,12 +1819,51 @@ function buildTree(rng: RNG, s: number, h: number): Part[] {
   pushCircle(parts, leaf, cx + s * 0.30 + rng.jitter(s * 0.03), h * 0.28, s * 0.15, 0.32);
   pushCircle(parts, leaf, cx - s * 0.12 + rng.jitter(s * 0.04), h * 0.38, s * 0.14, 0.3);
   pushCircle(parts, leaf, cx + s * 0.14 + rng.jitter(s * 0.04), h * 0.36, s * 0.13, 0.3);
-  // Dark inner clumps for depth
+  // Rim scallop — a ring of small leaf clumps along the canopy edge breaks
+  // the smooth ellipse outline into bunches of leaves. Lower-rim clumps go
+  // dark (under-shadow), upper-left clumps go light (toward the light), the
+  // rest stay base green. THIS is the single highest-impact pass for making
+  // the tree read hand-drawn instead of airbrushed.
+  const rimN = 10 + Math.floor(rng.float() * 3);
+  for (let i = 0; i < rimN; i++) {
+    const ang = (i / rimN) * Math.PI * 2 + rng.jitter(0.18);
+    const px = cx + Math.cos(ang) * s * 0.42 + rng.jitter(s * 0.02);
+    const py = h * 0.26 + Math.sin(ang) * h * 0.185 + rng.jitter(h * 0.012);
+    const r = s * (0.065 + rng.float() * 0.045);
+    const mat = Math.sin(ang) > 0.35 ? leafDarkMat
+      : Math.sin(ang) < -0.4 && Math.cos(ang) < 0.35 ? leafLightMat
+      : leaf;
+    pushCircle(parts, mat, px, py, r, 0.35);
+  }
+  // Dark crevice clumps — shadow pockets between the lobes give the canopy
+  // interior depth (without them the inside is one flat green field).
   pushCircle(parts, leafDarkMat, cx + s * 0.06, h * 0.34, s * 0.10, 0.25);
   pushCircle(parts, leafDarkMat, cx - s * 0.16, h * 0.26, s * 0.08, 0.25);
+  pushCircle(parts, leafDarkMat, cx + s * 0.20 + rng.jitter(s * 0.03), h * 0.33, s * 0.07, 0.25);
+  pushCircle(parts, leafDarkMat, cx - s * 0.02 + rng.jitter(s * 0.03), h * 0.20, s * 0.06, 0.25);
   // Top highlight lobes catching the light
   pushEllipse(parts, leafLightMat, cx - s * 0.08, h * 0.12, s * 0.26, h * 0.09, 0.25);
   pushCircle(parts, leafLightMat, cx + s * 0.16, h * 0.16, s * 0.10, 0.25);
+  // Sunlit leaf-cluster dots — small bright bunches scattered over the
+  // upper-left, with a couple of near-white sparks on top. These read as
+  // individual leaf clusters catching the sun.
+  const glints = 5 + Math.floor(rng.float() * 3);
+  for (let i = 0; i < glints; i++) {
+    const gx = cx + s * (-0.30 + rng.float() * 0.42);
+    const gy = h * (0.10 + rng.float() * 0.14);
+    pushCircle(parts, leafLightMat, gx, gy, s * (0.028 + rng.float() * 0.022), 0.3);
+  }
+  const sparkMat = MATERIALS.flesh([leafCol[0] + 45, leafCol[1] + 44, leafCol[2] + 18] as RGB);
+  pushCircle(parts, sparkMat, cx - s * (0.06 + rng.float() * 0.12), h * (0.11 + rng.float() * 0.05), Math.max(1, s * 0.018), 0.3);
+  pushCircle(parts, sparkMat, cx + s * (0.02 + rng.float() * 0.12), h * (0.15 + rng.float() * 0.05), Math.max(1, s * 0.014), 0.3);
+  // Occasional fruit dots peeking out of the foliage
+  if (rng.float() > 0.65) {
+    const fruitMat = MATERIALS.cloth([200 + rng.jitter(20), 60 + rng.jitter(15), 45] as RGB);
+    const n = 2 + Math.floor(rng.float() * 2);
+    for (let i = 0; i < n; i++) {
+      pushCircle(parts, fruitMat, cx + rng.jitter(s * 0.30), h * (0.22 + rng.float() * 0.14), Math.max(1, s * 0.016), 0.5);
+    }
+  }
   return parts;
 }
 
@@ -1740,21 +1875,38 @@ function buildPineTree(rng: RNG, s: number, h: number): Part[] {
   // Trunk
   const trunkCol: RGB = [75 + rng.jitter(6), 52 + rng.jitter(5), 35 + rng.jitter(4)];
   pushCapsule(parts, textured(MATERIALS.leather(trunkCol), { kind: 'grain', amount: 0.06, sx: 1, sy: 4 }), cx, h * 0.92, cx, h * 0.35, s * 0.045, 0.35);
-  // Tiered needle layers — wider at bottom, narrow at top
+  // Tiered needle layers — wider at bottom, narrow at top. Each tier gets a
+  // scalloped bottom edge (small dark clumps hanging below the ellipse rim —
+  // drooping branch tips) and a sunlit sliver along its upper-left, which is
+  // what turns three stacked ovals into recognizable pine boughs.
   const needleCol: RGB = [28 + rng.jitter(8), 72 + rng.jitter(10), 32 + rng.jitter(8)];
-  const needle = textured(MATERIALS.flesh(needleCol), { kind: 'grain', amount: 0.05, scale: 3 }, { kind: 'speckle', amount: 0.07 });
-  const needleDark = textured(MATERIALS.flesh([needleCol[0] * 0.7, needleCol[1] * 0.72, needleCol[2] * 0.65] as RGB), { kind: 'speckle', amount: 0.06 }, { kind: 'grain', amount: 0.04 });
-  const needleLight: RGB = [needleCol[0] + 15, needleCol[1] + 20, needleCol[2] + 10];
-  // Four tiers bottom to top
-  pushEllipse(parts, needleDark, cx, h * 0.56, s * 0.34, h * 0.08, 0.25);
-  pushEllipse(parts, needle, cx, h * 0.52, s * 0.32, h * 0.09, 0.3);
-  pushEllipse(parts, needleDark, cx, h * 0.38, s * 0.24, h * 0.07, 0.25);
-  pushEllipse(parts, needle, cx, h * 0.34, s * 0.22, h * 0.08, 0.3);
-  pushEllipse(parts, needleDark, cx, h * 0.22, s * 0.15, h * 0.06, 0.25);
-  pushEllipse(parts, needle, cx, h * 0.18, s * 0.14, h * 0.07, 0.3);
+  const needle = textured(MATERIALS.flesh(needleCol), { kind: 'grain', amount: 0.05, scale: 3 }, { kind: 'speckle', amount: 0.07 }, { kind: 'bump', amount: 0.28, scale: 2 });
+  const needleDark = textured(MATERIALS.flesh([needleCol[0] * 0.62, needleCol[1] * 0.68, needleCol[2] * 0.72] as RGB), { kind: 'speckle', amount: 0.06 }, { kind: 'grain', amount: 0.04 });
+  const needleLight: RGB = [needleCol[0] + 18, needleCol[1] + 22, needleCol[2] + 4];
+  const needleLightMat = textured(MATERIALS.flesh(needleLight), { kind: 'speckle', amount: 0.06 });
+  const tiers: { y: number; rx: number; ry: number }[] = [
+    { y: 0.52, rx: 0.32, ry: 0.09 },
+    { y: 0.34, rx: 0.22, ry: 0.08 },
+    { y: 0.18, rx: 0.14, ry: 0.07 },
+  ];
+  for (const tier of tiers) {
+    const ty = h * tier.y, trx = s * tier.rx, try_ = h * tier.ry;
+    // under-shadow mass behind/below the tier
+    pushEllipse(parts, needleDark, cx, ty + h * 0.04, trx * 1.06, try_ * 0.9, 0.25);
+    // drooping branch-tip clumps along the bottom rim
+    const tips = 3 + Math.floor(rng.float() * 3);
+    for (let i = 0; i < tips; i++) {
+      const t = (i + 0.5) / tips - 0.5 + rng.jitter(0.06);
+      pushCircle(parts, needleDark, cx + t * trx * 2 * 0.85, ty + try_ * (0.7 + rng.float() * 0.5), s * (0.035 + rng.float() * 0.025), 0.3);
+    }
+    // main bough
+    pushEllipse(parts, needle, cx, ty, trx, try_, 0.3);
+    // sunlit sliver on the upper-left edge
+    pushEllipse(parts, needleLightMat, cx - trx * 0.3, ty - try_ * 0.45, trx * 0.5, try_ * 0.4, 0.2);
+  }
   // Top point
   pushEllipse(parts, needle, cx, h * 0.08, s * 0.06, h * 0.06, 0.3);
-  pushEllipse(parts, MATERIALS.flesh(needleLight), cx - s * 0.02, h * 0.06, s * 0.04, h * 0.04, 0.2);
+  pushEllipse(parts, needleLightMat, cx - s * 0.02, h * 0.06, s * 0.04, h * 0.04, 0.2);
   return parts;
 }
 
@@ -1765,8 +1917,18 @@ function buildDeadTree(rng: RNG, s: number, h: number): Part[] {
   pushEllipse(parts, MATERIALS.bone([33, 36, 26]), cx, h * 0.92, s * 0.18, s * 0.04, 0.05);
   // Trunk — tall, gnarled
   const barkCol: RGB = [55 + rng.jitter(6), 42 + rng.jitter(5), 32 + rng.jitter(4)];
-  const bark = MATERIALS.leather(barkCol);
+  const bark = textured(MATERIALS.leather(barkCol), { kind: 'grain', amount: 0.07, sx: 1, sy: 5 }, { kind: 'bump', amount: 0.3, sx: 2, sy: 6 });
+  const barkDark = MATERIALS.leather([barkCol[0] * 0.68, barkCol[1] * 0.68, barkCol[2] * 0.62] as RGB);
   pushCapsule(parts, bark, cx + s * 0.02, h * 0.90, cx - s * 0.02, h * 0.22, s * 0.06, 0.35);
+  // Deep weathered furrows down the dead wood
+  pushCapsule(parts, barkDark, cx - s * 0.015, h * 0.82, cx - s * 0.03, h * 0.35, Math.max(1, s * 0.009), 0.12);
+  pushCapsule(parts, barkDark, cx + s * 0.025, h * 0.78, cx + s * 0.01, h * 0.4, Math.max(1, s * 0.008), 0.12);
+  // Root flare + snapped branch stub
+  pushCapsule(parts, bark, cx, h * 0.85, cx - s * 0.10, h * 0.905, s * 0.022, 0.3);
+  pushCapsule(parts, bark, cx + s * 0.01, h * 0.86, cx + s * 0.09, h * 0.91, s * 0.02, 0.3);
+  if (rng.float() > 0.5) {
+    pushCapsule(parts, barkDark, cx - s * 0.04, h * 0.44, cx - s * 0.10, h * 0.40, Math.max(1, s * 0.012), 0.3);
+  }
   // Main branches
   pushCapsule(parts, bark, cx - s * 0.02, h * 0.32, cx - s * 0.28, h * 0.12, Math.max(1, s * 0.022), 0.3);
   pushCapsule(parts, bark, cx, h * 0.26, cx + s * 0.24, h * 0.08, Math.max(1, s * 0.02), 0.28);
