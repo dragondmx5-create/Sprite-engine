@@ -57,13 +57,13 @@ function defaultColor(rng: RNG, kind: string): RGB {
  */
 const FACING_INFO: Record<string, { lean: number; look: -1 | 0 | 1; back: boolean }> = {
   front:          { lean: 0,     look: 0,  back: false },
-  'front-right':  { lean: 0.13,  look: 1,  back: false },
-  right:          { lean: 0.22,  look: 1,  back: false },
-  'back-right':   { lean: 0.13,  look: 1,  back: true },
+  'front-right':  { lean: 0.06,  look: 1,  back: false },
+  right:          { lean: 0.11,  look: 1,  back: false },
+  'back-right':   { lean: 0.06,  look: 1,  back: true },
   back:           { lean: 0,     look: 0,  back: true },
-  'back-left':    { lean: -0.13, look: -1, back: true },
-  left:           { lean: -0.22, look: -1, back: false },
-  'front-left':   { lean: -0.13, look: -1, back: false },
+  'back-left':    { lean: -0.06, look: -1, back: true },
+  left:           { lean: -0.11, look: -1, back: false },
+  'front-left':   { lean: -0.06, look: -1, back: false },
 };
 
 /** Transform spec for a part: joint rotation, then pelvis rotation, then translate. */

@@ -37,11 +37,13 @@ for (let r = 9; r <= 11; r++) for (let c = 3; c <= 6; c++) set(r, c, 'stone_floo
 for (let r = 9; r <= 11; r++) set(r, 7, 'dirt_floor');
 // House A interior (Cambria-style: interior_wall perimeter this time, to
 // show it alongside wood_wall which village-demo.ts already demonstrates).
+// The floor fills the WHOLE footprint, walls included — walls are added
+// below as tall, bottom-anchored, z-sorted entities (like addTall already
+// does for houses/trees), not baked into the flat tile grid. A flat grid
+// cell can't rise above its own row, so a wall squeezed into one reads as
+// a flat, low curb instead of a real Cambria-style wall with height.
 const A = { r0: 1, r1: 6, c0: 16, c1: 22, doorC: 19 };
-for (let r = A.r0; r <= A.r1; r++) for (let c = A.c0; c <= A.c1; c++) {
-  const isWall = (r === A.r0 || r === A.r1 || c === A.c0 || c === A.c1) && !(r === A.r1 && c === A.doorC);
-  set(r, c, isWall ? 'interior_wall' : 'wood_floor');
-}
+for (let r = A.r0; r <= A.r1; r++) for (let c = A.c0; c <= A.c1; c++) set(r, c, 'wood_floor');
 
 const isGrass = gridMatcher(kinds, COLS, ROWS, (k) => k === 'grass_floor');
 const isDirt = gridMatcher(kinds, COLS, ROWS, (k) => k === 'dirt_floor');
@@ -75,6 +77,16 @@ function addRug(tx: number, ty: number, wTiles: number, hTiles: number, seed: st
 // -- Closed decorative buildings (village-demo proportions) --
 addTall('house', 'villa1', 4, 3, 130, 1.35);
 addTall('house', 'villa2', 10, 13, 120, 1.35);
+
+// -- House A perimeter walls: one tall entity per cell (not a flat tile),
+// z-sorted by its own row. Only the FAR (north) and SIDE walls rise tall —
+// the NEAR (south) wall, being the row closest to the viewer, would z-sort
+// in front of the furniture in the row just above it and hide the room's
+// interior, so it stays a low baseboard like a real open-room threshold.
+for (let r = A.r0; r <= A.r1; r++) for (let c = A.c0; c <= A.c1; c++) {
+  const isWall = (r === A.r0 || r === A.r1 || c === A.c0 || c === A.c1) && !(r === A.r1 && c === A.doorC);
+  if (isWall) addTall('interior_wall', `wA${r}_${c}`, c, r, TS, r === A.r1 ? 1.0 : 1.9);
+}
 
 // -- House A interior furnishing (interior rows are 2-5; r0=1/r1=6 are walls) --
 addRug(17, 3, 4, 2, 'rugA');
