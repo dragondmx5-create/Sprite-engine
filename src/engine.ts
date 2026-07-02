@@ -118,7 +118,8 @@ export function renderParts(parts: Part[], opts: RenderOpts): SpriteBuffer {
     // Each layer hashes with its own salt so octaves don't correlate.
     const texRaw = part.material.texture;
     const texLayers = texRaw ? (Array.isArray(texRaw) ? texRaw : [texRaw]) : null;
-    const texCells = texLayers ? texLayers.map((t) => ss * Math.max(1, t.scale ?? 1)) : null;
+    const texCellsX = texLayers ? texLayers.map((t) => ss * Math.max(1, t.sx ?? t.scale ?? 1)) : null;
+    const texCellsY = texLayers ? texLayers.map((t) => ss * Math.max(1, t.sy ?? t.scale ?? 1)) : null;
 
     for (let y = 0; y < ch; y++) {
       for (let x = 0; x < cw; x++) {
@@ -128,9 +129,8 @@ export function renderParts(parts: Part[], opts: RenderOpts): SpriteBuffer {
         if (texLayers) {
           for (let ti = 0; ti < texLayers.length; ti++) {
             const t = texLayers[ti];
-            const cell = texCells![ti];
             const salt = ti * 7919;
-            const n = hash2((((cx0 + x) / cell) | 0) + salt, (((cy0 + y) / cell) | 0) + salt);
+            const n = hash2((((cx0 + x) / texCellsX![ti]) | 0) + salt, (((cy0 + y) / texCellsY![ti]) | 0) + salt);
             // speckle: sparse strong dots; grain: dense gentle noise
             const f = t.kind === 'speckle'
               ? (n > 0.82 ? 1 + t.amount * 2 : n < 0.16 ? 1 - t.amount * 2 : 1)

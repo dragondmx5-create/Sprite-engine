@@ -69,7 +69,7 @@ function pushEllipse(parts: Part[], mat: Part['material'], cx: number, cy: numbe
  * order like paint passes — combine a broad mottle (scale 4-6), a mid
  * speckle, and a fine grain for hand-textured depth.
  */
-type Tex = { kind: 'grain' | 'speckle'; amount: number; scale?: number };
+type Tex = { kind: 'grain' | 'speckle'; amount: number; scale?: number; sx?: number; sy?: number };
 function textured(mat: Part['material'], ...layers: Tex[]): Part['material'] {
   return { ...mat, texture: layers };
 }
@@ -402,6 +402,20 @@ function buildGrassFloor(rng: RNG, s: number): Part[] {
     pushCircle(parts, MATERIALS.flesh([92 + rng.jitter(8), 70 + rng.jitter(6), 46 + rng.jitter(5)] as RGB),
       px, py, s * (0.018 + rng.float() * 0.012), 0.1);
   }
+  // Occasional taller tuft — a small V of two blades
+  if (rng.float() > 0.55) {
+    const tx = s * (0.15 + rng.float() * 0.7), ty = s * (0.2 + rng.float() * 0.65);
+    const tuftMat = MATERIALS.flesh([base[0] * 0.8, base[1] * 0.92, base[2] * 0.78] as RGB);
+    pushCapsule(parts, tuftMat, tx, ty, tx - s * 0.025, ty - s * 0.055, Math.max(1, s * 0.011), 0.12);
+    pushCapsule(parts, tuftMat, tx, ty, tx + s * 0.028, ty - s * 0.05, Math.max(1, s * 0.011), 0.12);
+  }
+  // Rare meadow flower — tiny bright speck on ~1 in 5 tiles
+  if (rng.float() > 0.8) {
+    const fx = s * (0.15 + rng.float() * 0.7), fy = s * (0.2 + rng.float() * 0.6);
+    const petal: RGB = rng.float() > 0.5 ? [235, 228, 210] : [230, 205, 95];
+    pushCircle(parts, MATERIALS.cloth(petal), fx, fy, Math.max(1, s * 0.018), 0.35);
+    pushCircle(parts, MATERIALS.gold([225, 185, 70]), fx, fy, Math.max(1, s * 0.009), 0.5);
+  }
   return parts;
 }
 
@@ -410,7 +424,7 @@ function buildWoodFloor(rng: RNG, s: number): Part[] {
   const parts: Part[] = [];
   const j = rng.jitter(6);
   const base: RGB = [148 + j, 106 + j, 62 + j];
-  pushBox(parts, textured(MATERIALS.leather(base), { kind: 'grain', amount: 0.04, scale: 4 }, { kind: 'grain', amount: 0.05 }),
+  pushBox(parts, textured(MATERIALS.leather(base), { kind: 'grain', amount: 0.05, sx: 6, sy: 1 }, { kind: 'grain', amount: 0.04 }),
     s * 0.5, s * 0.5, s * 0.50, s * 0.50, 0, 0.08);
   // Alternating board tint — every other board slightly lighter/darker
   const boards = 4;
@@ -450,7 +464,7 @@ function buildWoodWall(rng: RNG, s: number, h: number): Part[] {
   // Top surface + bright lip + front face
   pushBox(parts, textured(MATERIALS.leather(topCol), { kind: 'grain', amount: 0.05 }), s * 0.5, h * 0.08, s * 0.50, h * 0.08, 0, 0.2);
   pushBox(parts, MATERIALS.leather([topCol[0] + 18, topCol[1] + 14, topCol[2] + 10] as RGB), s * 0.5, h * 0.16, s * 0.50, h * 0.005, 0, 0.15);
-  pushBox(parts, textured(MATERIALS.leather(frontCol), { kind: 'grain', amount: 0.04, scale: 3 }, { kind: 'grain', amount: 0.05 }),
+  pushBox(parts, textured(MATERIALS.leather(frontCol), { kind: 'grain', amount: 0.05, sx: 1, sy: 5 }, { kind: 'grain', amount: 0.04 }),
     s * 0.5, h * 0.58, s * 0.50, h * 0.42, 0, 0.18);
   // Vertical plank seams on the front face
   const seam = MATERIALS.leather([frontCol[0] * 0.66, frontCol[1] * 0.66, frontCol[2] * 0.62] as RGB);
@@ -474,7 +488,8 @@ function buildWater(rng: RNG, s: number, edges?: TileConfig['edges']): Part[] {
   // per-tile brightness differences show up as a checkerboard on flat water.
   const j = rng.jitter(1.5);
   const waterCol: RGB = [30 + j, 72 + j, 118 + j];
-  pushBox(parts, MATERIALS.glass(waterCol), s * 0.5, s * 0.5, s * 0.50, s * 0.50, 0, 0.06);
+  pushBox(parts, textured(MATERIALS.glass(waterCol), { kind: 'grain', amount: 0.04, sx: 7, sy: 1 }, { kind: 'grain', amount: 0.025, sx: 3, sy: 1 }),
+    s * 0.5, s * 0.5, s * 0.50, s * 0.50, 0, 0.06);
   // Drifting highlight streaks (calm surface)
   for (let i = 0; i < 3; i++) {
     const wy = s * (0.15 + rng.float() * 0.7);
@@ -506,7 +521,7 @@ function buildWater(rng: RNG, s: number, edges?: TileConfig['edges']): Part[] {
 function buildBush(rng: RNG, s: number): Part[] {
   const parts: Part[] = [];
   const cx = s * 0.5;
-  pushEllipse(parts, MATERIALS.bone([28, 26, 22]), cx, s * 0.82, s * 0.30, s * 0.06, 0.05);
+  pushEllipse(parts, MATERIALS.bone([33, 36, 26]), cx, s * 0.82, s * 0.30, s * 0.06, 0.05);
   const leafCol: RGB = [46 + rng.jitter(10), 98 + rng.jitter(12), 42 + rng.jitter(8)];
   const leaf = textured(MATERIALS.flesh(leafCol), { kind: 'grain', amount: 0.05, scale: 4 }, { kind: 'speckle', amount: 0.07 });
   const leafDark = textured(MATERIALS.flesh([leafCol[0] * 0.68, leafCol[1] * 0.72, leafCol[2] * 0.64] as RGB), { kind: 'speckle', amount: 0.06 }, { kind: 'grain', amount: 0.04 });
@@ -555,7 +570,7 @@ function buildFlowers(rng: RNG, s: number): Part[] {
 function buildRock(rng: RNG, s: number): Part[] {
   const parts: Part[] = [];
   const cx = s * 0.5;
-  pushEllipse(parts, MATERIALS.bone([28, 26, 22]), cx + s * 0.02, s * 0.78, s * 0.26, s * 0.06, 0.05);
+  pushEllipse(parts, MATERIALS.bone([33, 36, 26]), cx + s * 0.02, s * 0.78, s * 0.26, s * 0.06, 0.05);
   const rockCol: RGB = [104 + rng.jitter(10), 100 + rng.jitter(8), 94 + rng.jitter(8)];
   const rock = textured(MATERIALS.bone(rockCol), { kind: 'grain', amount: 0.05, scale: 3 }, { kind: 'grain', amount: 0.06 });
   // Main boulder + secondary lump
@@ -1174,10 +1189,10 @@ function buildTree(rng: RNG, s: number, h: number): Part[] {
   const parts: Part[] = [];
   const cx = s * 0.5;
   // Ground shadow at bottom
-  pushEllipse(parts, MATERIALS.bone([28, 26, 22]), cx + s * 0.02, h * 0.93, s * 0.24, s * 0.06, 0.05);
+  pushEllipse(parts, MATERIALS.bone([33, 36, 26]), cx + s * 0.02, h * 0.93, s * 0.24, s * 0.06, 0.05);
   // Trunk — long vertical with bark texture
   const trunkCol: RGB = [82 + rng.jitter(8), 58 + rng.jitter(6), 38 + rng.jitter(5)];
-  const trunk = MATERIALS.leather(trunkCol);
+  const trunk = textured(MATERIALS.leather(trunkCol), { kind: 'grain', amount: 0.06, sx: 1, sy: 5 });
   const trunkDark = MATERIALS.leather([trunkCol[0] * 0.7, trunkCol[1] * 0.7, trunkCol[2] * 0.65] as RGB);
   pushCapsule(parts, trunk, cx, h * 0.90, cx - s * 0.01, h * 0.42, s * 0.085, 0.4);
   // Bark details
@@ -1217,10 +1232,10 @@ function buildPineTree(rng: RNG, s: number, h: number): Part[] {
   const parts: Part[] = [];
   const cx = s * 0.5;
   // Ground shadow
-  pushEllipse(parts, MATERIALS.bone([28, 26, 22]), cx, h * 0.94, s * 0.18, s * 0.05, 0.05);
+  pushEllipse(parts, MATERIALS.bone([33, 36, 26]), cx, h * 0.94, s * 0.18, s * 0.05, 0.05);
   // Trunk
   const trunkCol: RGB = [75 + rng.jitter(6), 52 + rng.jitter(5), 35 + rng.jitter(4)];
-  pushCapsule(parts, MATERIALS.leather(trunkCol), cx, h * 0.92, cx, h * 0.35, s * 0.045, 0.35);
+  pushCapsule(parts, textured(MATERIALS.leather(trunkCol), { kind: 'grain', amount: 0.06, sx: 1, sy: 4 }), cx, h * 0.92, cx, h * 0.35, s * 0.045, 0.35);
   // Tiered needle layers — wider at bottom, narrow at top
   const needleCol: RGB = [28 + rng.jitter(8), 72 + rng.jitter(10), 32 + rng.jitter(8)];
   const needle = textured(MATERIALS.flesh(needleCol), { kind: 'grain', amount: 0.05, scale: 3 }, { kind: 'speckle', amount: 0.07 });
@@ -1243,7 +1258,7 @@ function buildDeadTree(rng: RNG, s: number, h: number): Part[] {
   const parts: Part[] = [];
   const cx = s * 0.5;
   // Ground shadow
-  pushEllipse(parts, MATERIALS.bone([28, 26, 22]), cx, h * 0.92, s * 0.18, s * 0.04, 0.05);
+  pushEllipse(parts, MATERIALS.bone([33, 36, 26]), cx, h * 0.92, s * 0.18, s * 0.04, 0.05);
   // Trunk — tall, gnarled
   const barkCol: RGB = [55 + rng.jitter(6), 42 + rng.jitter(5), 32 + rng.jitter(4)];
   const bark = MATERIALS.leather(barkCol);
@@ -1338,7 +1353,7 @@ function buildHouse(rng: RNG, s: number, h: number): Part[] {
     const hwR = s * (0.42 + t * 0.09);
     const lift = 24 - t * 34;                        // +24 → -10 brightness
     const rowCol: RGB = [roofCol[0] + lift, roofCol[1] + lift * 0.75, roofCol[2] + lift * 0.6];
-    pushBox(parts, textured(MATERIALS.leather(rowCol), { kind: 'grain', amount: 0.05, scale: 3 }, { kind: 'grain', amount: 0.05 }),
+    pushBox(parts, textured(MATERIALS.leather(rowCol), { kind: 'grain', amount: 0.04, sx: 5, sy: 1 }, { kind: 'grain', amount: 0.05, scale: 3 }, { kind: 'grain', amount: 0.04 }),
       cx - s * 0.02 + s * 0.012 * i, cyR, hwR, h * 0.048, s * 0.008, 0.14);
     // seam under each row
     pushCapsule(parts, rowSeam, cx - s * 0.02 + s * 0.012 * i - hwR, cyR + h * 0.043,
@@ -1405,11 +1420,11 @@ function buildFence(rng: RNG, s: number): Part[] {
   // terrain tile is underneath (a stone slab here would punch a gray square
   // into grass).
   // Shadow behind fence
-  pushEllipse(parts, MATERIALS.bone([30, 28, 24]), s * 0.5, s * 0.82, s * 0.46, s * 0.04, 0.05);
+  pushEllipse(parts, MATERIALS.bone([35, 37, 28]), s * 0.5, s * 0.82, s * 0.46, s * 0.04, 0.05);
   // Fence posts and rails — 3/4 view shows front face
   const woodCol: RGB = [105 + rng.jitter(10), 78 + rng.jitter(8), 52 + rng.jitter(6)];
-  const wood = MATERIALS.leather(woodCol);
-  const woodDark = MATERIALS.leather([woodCol[0] * 0.75, woodCol[1] * 0.75, woodCol[2] * 0.7] as RGB);
+  const wood = textured(MATERIALS.leather(woodCol), { kind: 'grain', amount: 0.06, sx: 1, sy: 4 });
+  const woodDark = textured(MATERIALS.leather([woodCol[0] * 0.75, woodCol[1] * 0.75, woodCol[2] * 0.7] as RGB), { kind: 'grain', amount: 0.06, sx: 4, sy: 1 });
   // Three vertical posts
   for (let i = 0; i < 3; i++) {
     const px = s * (0.15 + i * 0.35);

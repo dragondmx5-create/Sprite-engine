@@ -53,6 +53,13 @@ export interface TextureLayer {
   amount: number;
   /** Pixel cell size of the pattern (1 = every output pixel). Default 1. */
   scale?: number;
+  /**
+   * Anisotropic cell overrides — stretch the pattern along one axis.
+   * sx: 6, sy: 1 → horizontal streaks (water drift, wood boards);
+   * sx: 1, sy: 6 → vertical streaks (bark, plank walls). Default = scale.
+   */
+  sx?: number;
+  sy?: number;
 }
 
 /** A light, expressed as the direction FROM the surface TOWARD the light. */
