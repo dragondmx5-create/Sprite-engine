@@ -218,6 +218,16 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
     const isLong = hairStyle === 'long' || hairStyle === 'flowing';
     const back = isLong ? headHh * 1.35 : headHh * 0.95;
     box(M.hair, cx, headCy - headHh * 0.18 + (isLong ? headHh * 0.2 : 0), headHw * 1.06, back, headCorner * 0.9, 0.45, xHead());
+    // Long-style masses that fall BEHIND the head/body — drawn here (back
+    // layer) so they never cover the face.
+    if (hairStyle === 'flowing') {
+      // wide curtain flowing past the shoulders
+      box(M.hair, cx, headCy + headHh * 0.6, headHw * 1.12, headHh * 1.6, headHw * 0.3, 0.5, xHead());
+    } else if (hairStyle === 'ponytail') {
+      // the tail swings out past the side of the head and falls to the shoulder
+      place(M.hair, capsule(cx + headHw * 0.45, headCy - headHh * 0.75, cx + headHw * 1.05, headCy + headHh * 0.95, headHw * 0.18),
+        cx + headHw * 0.2, headCy - headHh * 1.0, cx + headHw * 1.3, headCy + headHh * 1.2, 0.5, xHead());
+    }
   }
 
   // 2) LEGS / trousers + boots — swing about the hip.
@@ -360,8 +370,9 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
 
   // 8) EYES — small dark blocks, low on the face. Skipped when facing away;
   // shifted toward the look direction for a 3/4 profile (geometry only, so
-  // animation frames inherit the facing for free).
-  if (config.face !== false && facing !== 'back') {
+  // animation frames inherit the facing for free). Kept as a closure so the
+  // hood can re-draw them after it paints over the face.
+  const drawEyes = () => {
     const eyeY = headCy + headHh * 0.30;
     const lookSign = facing === 'left' ? -1 : facing === 'right' ? 1 : 0;
     const eyeDx = lookSign === 0 ? headHw * 0.42 : headHw * 0.26; // closer together in profile
@@ -369,7 +380,8 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
     const ew = headHw * 0.13, eh = headHh * 0.2;
     const eyeMat = { ...M.skin, name: 'eye', base: [40, 34, 44] as RGB, specStrength: 0.7, roughness: 0.3 };
     for (const dir of [-1, 1]) box(eyeMat, cx + shift + dir * eyeDx, eyeY, ew, eh, ew * 0.5, 0.4, xHead());
-  }
+  };
+  if (config.face !== false && facing !== 'back') drawEyes();
 
   // 9) HAIR FRONT — chunky fringe across the forehead. When facing away, the
   // back of the head reads as a full hair mass covering the (hidden) face.
@@ -405,18 +417,15 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
         box(M.hair, cx + dir * headHw * 0.92, headCy + headHh * 0.55, headHw * 0.22, headHh * 0.95, headHw * 0.18, 0.45, xHead());
       }
     } else if (hairStyle === 'flowing') {
-      // long feminine hair — wide curtain flowing past the shoulders
-      box(M.hair, cx, headCy + headHh * 0.6, headHw * 1.12, headHh * 1.6, headHw * 0.3, 0.5, xHead());
-      // soft side locks framing the face
+      // long feminine hair — the wide curtain is drawn in the back layer
+      // (step 1); here only the soft side locks framing the face
       for (const dir of [-1, 1]) {
         box(M.hair, cx + dir * headHw * 0.85, headCy + headHh * 0.3, headHw * 0.26, headHh * 1.1, headHw * 0.2, 0.5, xHead());
       }
     } else if (hairStyle === 'ponytail') {
-      // high ponytail — a tied knot at the crown, tail falling behind
+      // high ponytail — a tied knot at the crown; the tail itself is drawn in
+      // the back layer (step 1) so it never sweeps across the face
       box(M.hair, cx, headCy - headHh * 0.85, headHw * 0.34, headHh * 0.32, headHw * 0.3, 0.7, xHead());
-      // the tail sweeping down-right
-      place(M.hair, capsule(cx + headHw * 0.1, headCy - headHh * 0.7, cx + headHw * 0.5, headCy + headHh * 0.6, headHw * 0.18),
-        cx - headHw * 0.2, headCy - headHh * 1.0, cx + headHw * 0.8, headCy + headHh * 0.9, 0.5, xHead());
     }
   }
 
@@ -431,6 +440,12 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
     box(M.cape, cx, headCy - headHh * 0.3, headHw * 1.18, headHh * 0.9, headHw * 0.7, 0.6, xHead());
     for (const dir of [-1, 1]) {
       box(M.cape, cx + dir * headHw * 0.85, headCy + headHh * 0.2, headHw * 0.28, headHh * 0.65, headHw * 0.2, 0.5, xHead());
+    }
+    // face opening — the hood is opaque and covers the face drawn in steps 7-8,
+    // so re-expose a skin window and the eyes inside the hood rim.
+    if (facing !== 'back') {
+      box(M.skin, cx, headCy + headHh * 0.18, headHw * 0.7, headHh * 0.52, headHw * 0.32, 0.52, xHead());
+      if (config.face !== false) drawEyes();
     }
   } else if (hat === 'wizard') {
     // tall pointed wizard/mage hat with a bent tip

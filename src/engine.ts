@@ -189,10 +189,12 @@ export function generateTile(config: SpriteConfig & TileConfig = {}): SpriteBuff
 
 /** Paint a dark border on transparent pixels that touch the silhouette. */
 function applyOutline(data: Uint8ClampedArray, w: number, h: number, color: RGB): void {
-  const isSolid = (x: number, y: number): boolean =>
-    x >= 0 && x < w && y >= 0 && y < h && data[(y * w + x) * 4 + 3] > 128;
+  // isSolid must read the pre-outline snapshot, not the live buffer: painted
+  // outline pixels would otherwise count as solid and flood-fill the canvas.
   const snapshotAlpha = new Uint8Array(w * h);
   for (let i = 0; i < w * h; i++) snapshotAlpha[i] = data[i * 4 + 3] > 128 ? 1 : 0;
+  const isSolid = (x: number, y: number): boolean =>
+    x >= 0 && x < w && y >= 0 && y < h && snapshotAlpha[y * w + x] === 1;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const i = y * w + x;
