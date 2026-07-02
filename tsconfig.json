@@ -10,7 +10,7 @@
     "declaration": true,
     "outDir": "dist",
     "skipLibCheck": true,
-    "types": ["@webgpu/types"]
+    "types": ["@webgpu/types", "node"]
   },
   "include": ["src/**/*.ts"]
 }

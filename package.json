@@ -19,6 +19,7 @@
     "typescript": "^6.0.3"
   },
   "devDependencies": {
+    "@types/node": "^26.1.0",
     "@webgpu/types": "^0.1.71",
     "playwright": "^1.61.1"
   }

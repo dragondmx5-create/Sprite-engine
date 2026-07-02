@@ -9,7 +9,7 @@
 import type { SpriteBuffer, RGB } from './types';
 import { generateTile } from './engine';
 import type { TileKind } from './tiles';
-import { renderText, measureText } from './font';
+import { renderText } from './font';
 import { blitOver, createBuffer } from './scene';
 import { RNG } from './rng';
 import { clamp255 } from './color';
