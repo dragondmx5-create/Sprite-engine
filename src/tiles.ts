@@ -16,6 +16,12 @@ export type TileKind = 'stone_floor' | 'dirt_floor' | 'grass_floor' | 'stone_wal
 export interface TileConfig {
   kind?: TileKind;
   seed?: number | string;
+  /**
+   * Which sides of this tile touch grass (for path tiles). Flagged sides get
+   * an irregular grass fringe drawn over the edge so paths blend organically
+   * into the surrounding grass instead of ending in hard tile seams.
+   */
+  edges?: { n?: boolean; e?: boolean; s?: boolean; w?: boolean };
 }
 
 // ---- helpers ----------------------------------------------------------------
@@ -134,7 +140,27 @@ function buildStoneFloor(rng: RNG, s: number): Part[] {
   return parts;
 }
 
-function buildDirtFloor(rng: RNG, s: number): Part[] {
+/**
+ * Irregular grass fringe along the flagged edges of a path tile. Color matches
+ * the grass_floor base so the fringe blends with neighboring grass tiles.
+ */
+function grassFringe(parts: Part[], rng: RNG, s: number, edges?: TileConfig['edges']) {
+  if (!edges) return;
+  const blobs = (fx: (t: number) => number, fy: (t: number) => number) => {
+    for (let i = 0; i < 5; i++) {
+      const t = (i + 0.5) / 5 + rng.jitter(0.06);
+      const j = rng.jitter(8);
+      const col: RGB = [58 + j, 92 + j, 40 + j];
+      pushCircle(parts, MATERIALS.flesh(col), fx(t) * s, fy(t) * s, s * (0.055 + rng.float() * 0.05), 0.06);
+    }
+  };
+  if (edges.n) blobs((t) => t, () => rng.jitter(0.03));
+  if (edges.s) blobs((t) => t, () => 1 + rng.jitter(0.03));
+  if (edges.w) blobs(() => rng.jitter(0.03), (t) => t);
+  if (edges.e) blobs(() => 1 + rng.jitter(0.03), (t) => t);
+}
+
+function buildDirtFloor(rng: RNG, s: number, edges?: TileConfig['edges']): Part[] {
   const parts: Part[] = [];
   const base: RGB = [112 + rng.jitter(14), 84 + rng.jitter(10), 56 + rng.jitter(8)];
   pushBox(parts, MATERIALS.flesh(base), s * 0.5, s * 0.5, s * 0.50, s * 0.50, s * 0.015, 0.08);
@@ -158,6 +184,8 @@ function buildDirtFloor(rng: RNG, s: number): Part[] {
     pushCapsule(parts, MATERIALS.leather([72, 52, 32]),
       ax, ay, ax + rng.jitter(s * 0.15), ay + rng.jitter(s * 0.08), Math.max(1, s * 0.006), 0.15);
   }
+  // Grass creeping over the edges that touch grass tiles
+  grassFringe(parts, rng, s, edges);
   return parts;
 }
 
@@ -931,27 +959,35 @@ function buildTree(rng: RNG, s: number, h: number): Part[] {
   const trunkCol: RGB = [82 + rng.jitter(8), 58 + rng.jitter(6), 38 + rng.jitter(5)];
   const trunk = MATERIALS.leather(trunkCol);
   const trunkDark = MATERIALS.leather([trunkCol[0] * 0.7, trunkCol[1] * 0.7, trunkCol[2] * 0.65] as RGB);
-  pushCapsule(parts, trunk, cx, h * 0.90, cx - s * 0.01, h * 0.36, s * 0.07, 0.4);
+  pushCapsule(parts, trunk, cx, h * 0.90, cx - s * 0.01, h * 0.42, s * 0.085, 0.4);
   // Bark details
-  pushCapsule(parts, trunkDark, cx - s * 0.03, h * 0.82, cx - s * 0.02, h * 0.50, Math.max(1, s * 0.012), 0.15);
-  pushCapsule(parts, trunkDark, cx + s * 0.02, h * 0.75, cx + s * 0.03, h * 0.45, Math.max(1, s * 0.01), 0.12);
+  pushCapsule(parts, trunkDark, cx - s * 0.03, h * 0.82, cx - s * 0.02, h * 0.55, Math.max(1, s * 0.012), 0.15);
+  pushCapsule(parts, trunkDark, cx + s * 0.02, h * 0.75, cx + s * 0.03, h * 0.52, Math.max(1, s * 0.01), 0.12);
   // Root bulge
-  pushEllipse(parts, trunk, cx, h * 0.91, s * 0.10, h * 0.025, 0.3);
-  // Canopy — large layered dome
+  pushEllipse(parts, trunk, cx, h * 0.91, s * 0.12, h * 0.025, 0.3);
+  // Canopy — big lush mass built from overlapping lobes (reads like foliage,
+  // not a single balloon).
   const leafCol: RGB = [42 + rng.jitter(12), 95 + rng.jitter(15), 38 + rng.jitter(10)];
   const leaf = MATERIALS.flesh(leafCol);
   const leafLight: RGB = [leafCol[0] + 20, leafCol[1] + 25, leafCol[2] + 15];
   const leafDark: RGB = [leafCol[0] * 0.65, leafCol[1] * 0.7, leafCol[2] * 0.6];
-  // Back shadow mass
-  pushEllipse(parts, MATERIALS.flesh(leafDark), cx, h * 0.28, s * 0.38, h * 0.18, 0.3);
+  // Back shadow mass — widest layer, sits behind everything
+  pushEllipse(parts, MATERIALS.flesh(leafDark), cx, h * 0.30, s * 0.46, h * 0.21, 0.3);
+  // Under-canopy shade over the trunk top
+  pushEllipse(parts, MATERIALS.flesh(leafDark), cx, h * 0.42, s * 0.28, h * 0.08, 0.25);
   // Main canopy dome
-  pushEllipse(parts, leaf, cx, h * 0.22, s * 0.42, h * 0.20, 0.4);
-  // Top highlight
-  pushEllipse(parts, MATERIALS.flesh(leafLight), cx - s * 0.05, h * 0.10, s * 0.24, h * 0.09, 0.25);
-  // Front leaf clusters
-  pushCircle(parts, leaf, cx - s * 0.20 + rng.jitter(s * 0.03), h * 0.34, s * 0.12, 0.3);
-  pushCircle(parts, leaf, cx + s * 0.18 + rng.jitter(s * 0.03), h * 0.30, s * 0.10, 0.28);
-  pushCircle(parts, MATERIALS.flesh(leafDark), cx + s * 0.08, h * 0.36, s * 0.09, 0.25);
+  pushEllipse(parts, leaf, cx, h * 0.24, s * 0.46, h * 0.21, 0.4);
+  // Side lobes bulging out of the dome
+  pushCircle(parts, leaf, cx - s * 0.30 + rng.jitter(s * 0.03), h * 0.30, s * 0.16, 0.32);
+  pushCircle(parts, leaf, cx + s * 0.30 + rng.jitter(s * 0.03), h * 0.28, s * 0.15, 0.32);
+  pushCircle(parts, leaf, cx - s * 0.12 + rng.jitter(s * 0.04), h * 0.38, s * 0.14, 0.3);
+  pushCircle(parts, leaf, cx + s * 0.14 + rng.jitter(s * 0.04), h * 0.36, s * 0.13, 0.3);
+  // Dark inner clumps for depth
+  pushCircle(parts, MATERIALS.flesh(leafDark), cx + s * 0.06, h * 0.34, s * 0.10, 0.25);
+  pushCircle(parts, MATERIALS.flesh(leafDark), cx - s * 0.16, h * 0.26, s * 0.08, 0.25);
+  // Top highlight lobes catching the light
+  pushEllipse(parts, MATERIALS.flesh(leafLight), cx - s * 0.08, h * 0.12, s * 0.26, h * 0.09, 0.25);
+  pushCircle(parts, MATERIALS.flesh(leafLight), cx + s * 0.16, h * 0.16, s * 0.10, 0.25);
   return parts;
 }
 
@@ -1007,18 +1043,30 @@ function buildHouse(rng: RNG, s: number, h: number): Part[] {
   const cx = s * 0.5;
   // Ground shadow at bottom
   pushEllipse(parts, MATERIALS.bone([25, 24, 20]), cx + s * 0.02, h * 0.95, s * 0.28, s * 0.06, 0.05);
-  // Front wall
-  const wallCol: RGB = [155 + rng.jitter(12), 140 + rng.jitter(10), 118 + rng.jitter(8)];
-  const wallDark: RGB = [wallCol[0] * 0.7, wallCol[1] * 0.7, wallCol[2] * 0.68];
-  const wall = MATERIALS.bone(wallCol);
+  // Front wall — warm timber planks (Cambria buildings are wood, not stucco)
+  const wallCol: RGB = [136 + rng.jitter(10), 104 + rng.jitter(8), 72 + rng.jitter(6)];
+  const wallDark: RGB = [wallCol[0] * 0.68, wallCol[1] * 0.68, wallCol[2] * 0.64];
+  const wall = MATERIALS.leather(wallCol);
   // Side edge (dark depth)
-  pushBox(parts, MATERIALS.bone(wallDark), cx + s * 0.40, h * 0.62, s * 0.08, h * 0.28, s * 0.01, 0.18);
+  pushBox(parts, MATERIALS.leather(wallDark), cx + s * 0.40, h * 0.62, s * 0.08, h * 0.28, s * 0.01, 0.18);
   // Main front face
   pushBox(parts, wall, cx - s * 0.04, h * 0.62, s * 0.38, h * 0.28, s * 0.01, 0.2);
+  // Horizontal plank seams
+  const seam = MATERIALS.leather([wallCol[0] * 0.72, wallCol[1] * 0.72, wallCol[2] * 0.68] as RGB);
+  for (let i = 0; i < 3; i++) {
+    const sy = h * (0.46 + i * 0.115);
+    pushCapsule(parts, seam, cx - s * 0.41, sy, cx + s * 0.33, sy, Math.max(1, s * 0.004), 0.06);
+  }
+  // Corner support beams
+  const beam = MATERIALS.leather([wallCol[0] * 0.55, wallCol[1] * 0.55, wallCol[2] * 0.52] as RGB);
+  pushBox(parts, beam, cx - s * 0.40, h * 0.62, s * 0.018, h * 0.28, s * 0.006, 0.2);
+  pushBox(parts, beam, cx + s * 0.32, h * 0.62, s * 0.018, h * 0.28, s * 0.006, 0.2);
   // Door (taller)
   const doorCol: RGB = [95 + rng.jitter(8), 65 + rng.jitter(6), 42 + rng.jitter(5)];
   pushBox(parts, MATERIALS.leather(doorCol), cx - s * 0.10, h * 0.78, s * 0.10, h * 0.12, s * 0.01, 0.25);
   pushCircle(parts, MATERIALS.gold([190, 170, 70]), cx - s * 0.03, h * 0.78, Math.max(1, s * 0.014), 0.5);
+  // Stone doorstep
+  pushBox(parts, MATERIALS.bone([98, 92, 82]), cx - s * 0.10, h * 0.905, s * 0.13, h * 0.012, s * 0.006, 0.2);
   // Window
   pushBox(parts, MATERIALS.glass([80, 120, 160]), cx + s * 0.16, h * 0.54, s * 0.07, h * 0.06, s * 0.008, 0.3);
   pushBox(parts, MATERIALS.leather([60, 45, 30]), cx + s * 0.16, h * 0.54, s * 0.08, s * 0.003, s * 0.002, 0.2);
@@ -1026,14 +1074,26 @@ function buildHouse(rng: RNG, s: number, h: number): Part[] {
   // Second window (left side)
   pushBox(parts, MATERIALS.glass([80, 120, 160]), cx - s * 0.26, h * 0.54, s * 0.06, h * 0.05, s * 0.008, 0.3);
   pushBox(parts, MATERIALS.leather([60, 45, 30]), cx - s * 0.26, h * 0.54, s * 0.003, h * 0.06, s * 0.002, 0.2);
-  // Roof — large, prominent
-  const roofCol: RGB = [130 + rng.jitter(10), 55 + rng.jitter(8), 35 + rng.jitter(5)];
+  // Roof — large, prominent, muted shingle red
+  const roofCol: RGB = [94 + rng.jitter(8), 46 + rng.jitter(6), 34 + rng.jitter(4)];
   const roof = MATERIALS.leather(roofCol);
   const roofLight: RGB = [roofCol[0] + 20, roofCol[1] + 15, roofCol[2] + 10];
   // Roof front face (tall eave)
   pushBox(parts, roof, cx - s * 0.04, h * 0.28, s * 0.44, h * 0.08, s * 0.01, 0.2);
   // Roof top slope
   pushBox(parts, MATERIALS.leather(roofLight), cx - s * 0.04, h * 0.18, s * 0.42, h * 0.06, s * 0.01, 0.15);
+  // Shingle row seams across the eave
+  const shingleSeam = MATERIALS.leather([roofCol[0] * 0.7, roofCol[1] * 0.7, roofCol[2] * 0.7] as RGB);
+  for (let i = 0; i < 2; i++) {
+    const sy = h * (0.25 + i * 0.05);
+    pushCapsule(parts, shingleSeam, cx - s * 0.46, sy, cx + s * 0.38, sy, Math.max(1, s * 0.004), 0.06);
+  }
+  // Staggered shingle tabs
+  for (let i = 0; i < 5; i++) {
+    const sx = cx - s * 0.38 + i * s * 0.17 + rng.jitter(s * 0.02);
+    pushBox(parts, MATERIALS.leather([roofCol[0] + 10, roofCol[1] + 6, roofCol[2] + 4] as RGB),
+      sx, h * (0.27 + (i % 2) * 0.045), s * 0.045, h * 0.012, s * 0.006, 0.12);
+  }
   // Chimney
   pushBox(parts, MATERIALS.bone([70 + rng.jitter(5), 62 + rng.jitter(4), 56 + rng.jitter(4)] as RGB),
     cx + s * 0.28, h * 0.10, s * 0.05, h * 0.08, s * 0.006, 0.25);
@@ -1074,8 +1134,9 @@ function buildRuins(rng: RNG, s: number, h: number): Part[] {
 
 function buildFence(rng: RNG, s: number): Part[] {
   const parts: Part[] = [];
-  // Floor base
-  floorBase(parts, rng, s);
+  // No floor base: the fence is an overworld prop composited over whatever
+  // terrain tile is underneath (a stone slab here would punch a gray square
+  // into grass).
   // Shadow behind fence
   pushEllipse(parts, MATERIALS.bone([30, 28, 24]), s * 0.5, s * 0.82, s * 0.46, s * 0.04, 0.05);
   // Fence posts and rails — 3/4 view shows front face
@@ -1102,7 +1163,7 @@ export function buildTile(config: TileConfig, s: number, h?: number): Part[] {
   const rng = new RNG(config.seed ?? 0);
   const th = h ?? s;
   switch (config.kind ?? 'stone_floor') {
-    case 'dirt_floor':    return buildDirtFloor(rng, s);
+    case 'dirt_floor':    return buildDirtFloor(rng, s, config.edges);
     case 'grass_floor':   return buildGrassFloor(rng, s);
     case 'stone_wall':    return buildStoneWall(rng, s, th);
     case 'crystal_floor': return buildCrystalFloor(rng, s);

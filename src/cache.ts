@@ -11,7 +11,19 @@ import type { AnimationResult } from './animation';
 type CacheKey = string;
 
 function hashConfig(obj: unknown): string {
-  return JSON.stringify(obj, Object.keys(obj as Record<string, unknown>).sort());
+  // Recursively sort object keys for a stable hash. NOTE: passing a key array
+  // as JSON.stringify's replacer would WHITELIST those keys at every nesting
+  // level — nested config like outfit.hat would be dropped from the hash and
+  // different configs would collide in the cache.
+  return JSON.stringify(obj, (_key, value) => {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      const src = value as Record<string, unknown>;
+      const sorted: Record<string, unknown> = {};
+      for (const k of Object.keys(src).sort()) sorted[k] = src[k];
+      return sorted;
+    }
+    return value;
+  });
 }
 
 export class SpriteCache {

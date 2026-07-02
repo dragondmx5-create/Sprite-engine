@@ -18,7 +18,7 @@ import { buildItem, type ItemConfig } from './items';
 import { buildTile, type TileConfig } from './tiles';
 import { distanceField, fieldToNormals } from './field';
 import { makeShadeContext, shade } from './lighting';
-import { clamp255, quantizeChannel } from './color';
+import { clamp255, quantizeColor } from './color';
 import type { Part } from './shapes';
 
 const DEFAULT_LIGHT: Light = {
@@ -142,13 +142,14 @@ export function renderParts(parts: Part[], opts: RenderOpts): SpriteBuffer {
   if (opts.outlineColor) applyOutline(data, size, outH, opts.outlineColor);
 
   // ---- Optional posterize (deterministic => no temporal "boiling") ------
+  // Luma-only quantize: crunches shading into bands but preserves each
+  // material's hue (per-channel quantize merged e.g. dirt browns into grass
+  // greens at the default 5 levels).
   if (opts.quantize > 1) {
-    const levels = opts.quantize;
+    const levels = opts.quantize * 2; // finer luma steps ≈ old per-channel crunch
     for (let i = 0; i < data.length; i += 4) {
       if (data[i + 3] < 8) continue;
-      data[i] = quantizeChannel(data[i], levels);
-      data[i + 1] = quantizeChannel(data[i + 1], levels);
-      data[i + 2] = quantizeChannel(data[i + 2], levels);
+      quantizeColor(data, i, levels);
     }
   }
 
