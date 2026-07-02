@@ -13,7 +13,7 @@ import { Part, roundedBox, circle, capsule, ellipse } from './shapes';
 
 export type TileKind = 'stone_floor' | 'dirt_floor' | 'grass_floor' | 'wood_floor' | 'wood_wall' | 'stone_wall' | 'crystal_floor' | 'wood_door' | 'lava_floor' | 'ice_floor' | 'moss_floor' | 'spike_trap' | 'stairs_down' | 'stairs_up' | 'cracked_wall' | 'pit' | 'water_pool' | 'underground_river' | 'stalagmite' | 'cobweb' | 'barrel' | 'chain' | 'bone_pile' | 'shop_counter' | 'iron_gate' | 'torch_bracket' | 'altar' | 'anvil' | 'bed' | 'table' | 'bookshelf' | 'pillar' | 'fountain' | 'tree' | 'pine_tree' | 'dead_tree' | 'house' | 'ruins' | 'fence' | 'water' | 'bush' | 'flowers' | 'rock'
   | 'lantern' | 'crate' | 'banner' | 'statue' | 'shelf' | 'cauldron' | 'chest' | 'well' | 'bench' | 'planter' | 'firewood' | 'signpost' | 'bucket' | 'gravestone'
-  | 'interior_wall' | 'rug';
+  | 'interior_wall' | 'rug' | 'pebbles' | 'root';
 
 export interface TileConfig {
   kind?: TileKind;
@@ -169,6 +169,22 @@ function buildStoneFloor(rng: RNG, s: number, edges?: TileConfig['edges']): Part
     const ax = s * (0.15 + rng.float() * 0.7), ay = s * (0.15 + rng.float() * 0.7);
     pushCapsule(parts, MATERIALS.bone([36 + warmth, 32 + warmth, 26 + warmth] as RGB), ax, ay,
       ax + rng.jitter(s * 0.22), ay + rng.jitter(s * 0.22), Math.max(1, s * 0.007), 0.08);
+  }
+  // Moss creeping into the grout — a paved area this old always has a few
+  // grout lines gone green, which is most of what sells "worn plaza" over
+  // "repeating clean pattern" at a glance.
+  if (rng.float() > 0.35) {
+    const mossCol: RGB = [46 + rng.jitter(10), 84 + rng.jitter(14), 38 + rng.jitter(8)];
+    const along = rng.float() > 0.5;
+    const gx = along ? s * 0.5 : gap + bw + gap / 2;
+    const gy = along ? gap + bw + gap / 2 : s * 0.5;
+    const n = 2 + Math.floor(rng.float() * 2);
+    for (let i = 0; i < n; i++) {
+      const t = (i + 0.5) / n - 0.5;
+      const px = along ? gx + t * bw * 1.6 : gx + rng.jitter(bw * 0.15);
+      const py = along ? gy + rng.jitter(bw * 0.15) : gy + t * bw * 1.6;
+      pushCircle(parts, MATERIALS.flesh(mossCol), px, py, s * (0.02 + rng.float() * 0.015), 0.1);
+    }
   }
   // Dirt crumbling onto the edges that touch a dirt path/yard
   edgeFringe(parts, rng, s, edges, 'dirt');
@@ -709,6 +725,63 @@ function buildRock(rng: RNG, s: number): Part[] {
     pushEllipse(parts, MATERIALS.flesh([56 + rng.jitter(8), 96 + rng.jitter(10), 44 + rng.jitter(6)]),
       cx - s * 0.06, s * 0.44, s * 0.14, s * 0.06, 0.2);
   }
+  return parts;
+}
+
+/**
+ * A loose cluster of small stones — a lighter, denser ground-scatter prop
+ * than the single `rock` boulder. Meant to be placed many times along path
+ * edges/clearings; a lone boulder every so often reads as sparse, a handful
+ * of these mixed in reads as a naturally stony patch of ground.
+ */
+function buildPebbles(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const n = 4 + Math.floor(rng.float() * 3);
+  for (let i = 0; i < n; i++) {
+    const px = s * (0.12 + rng.float() * 0.76), py = s * (0.38 + rng.float() * 0.5);
+    const pr = s * (0.08 + rng.float() * 0.08);
+    pushEllipse(parts, MATERIALS.bone([28, 26, 22]), px + pr * 0.12, py + pr * 0.5, pr * 0.95, pr * 0.25, 0.08);
+  }
+  for (let i = 0; i < n; i++) {
+    const px = s * (0.12 + rng.float() * 0.76), py = s * (0.38 + rng.float() * 0.5);
+    const pr = s * (0.08 + rng.float() * 0.08);
+    const j = rng.jitter(14);
+    const col: RGB = [140 + j, 133 + j, 122 + j];
+    pushEllipse(parts, textured(MATERIALS.bone(col), { kind: 'grain', amount: 0.05 }, { kind: 'bump', amount: 0.25, scale: 2 }),
+      px, py, pr, pr * 0.74, 0.35);
+  }
+  return parts;
+}
+
+/**
+ * A pale, spreading tree root system on bare ground — the kind of dramatic
+ * root tangle at the base of an old/dead tree. No floor slab; composites
+ * over grass/dirt like bush/flowers/rock.
+ */
+function buildRoot(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const rootCol: RGB = [182 + rng.jitter(15), 170 + rng.jitter(12), 148 + rng.jitter(10)];
+  const mat = textured(MATERIALS.bone(rootCol), { kind: 'grain', amount: 0.05 }, { kind: 'bump', amount: 0.2, scale: 2 });
+  const darkMat = MATERIALS.bone([rootCol[0] * 0.7, rootCol[1] * 0.7, rootCol[2] * 0.65] as RGB);
+  const cx = s * 0.5, cy = s * 0.55;
+  const branches = 4 + Math.floor(rng.float() * 2);
+  for (let i = 0; i < branches; i++) {
+    const ang = (i / branches) * Math.PI * 2 + rng.jitter(0.5);
+    const len = s * (0.26 + rng.float() * 0.16);
+    const ex = cx + Math.cos(ang) * len, ey = cy + Math.sin(ang) * len * 0.55;
+    const thick = Math.max(1.2, s * (0.026 - i * 0.001));
+    pushCapsule(parts, mat, cx, cy, ex, ey, thick, 0.35);
+    pushCapsule(parts, darkMat, cx, cy, ex, ey, Math.max(1, thick * 0.35), 0.3);
+    // occasional forking offshoot
+    if (rng.float() > 0.35) {
+      const midx = cx + (ex - cx) * 0.55, midy = cy + (ey - cy) * 0.55;
+      const ang2 = ang + rng.jitter(1.0);
+      const len2 = len * 0.45;
+      pushCapsule(parts, mat, midx, midy, midx + Math.cos(ang2) * len2, midy + Math.sin(ang2) * len2 * 0.5,
+        Math.max(1, thick * 0.55), 0.3);
+    }
+  }
+  pushCircle(parts, mat, cx, cy, s * 0.07, 0.4);
   return parts;
 }
 
@@ -1935,11 +2008,13 @@ export function buildTile(config: TileConfig, s: number, h?: number): Part[] {
     case 'gravestone':       return buildGravestoneProp(rng, s);
     case 'interior_wall':    return buildInteriorWall(rng, s, th);
     case 'rug':              return buildRug(rng, s, th);
+    case 'pebbles':          return buildPebbles(rng, s);
+    case 'root':             return buildRoot(rng, s);
     case 'stone_floor':
     default:                 return buildStoneFloor(rng, s, config.edges);
   }
 }
 
 export const TILE_KINDS: TileKind[] = ['stone_floor', 'dirt_floor', 'grass_floor', 'wood_floor', 'wood_wall', 'stone_wall', 'crystal_floor', 'wood_door', 'lava_floor', 'ice_floor', 'moss_floor', 'spike_trap', 'stairs_down', 'stairs_up', 'cracked_wall', 'pit', 'water_pool', 'underground_river', 'stalagmite', 'cobweb', 'barrel', 'chain', 'bone_pile', 'shop_counter', 'iron_gate', 'torch_bracket', 'altar', 'anvil', 'bed', 'table', 'bookshelf', 'pillar', 'fountain', 'tree', 'pine_tree', 'dead_tree', 'house', 'ruins', 'fence', 'water', 'bush', 'flowers', 'rock',
-  'lantern', 'crate', 'banner', 'statue', 'shelf', 'cauldron', 'chest', 'well', 'bench', 'planter', 'firewood', 'signpost', 'bucket', 'gravestone',
+  'lantern', 'crate', 'banner', 'statue', 'shelf', 'cauldron', 'chest', 'well', 'bench', 'planter', 'firewood', 'signpost', 'bucket', 'gravestone', 'pebbles', 'root',
   'interior_wall', 'rug'];

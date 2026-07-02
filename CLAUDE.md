@@ -43,7 +43,7 @@ src/
   skeleton.ts   — character body builder (head, torso, arms, legs, hair, outfit, weapons, shield)
   creatures.ts  — enemy builders: 11 kinds (insect, worm, crawler, fire_elemental, shadow, burrower, bat, slime, undead, golem, ghost)
   items.ts      — loot builders: 16 kinds (+ fish)
-  tiles.ts      — dungeon tile builders: 59 kinds (+ shop_counter, iron_gate, torch_bracket, altar, anvil, bed, table, bookshelf, pillar, fountain, lantern, crate, banner, statue, shelf, cauldron, chest, well, bench, planter, firewood, signpost, bucket, gravestone, interior_wall, rug)
+  tiles.ts      — dungeon tile builders: 61 kinds (+ shop_counter, iron_gate, torch_bracket, altar, anvil, bed, table, bookshelf, pillar, fountain, lantern, crate, banner, statue, shelf, cauldron, chest, well, bench, planter, firewood, signpost, bucket, gravestone, pebbles, root, interior_wall, rug)
   autotile.ts   — grid-level terrain edge blending: 4-bit N/E/S/W bitmask + 8-flag edge/corner computation from a neighbor predicate
   effects.ts    — VFX: slash, impact, projectiles, sparkle, shadow, flash, tint, status effects, water_ripple, smoke, drip + phase-driven builders
   ui.ts         — HUD generators: health/mana/XP bars, inventory slot, dialog box, damage number, button
@@ -128,7 +128,7 @@ generateTile({ seed, size, kind: 'stone_floor'|'dirt_floor'|'grass_floor'|'wood_
   |'shop_counter'|'iron_gate'|'torch_bracket'|'altar'|'anvil'|'bed'|'table'|'bookshelf'|'pillar'|'fountain'
   |'tree'|'pine_tree'|'dead_tree'|'house'|'ruins'|'fence'|'water'|'bush'|'flowers'|'rock'
   |'lantern'|'crate'|'banner'|'statue'|'shelf'|'cauldron'|'chest'|'well'|'bench'|'planter'|'firewood'|'signpost'|'bucket'|'gravestone'
-  |'interior_wall'|'rug' })
+  |'interior_wall'|'rug'|'pebbles'|'root' })
 // dirt_floor/water take edges: {n,e,s,w,ne,nw,se,sw} — flag sides/corners that
 // touch grass to draw an organic grass fringe (soft path/shore transitions).
 // stone_floor takes the same edges shape blending against dirt instead.
@@ -154,6 +154,10 @@ generateTile({ seed, size, kind: 'stone_floor'|'dirt_floor'|'grass_floor'|'wood_
 // walls — the SAME height as a normal tile; renderScene's tile loop blits
 // each at a fixed col*TS,row*TS with no per-cell height allowance, so an
 // oversized wall sprite bleeds into the row below it.
+// pebbles/root are loose ground-scatter decor (no slab, like bush/flowers) —
+// scatter them across dirt/stone/grass tiles at low per-cell chance with a
+// small random offset and size jitter for non-repeating texture density,
+// same technique grass_floor's own decor variants use, just tile-external.
 
 // Autotiling (grid-level terrain blending, consumed by tiles.ts's edges)
 autotileMask(row, col, matches)   // classic 4-bit N/E/S/W bitmask, 0-15

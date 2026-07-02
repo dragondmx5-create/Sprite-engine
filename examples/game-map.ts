@@ -179,6 +179,8 @@ addProp('bucket', 'bk1', 8, 15);
 addTall('dead_tree', 'dt1', 23, 13, 60, 1.7);
 addProp('gravestone', 'gv1', 22, 14);
 addProp('gravestone', 'gv2', 23, 15);
+addTall('root', 'rt1', 23, 13.6, 30, 1.0); // spreading at the dead tree's base
+addTall('root', 'rt2', 1, 3, 26, 1.0);     // and under oak1
 addProp('gravestone', 'gv3', 24, 14);
 
 // -- Lanterns (also feed the daytime glow below) --
@@ -188,6 +190,69 @@ const lights = lanternSpots.map(([seed, tx, ty], i) => {
   const lx = tx * TS + TS / 2, ly = ty * TS - (spr.height - TS) + spr.height * 0.16;
   return lanternLight(lx, ly, { phase: 0.2 + i * 0.23, seed: i });
 });
+
+// -- Ground-scatter detail pass: dozens of small pebble clusters/flowers
+// instead of the handful of hand-placed props above, so the terrain doesn't
+// read as a repeating tile pattern with a few decorations sprinkled on top
+// (a lone rock/flowers prop every several tiles is too sparse to break that
+// up — real ground has this stuff everywhere). Skips a small circular
+// "keep clear" buffer around each hand-placed cluster so scatter doesn't
+// crowd it — a first pass used big rectangular exclusion zones and ended up
+// covering 70% of the map (the road alone runs through most of them),
+// leaving almost nothing to scatter onto; small radii around actual anchor
+// points instead of sweeping rectangles fixes that.
+const noScatterPoints: [number, number, number][] = [
+  [3, 4, 3.5],     // villa1
+  [3.5, 19, 4.5],  // house A
+  [8, 10, 1.8],    // well
+  [9, 15, 1.8],    // statue
+  [13, 10, 4.5],   // villa2
+  [15, 10, 2.2],   // crates row
+  [8, 1, 1.8],     // signpost
+  [13.5, 23, 3.2], // graveyard
+  // Trees/bushes/rock/flowers/fence placed above — a first pass forgot
+  // these, so a good chunk of the scatter pass landed directly under a wide
+  // tree canopy and got completely z-order-hidden behind it (found by
+  // dumping exact placement coordinates and cropping the actual pixels —
+  // it wasn't a placement bug, the props render fine, they were just
+  // invisible under existing foliage).
+  [2, 1, 2.4], [3, 24, 2.5], [12, 22, 2.3], [4, 14, 1.9], [11, 0, 2.0],
+  [4, 6, 1.3], [8, 25, 1.3], [9, 21, 1.3], [4, 9, 1.1], [8, 2, 1.1], [10, 16, 1.1],
+  [13, 3, 1.1], [13, 4, 1.1],
+];
+const inScatterZone = (r: number, c: number) => noScatterPoints.some(([pr, pc, rad]) => Math.hypot(r - pr, c - pc) < rad);
+// Raw uniform hash for the "place or not" roll — valueNoise2D is smoothly
+// INTERPOLATED (a weighted average of 4 lattice corners), which clusters
+// values toward 0.5 rather than spreading them uniformly across [0,1); a
+// hand-rolled LCG single-stepped from small sequential seeds was worse
+// still (stayed biased high for every seed this loop actually used, so
+// nothing was ever placed). This is the same hash noise.ts's smooth noise
+// is built on, just used raw/unfiltered here since chance thresholds need
+// an actually-uniform distribution.
+function hashRoll(x: number, y: number, salt: number): number {
+  let h = ((x | 0) * 374761393 + (y | 0) * 668265263 + salt * 2246822519) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+let scatterN = 0;
+function scatter(kind: string, r: number, c: number, chance: number, sizeMin: number, sizeMax: number) {
+  if (inScatterZone(r, c)) return;
+  scatterN++;
+  if (hashRoll(c, r, scatterN) > chance) return;
+  const sizeT = valueNoise2D(c * 5.3 + scatterN, r * 5.3 - scatterN, scatterN + 51);
+  const size = Math.round(sizeMin + sizeT * (sizeMax - sizeMin));
+  const jx = valueNoise2D(c * 7.7 - scatterN, r * 7.7 + scatterN, scatterN + 97) - 0.5;
+  const jy = valueNoise2D(c * 7.7 + scatterN, r * 7.7 - scatterN, scatterN + 131) - 0.5;
+  addTall(kind, `sc${scatterN}`, c + jx * 0.6, r + jy * 0.6, size, 1.0);
+}
+for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+  const k = at(r, c);
+  if (k === 'dirt_floor' || k === 'stone_floor') scatter('pebbles', r, c, 0.3, 22, 32);
+  else if (k === 'grass_floor') {
+    scatter('flowers', r, c, 0.08, 28, 38);
+    scatter('pebbles', r, c, 0.06, 20, 28);
+  }
+}
 
 // -- Characters (Phase 5: a spread of 8-way facings) --
 function addChar(cfg: any, tx: number, ty: number) {

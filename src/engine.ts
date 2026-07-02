@@ -48,8 +48,15 @@ export interface RenderOpts {
  * look never changes between frames.
  */
 export function resolveRenderOpts(config: SpriteConfig = {}): RenderOpts {
-  const size = config.size ?? 48;
-  const outH = config.height ?? size;
+  // Rounded defensively: every pixel-index computation downstream (the
+  // shading loop, the downsample box filter, blitOver) assumes W = size*ss
+  // is a whole number. A fractional `size` (easy to get from a computed
+  // value, e.g. `sizeMin + t * (sizeMax - sizeMin)`) makes most of those
+  // indices land on non-integer array positions, which silently write/read
+  // nowhere instead of throwing — the sprite renders fully transparent
+  // with no error. Rounding here closes that off for every caller at once.
+  const size = Math.round(config.size ?? 48);
+  const outH = Math.round(config.height ?? size);
   const ss = Math.max(1, Math.floor(config.supersample ?? 1));
   const light: Light = {
     dir: { ...DEFAULT_LIGHT.dir, ...(config.light ?? {}) },
