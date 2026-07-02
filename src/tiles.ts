@@ -1198,8 +1198,9 @@ function buildDeadTree(rng: RNG, s: number, h: number): Part[] {
 function buildHouse(rng: RNG, s: number, h: number): Part[] {
   const parts: Part[] = [];
   const cx = s * 0.5;
-  // Ground contact shadow
-  pushEllipse(parts, MATERIALS.bone([25, 24, 20]), cx + s * 0.03, h * 0.94, s * 0.40, s * 0.07, 0.05);
+  // NO oval drop shadow: a building sits flush on the ground (an ellipse
+  // reads as floating). Just a thin contact line under the base, drawn
+  // slightly narrower than the walls so it never peeks past the corners.
 
   const wallCol: RGB = [136 + rng.jitter(10), 104 + rng.jitter(8), 72 + rng.jitter(6)];
   const wallDark: RGB = [wallCol[0] * 0.62, wallCol[1] * 0.62, wallCol[2] * 0.58];
@@ -1208,6 +1209,8 @@ function buildHouse(rng: RNG, s: number, h: number): Part[] {
   // --- WALLS (drawn first, roof overhangs them) --------------------------
   const wallTop = h * 0.42, wallBot = h * 0.92;
   const wallCy = (wallTop + wallBot) / 2, wallHh = (wallBot - wallTop) / 2;
+  // Thin ground contact line hugging the base of the walls
+  pushBox(parts, MATERIALS.bone([30, 28, 24]), cx + s * 0.005, wallBot + h * 0.006, s * 0.46, h * 0.008, s * 0.004, 0.05);
   // Right side wall — in shade, sells the depth
   pushBox(parts, textured(MATERIALS.leather(wallDark), { kind: 'grain', amount: 0.05 }),
     cx + s * 0.40, wallCy, s * 0.075, wallHh, s * 0.008, 0.15);
