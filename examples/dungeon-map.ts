@@ -123,6 +123,30 @@ function addEnemy(kind: string, seed: string, tx: number, ty: number, size = 36)
   entities.push({ sprite: spr, x: tx * TS + (TS - size) / 2, y: ty * TS - (size - TS) });
 }
 
+// Tall standing walls: plain rock cells adjacent to a carved-out floor cell
+// rise up as real entities instead of the flat grid texture (same north/
+// side=tall, south/near=short-curb convention used for the house perimeter
+// in game-map.ts). Decorated wall tiles (torch_bracket/chain/cracked_wall)
+// keep their own unique flat art and are left alone. The flat stone_wall
+// tile baked into the grid stays underneath as the backdrop, so there's no
+// gap under the tall entity.
+const WALL_KINDS = new Set(['stone_wall', 'torch_bracket', 'chain', 'cracked_wall']);
+const isFloorCell = (r: number, c: number) => {
+  if (r < 0 || r >= ROWS || c < 0 || c >= COLS) return false;
+  return !WALL_KINDS.has(at(r, c));
+};
+for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+  if (at(r, c) !== 'stone_wall') continue;
+  const northWall = isFloorCell(r + 1, c); // floor to my south -> I'm a far wall -> tall
+  const sideWall = isFloorCell(r, c - 1) || isFloorCell(r, c + 1); // side wall -> tall
+  const southWall = isFloorCell(r - 1, c); // floor to my north -> I'm a near wall -> short curb
+  if (northWall || sideWall) {
+    addProp('stone_wall', `w${r}_${c}`, c, r, TS, 1.9);
+  } else if (southWall) {
+    addProp('stone_wall', `w${r}_${c}`, c, r, TS, 1.0);
+  }
+}
+
 addChar({ seed: 'hero', weapon: 'sword', shield: true, outfit: { armor: true }, facing: 'front' }, 3, 5);
 addChar({ seed: 'guard', weapon: 'sword', shield: true, outfit: { armor: true, hat: 'helmet' }, facing: 'left' }, 6, 4);
 addEnemy('shadow', 'sh1', 13, 9);
