@@ -490,6 +490,26 @@ function buildGrassFloor(rng: RNG, s: number): Part[] {
   // actual "this is grass" signal comes from the blade dabs below, which are
   // real shaded shapes instead of dithered noise.
   pushBox(parts, textured(MATERIALS.flesh(base), { kind: 'grain', amount: 0.035, scale: 3 }, { kind: 'bump', amount: 0.2, scale: 2 }), s * 0.5, s * 0.5, s * 0.50, s * 0.50, 0, 0.08);
+  // Real hand-painted grass bitmap, scattered as a couple of PATCHES rather
+  // than filling the whole tile. A full-tile bitmap fill always starts
+  // sampling from the same corner (each tile renders as its own isolated
+  // canvas, with no shared world coordinate to offset by), so a big single
+  // fill drew a hard seam at literally every tile boundary — the exact
+  // "every tile looks the same" wallpaper problem this rework exists to
+  // fix, just moved from color sameness to a visible texture grid. Small
+  // randomly-placed patches (same technique as the dark/light patches
+  // above) don't have that problem: their positions vary per tile, so the
+  // sampling phase varies too, and being much smaller than the source
+  // never shows a full repeat.
+  const grassBitmaps = [BITMAP_TEXTURES.grassA, BITMAP_TEXTURES.grassB, BITMAP_TEXTURES.grassC];
+  const bitmapPatches = 4 + Math.floor(rng.float() * 4);
+  for (let i = 0; i < bitmapPatches; i++) {
+    const px = s * (0.06 + rng.float() * 0.88), py = s * (0.06 + rng.float() * 0.88);
+    const r = s * (0.05 + rng.float() * 0.06);
+    const bmp = grassBitmaps[Math.floor(rng.float() * grassBitmaps.length)];
+    pushCircle(parts, textured(MATERIALS.flesh(base), { kind: 'bitmap', amount: 0.4, bitmap: bmp }),
+      px, py, r, 0.08);
+  }
   // Occasional dominant patch — a lawn of same-sized small dots still reads
   // as wallpaper from a few tiles back regardless of position, so ~1 tile in
   // 6 gets a bigger sun/shade dapple. Roundness stays LOW like every other
