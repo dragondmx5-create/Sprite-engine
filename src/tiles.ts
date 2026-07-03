@@ -951,6 +951,33 @@ function buildWater(rng: RNG, s: number, edges?: TileConfig['edges']): Part[] {
   return parts;
 }
 
+/**
+ * Ring of small leaf-clump circles traced around a canopy/bush outline —
+ * breaks a smooth ellipse/circle silhouette into bunches of leaves instead
+ * of reading as one airbrushed blob. Clumps toward the bottom go dark
+ * (under-shadow), clumps toward the upper-left go light (toward the light),
+ * the rest stay base tone. Shared by every foliage mass (tree canopy, bush)
+ * so this technique — the single highest-impact pass for a hand-drawn
+ * canopy read — lives in one place instead of being re-derived per builder.
+ */
+function foliageRimScallop(
+  parts: Part[], rng: RNG,
+  cx: number, cy: number, rx: number, ry: number, count: number,
+  sizeMin: number, sizeMax: number, angleJitter: number,
+  leaf: Part['material'], leafDark: Part['material'], leafLight: Part['material'],
+): void {
+  for (let i = 0; i < count; i++) {
+    const ang = (i / count) * Math.PI * 2 + rng.jitter(angleJitter);
+    const px = cx + Math.cos(ang) * rx + rng.jitter(rx * 0.05);
+    const py = cy + Math.sin(ang) * ry + rng.jitter(ry * 0.06);
+    const r = sizeMin + rng.float() * (sizeMax - sizeMin);
+    const mat = Math.sin(ang) > 0.35 ? leafDark
+      : Math.sin(ang) < -0.4 && Math.cos(ang) < 0.35 ? leafLight
+      : leaf;
+    pushCircle(parts, mat, px, py, r, 0.35);
+  }
+}
+
 /** Leafy bush prop — overlapping foliage lobes, composited over terrain. */
 function buildBush(rng: RNG, s: number): Part[] {
   const parts: Part[] = [];
@@ -968,16 +995,9 @@ function buildBush(rng: RNG, s: number): Part[] {
   pushCircle(parts, leafDark, cx + s * 0.05, s * 0.68, s * 0.10, 0.25);
   pushCircle(parts, leafLight, cx - s * 0.07, s * 0.44, s * 0.10, 0.28);
   // Rim scallop — small clumps around the outline so the bush silhouette is
-  // bunched leaves, matching the tree canopy treatment. Dark below, base at
-  // the sides, one sunlit clump up top.
+  // bunched leaves, matching the tree canopy treatment (shared helper).
   const rimN = 6 + Math.floor(rng.float() * 3);
-  for (let i = 0; i < rimN; i++) {
-    const ang = (i / rimN) * Math.PI * 2 + rng.jitter(0.25);
-    const px = cx + Math.cos(ang) * s * 0.28 + rng.jitter(s * 0.02);
-    const py = s * 0.58 + Math.sin(ang) * s * 0.20 + rng.jitter(s * 0.015);
-    const mat = Math.sin(ang) > 0.35 ? leafDark : Math.sin(ang) < -0.4 ? leafLight : leaf;
-    pushCircle(parts, mat, px, py, s * (0.05 + rng.float() * 0.03), 0.35);
-  }
+  foliageRimScallop(parts, rng, cx, s * 0.58, s * 0.28, s * 0.20, rimN, s * 0.05, s * 0.08, 0.25, leaf, leafDark, leafLight);
   // Tiny sunlit leaf dots on the light side
   for (let i = 0; i < 3; i++) {
     pushCircle(parts, leafLight, cx - s * 0.12 + rng.float() * s * 0.2, s * (0.40 + rng.float() * 0.1), Math.max(1, s * 0.02), 0.3);
@@ -2052,21 +2072,11 @@ function buildTree(rng: RNG, s: number, h: number): Part[] {
   pushCircle(parts, leaf, cx - s * 0.12 + rng.jitter(s * 0.04), h * 0.38, s * 0.14, 0.3);
   pushCircle(parts, leaf, cx + s * 0.14 + rng.jitter(s * 0.04), h * 0.36, s * 0.13, 0.3);
   // Rim scallop — a ring of small leaf clumps along the canopy edge breaks
-  // the smooth ellipse outline into bunches of leaves. Lower-rim clumps go
-  // dark (under-shadow), upper-left clumps go light (toward the light), the
-  // rest stay base green. THIS is the single highest-impact pass for making
+  // the smooth ellipse outline into bunches of leaves (shared helper — see
+  // its own doc comment). THIS is the single highest-impact pass for making
   // the tree read hand-drawn instead of airbrushed.
   const rimN = 10 + Math.floor(rng.float() * 3);
-  for (let i = 0; i < rimN; i++) {
-    const ang = (i / rimN) * Math.PI * 2 + rng.jitter(0.18);
-    const px = cx + Math.cos(ang) * s * 0.42 + rng.jitter(s * 0.02);
-    const py = h * 0.26 + Math.sin(ang) * h * 0.185 + rng.jitter(h * 0.012);
-    const r = s * (0.065 + rng.float() * 0.045);
-    const mat = Math.sin(ang) > 0.35 ? leafDarkMat
-      : Math.sin(ang) < -0.4 && Math.cos(ang) < 0.35 ? leafLightMat
-      : leaf;
-    pushCircle(parts, mat, px, py, r, 0.35);
-  }
+  foliageRimScallop(parts, rng, cx, h * 0.26, s * 0.42, h * 0.185, rimN, s * 0.065, s * 0.11, 0.18, leaf, leafDarkMat, leafLightMat);
   // Dark crevice clumps — shadow pockets between the lobes give the canopy
   // interior depth (without them the inside is one flat green field).
   pushCircle(parts, leafDarkMat, cx + s * 0.06, h * 0.34, s * 0.10, 0.25);
@@ -2174,38 +2184,65 @@ function buildDeadTree(rng: RNG, s: number, h: number): Part[] {
 }
 
 /**
- * 3/4 top-down house. The roof is a big sloped PLANE seen from above (rows of
- * shingles that get wider and darker toward the eave — perspective
- * foreshortening), then a dark fascia with a cast shadow onto the wall below.
- * The right side wall is a darker vertical strip, which is what sells the
- * building as a volume with height rather than a flat facade.
+ * Sloped shingle-row roof seen from above at a 3/4 angle — rows get wider
+ * and darker toward the eave (the foreshortened slope catches less sky
+ * light), each row carries staggered shingle tick marks, a lit ridge cap
+ * runs along the top, and a dark eave fascia casts a shadow onto whatever's
+ * below it (`belowCol` — the wall/surface color under the eave). Pulled out
+ * of buildHouse as its own module so any peaked-roof structure can reuse the
+ * shingle math with its own roofCol/row count instead of re-deriving it —
+ * this is the literal "build the roof separately, then place it" piece.
  */
-/**
- * Half-timber cottage: a whitewashed plaster wall carrying a dark exposed
- * timber frame (corner posts, a mid rail, and diagonal braces — real Tudor
- * framing, not two token corner marks), a stone foundation course the wall
- * sits on, window flower boxes, and a proper gabled canopy over the door.
- * The point of all of this is CONTRAST: earlier this was ~30 parts that were
- * all variations of one flat brown, which reads as a single blob no matter
- * how many seams you draw on it. Plaster-white against near-black timber
- * against slate roof against grey stone is what makes a silhouette read as
- * "built from parts" instead of "one shape with some scratches."
- */
-function buildHouse(rng: RNG, s: number, h: number): Part[] {
-  const parts: Part[] = [];
-  const cx = s * 0.5;
+function buildShingleRoof(parts: Part[], rng: RNG, cx: number, s: number, h: number, roofCol: RGB, belowCol: RGB, rows = 4): void {
+  const rowSeam = MATERIALS.leather([roofCol[0] * 0.62, roofCol[1] * 0.62, roofCol[2] * 0.62] as RGB);
+  for (let i = 0; i < rows; i++) {
+    const t = i / (rows - 1);                        // 0 = ridge, 1 = eave
+    const cyR = h * (0.115 + i * 0.082);
+    const hwR = s * (0.42 + t * 0.09);
+    const lift = 24 - t * 34;                        // +24 → -10 brightness
+    const rowCol: RGB = [roofCol[0] + lift, roofCol[1] + lift * 0.75, roofCol[2] + lift * 0.6];
+    pushBox(parts, textured(MATERIALS.leather(rowCol), { kind: 'grain', amount: 0.04, sx: 5, sy: 1 }, { kind: 'grain', amount: 0.05, scale: 3 }, { kind: 'grain', amount: 0.04 }),
+      cx - s * 0.02 + s * 0.012 * i, cyR, hwR, h * 0.048, s * 0.008, 0.14);
+    // seam under each row
+    pushCapsule(parts, rowSeam, cx - s * 0.02 + s * 0.012 * i - hwR, cyR + h * 0.043,
+      cx - s * 0.02 + s * 0.012 * i + hwR, cyR + h * 0.043, Math.max(1, s * 0.0045), 0.06);
+    // staggered shingle tick marks along the row
+    const ticks = 4 + (i % 2);
+    for (let k = 0; k < ticks; k++) {
+      const tx = cx - hwR * 0.85 + (k + 0.5 + (i % 2) * 0.5) * (hwR * 1.7 / ticks) + rng.jitter(s * 0.01);
+      pushCapsule(parts, rowSeam, tx, cyR - h * 0.012, tx, cyR + h * 0.026, Math.max(1, s * 0.004), 0.05);
+    }
+  }
+  // Ridge cap along the top
+  pushBox(parts, MATERIALS.leather([roofCol[0] + 34, roofCol[1] + 24, roofCol[2] + 18] as RGB),
+    cx - s * 0.02, h * 0.072, s * 0.415, h * 0.017, s * 0.01, 0.3);
+  // Eave fascia — dark board where the roof ends, overhanging the walls
+  pushBox(parts, MATERIALS.leather([roofCol[0] * 0.55, roofCol[1] * 0.55, roofCol[2] * 0.55] as RGB),
+    cx + s * 0.016, h * 0.435, s * 0.515, h * 0.018, s * 0.008, 0.12);
+  // Cast shadow from the overhang onto the surface below
+  pushBox(parts, MATERIALS.leather([belowCol[0] * 0.5, belowCol[1] * 0.5, belowCol[2] * 0.48] as RGB),
+    cx - s * 0.065, h * 0.468, s * 0.395, h * 0.014, s * 0.006, 0.06);
+}
 
+/**
+ * Half-timber wall panel: whitewashed plaster carrying a dark exposed
+ * timber frame (corner posts, a mid rail, and diagonal braces — real Tudor
+ * framing, not two token corner marks), a stone foundation course it sits
+ * on, and two windows with flower boxes. Pulled out of buildHouse as its
+ * own module for the same reason as buildShingleRoof — a wall built once
+ * and reused is the "put roof and wall together" idea actually working,
+ * not just a promise in a comment. Returns the values buildHouse's door/
+ * canopy section needs (wallTop/wallBot for positioning, the timber
+ * material/color so the canopy posts match the frame exactly).
+ */
+function buildTimberWall(parts: Part[], rng: RNG, cx: number, s: number, h: number) {
   const wallCol: RGB = [222 + rng.jitter(8), 210 + rng.jitter(7), 186 + rng.jitter(6)]; // whitewashed plaster
   const wallDark: RGB = [wallCol[0] * 0.74, wallCol[1] * 0.74, wallCol[2] * 0.72];
   const wall = textured(MATERIALS.bone(wallCol), { kind: 'grain', amount: 0.04, scale: 4 }, { kind: 'grain', amount: 0.03 });
   const timberCol: RGB = [46 + rng.jitter(5), 33 + rng.jitter(4), 24 + rng.jitter(3)]; // near-black oak
   const timber = textured(MATERIALS.leather(timberCol), { kind: 'grain', amount: 0.05, sx: 1, sy: 4 });
   const timberLit: RGB = [timberCol[0] + 20, timberCol[1] + 15, timberCol[2] + 10];
-  // Computed here (not down with the rest of the roof) so the door canopy
-  // below can reuse the same tile color instead of inventing its own.
-  const roofCol: RGB = [96 + rng.jitter(8), 48 + rng.jitter(6), 36 + rng.jitter(4)];
 
-  // --- WALLS (drawn first, roof overhangs them) --------------------------
   const wallTop = h * 0.42, wallBot = h * 0.92;
   const wallCy = (wallTop + wallBot) / 2, wallHh = (wallBot - wallTop) / 2;
   // Stone foundation course the whole building sits on — a distinct grey
@@ -2277,6 +2314,25 @@ function buildHouse(rng: RNG, s: number, h: number): Part[] {
   windowAt(cx + s * 0.14, h * 0.60);
   windowAt(cx - s * 0.28, h * 0.60);
 
+  return { wallTop, wallBot, wallCol, timber, timberCol };
+}
+
+/**
+ * 3/4 top-down half-timber cottage, assembled from the two standalone
+ * modules above (buildTimberWall + buildShingleRoof) plus a door/canopy
+ * that's specific enough to this one prop that it doesn't earn its own
+ * module yet. This is the "roof separately, wall separately, then put them
+ * together" composition the wall/roof extraction above exists for.
+ */
+function buildHouse(rng: RNG, s: number, h: number): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5;
+
+  const { wallCol, timber } = buildTimberWall(parts, rng, cx, s, h);
+  // Computed here (not inside buildShingleRoof) so the door canopy below
+  // can reuse the same roof color instead of inventing its own.
+  const roofCol: RGB = [96 + rng.jitter(8), 48 + rng.jitter(6), 36 + rng.jitter(4)];
+
   // Door with a real gabled canopy on two support posts (the old comment
   // promised this and never drew it) plus a stone doorstep.
   const doorCol: RGB = [95 + rng.jitter(8), 65 + rng.jitter(6), 42 + rng.jitter(5)];
@@ -2293,38 +2349,7 @@ function buildHouse(rng: RNG, s: number, h: number): Part[] {
   pushEllipse(parts, MATERIALS.bone([32, 30, 26]), cx - s * 0.08, h * 0.775, s * 0.10, h * 0.01, 0.1); // canopy underside shadow
   pushBox(parts, MATERIALS.bone([98, 92, 82]), cx - s * 0.08, h * 0.925, s * 0.125, h * 0.012, s * 0.006, 0.2);
 
-  // --- ROOF: sloped plane seen from above --------------------------------
-  const rowSeam = MATERIALS.leather([roofCol[0] * 0.62, roofCol[1] * 0.62, roofCol[2] * 0.62] as RGB);
-  // Four shingle rows: wider + darker toward the eave (foreshortened slope
-  // catching less sky light). Slight right offset per row = viewing angle.
-  const rows = 4;
-  for (let i = 0; i < rows; i++) {
-    const t = i / (rows - 1);                        // 0 = ridge, 1 = eave
-    const cyR = h * (0.115 + i * 0.082);
-    const hwR = s * (0.42 + t * 0.09);
-    const lift = 24 - t * 34;                        // +24 → -10 brightness
-    const rowCol: RGB = [roofCol[0] + lift, roofCol[1] + lift * 0.75, roofCol[2] + lift * 0.6];
-    pushBox(parts, textured(MATERIALS.leather(rowCol), { kind: 'grain', amount: 0.04, sx: 5, sy: 1 }, { kind: 'grain', amount: 0.05, scale: 3 }, { kind: 'grain', amount: 0.04 }),
-      cx - s * 0.02 + s * 0.012 * i, cyR, hwR, h * 0.048, s * 0.008, 0.14);
-    // seam under each row
-    pushCapsule(parts, rowSeam, cx - s * 0.02 + s * 0.012 * i - hwR, cyR + h * 0.043,
-      cx - s * 0.02 + s * 0.012 * i + hwR, cyR + h * 0.043, Math.max(1, s * 0.0045), 0.06);
-    // staggered shingle tick marks along the row
-    const ticks = 4 + (i % 2);
-    for (let k = 0; k < ticks; k++) {
-      const tx = cx - hwR * 0.85 + (k + 0.5 + (i % 2) * 0.5) * (hwR * 1.7 / ticks) + rng.jitter(s * 0.01);
-      pushCapsule(parts, rowSeam, tx, cyR - h * 0.012, tx, cyR + h * 0.026, Math.max(1, s * 0.004), 0.05);
-    }
-  }
-  // Ridge cap along the top
-  pushBox(parts, MATERIALS.leather([roofCol[0] + 34, roofCol[1] + 24, roofCol[2] + 18] as RGB),
-    cx - s * 0.02, h * 0.072, s * 0.415, h * 0.017, s * 0.01, 0.3);
-  // Eave fascia — dark board where the roof ends, overhanging the walls
-  pushBox(parts, MATERIALS.leather([roofCol[0] * 0.55, roofCol[1] * 0.55, roofCol[2] * 0.55] as RGB),
-    cx + s * 0.016, h * 0.435, s * 0.515, h * 0.018, s * 0.008, 0.12);
-  // Cast shadow from the overhang onto the wall
-  pushBox(parts, MATERIALS.leather([wallCol[0] * 0.5, wallCol[1] * 0.5, wallCol[2] * 0.48] as RGB),
-    cx - s * 0.065, h * 0.468, s * 0.395, h * 0.014, s * 0.006, 0.06);
+  buildShingleRoof(parts, rng, cx, s, h, roofCol, wallCol);
 
   // Chimney sitting ON the roof plane (drawn after it), with cap and mouth
   const chimCol: RGB = [88 + rng.jitter(5), 78 + rng.jitter(4), 70 + rng.jitter(4)];
