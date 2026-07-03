@@ -90,7 +90,7 @@ function wallTopAndFront(parts: Part[], rng: RNG, s: number, h: number, topCol: 
   pushBox(parts, MATERIALS.bone(frontCol), s * 0.5, h * 0.58, s * 0.50, h * 0.42, 0, 0.18);
 }
 
-function wallBricks(parts: Part[], rng: RNG, s: number, h: number, frontCol: RGB) {
+function wallBricks(parts: Part[], rng: RNG, s: number, h: number, frontCol: RGB, skipHighlights = false) {
   const mortarCol: RGB = [frontCol[0] * 0.65, frontCol[1] * 0.62, frontCol[2] * 0.58];
   const mortarMat = MATERIALS.bone(mortarCol);
   const rows = h > s * 1.2 ? 3 : 2;
@@ -110,6 +110,11 @@ function wallBricks(parts: Part[], rng: RNG, s: number, h: number, frontCol: RGB
       }
     }
   }
+  // Flat "lighter brick" patches — skipped when the front face already
+  // carries a real bitmap texture (buildStoneWall), where these read as
+  // odd floating squares stuck on top of actual per-brick variation
+  // instead of faking that variation on a flat color like they're meant to.
+  if (skipHighlights) return;
   for (let i = 0; i < 3; i++) {
     const j = rng.jitter(10);
     const bx = s * (0.15 + rng.float() * 0.7);
@@ -324,7 +329,13 @@ function buildStoneWall(rng: RNG, s: number, h: number): Part[] {
   const topCol: RGB = [68 + rng.jitter(8), 58 + rng.jitter(6), 48 + rng.jitter(5)];
   const frontCol: RGB = [92 + rng.jitter(10), 80 + rng.jitter(8), 68 + rng.jitter(7)];
   wallTopAndFront(parts, rng, s, h, topCol, frontCol);
-  wallBricks(parts, rng, s, h, frontCol);
+  // Real hand-painted brick bitmap over the (otherwise flat) front face,
+  // pushed AFTER the plain box and BEFORE wallBricks so the procedural
+  // mortar-joint lines still draw on top and reinforce the coursing instead
+  // of getting buried under it.
+  pushBox(parts, textured(MATERIALS.bone(frontCol), { kind: 'bitmap', amount: 0.5, bitmap: BITMAP_TEXTURES.brick }),
+    s * 0.5, h * 0.58, s * 0.50, h * 0.42, 0, 0.18);
+  wallBricks(parts, rng, s, h, frontCol, true);
   wallBaseShadow(parts, s, h, frontCol);
   return parts;
 }
@@ -390,9 +401,14 @@ function buildWoodDoor(rng: RNG, s: number): Part[] {
 
 function buildLavaFloor(rng: RNG, s: number): Part[] {
   const parts: Part[] = [];
-  // Dark cracked rock
+  // Dark cracked rock, with a real molten-rock bitmap blended in — the
+  // irregular crack shapes and hot-spot placement read as actual cooling
+  // basalt in a way procedural veins alone (straight-ish capsule strokes)
+  // can't match. The glowing vein/glow-spot passes below still layer on
+  // top for the brightest highlights.
   const base: RGB = [35 + rng.jitter(4), 24 + rng.jitter(3), 20 + rng.jitter(3)];
-  pushBox(parts, MATERIALS.bone(base), s * 0.5, s * 0.5, s * 0.50, s * 0.50, s * 0.015, 0.1);
+  pushBox(parts, textured(MATERIALS.bone(base), { kind: 'bitmap', amount: 0.6, bitmap: BITMAP_TEXTURES.lava }),
+    s * 0.5, s * 0.5, s * 0.50, s * 0.50, s * 0.015, 0.1);
   // Rock cracks (dark)
   for (let i = 0; i < 3; i++) {
     const ax = s * (0.05 + rng.float() * 0.9), ay = s * (0.05 + rng.float() * 0.9);
