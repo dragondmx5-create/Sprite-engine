@@ -1661,8 +1661,11 @@ function buildCrate(rng: RNG, s: number): Part[] {
   const woodCol: RGB = [122 + rng.jitter(10), 88 + rng.jitter(8), 52 + rng.jitter(6)];
   pushEllipse(parts, MATERIALS.bone([floorCol[0] * 0.45, floorCol[1] * 0.45, floorCol[2] * 0.42] as RGB),
     s * 0.52, s * 0.88, s * 0.22, s * 0.05, 0.05);
-  // Front face
-  pushBox(parts, textured(MATERIALS.leather(woodCol), { kind: 'grain', amount: 0.05, sx: 1, sy: 4 }, { kind: 'grain', amount: 0.04 }),
+  // Front face — a real diagonal-braced crate bitmap instead of straight
+  // wood grain, blended at a strong opacity so the X-brace pattern actually
+  // reads (a crate's diagonal corner braces are what separates it from a
+  // plain plank wall at a glance).
+  pushBox(parts, textured(MATERIALS.leather(woodCol), { kind: 'bitmap', amount: 0.7, bitmap: BITMAP_TEXTURES.crateWood }),
     s * 0.5, s * 0.62, s * 0.22, s * 0.24, s * 0.02, 0.14);
   const seam: RGB = [woodCol[0] * 0.72, woodCol[1] * 0.72, woodCol[2] * 0.68];
   pushCapsule(parts, MATERIALS.leather(seam), s * 0.5, s * 0.40, s * 0.5, s * 0.84, Math.max(1, s * 0.005), 0.06);
