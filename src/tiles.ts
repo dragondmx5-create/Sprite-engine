@@ -344,16 +344,24 @@ function buildCrystalFloor(rng: RNG, s: number): Part[] {
   const parts: Part[] = [];
   const base: RGB = [35 + rng.jitter(6), 30 + rng.jitter(5), 45 + rng.jitter(6)];
   pushBox(parts, MATERIALS.bone(base), s * 0.5, s * 0.5, s * 0.50, s * 0.50, s * 0.015, 0.12);
-  // Crystal veins
-  const veins = 3 + Math.floor(rng.float() * 2);
+  // Crystal veins — short hairline cracks, not tile-spanning diagonals. The
+  // old version picked two fully independent random endpoints, so veins
+  // routinely crossed most of the tile; fine in a single-tile preview, but
+  // tile a whole vault room of those and every cell's long bright diagonal
+  // criss-crosses its neighbors' into a chaotic spiderweb instead of a
+  // floor. Anchor + short direction/length instead, and fewer per tile.
+  const veins = 1 + Math.floor(rng.float() * 2);
   for (let i = 0; i < veins; i++) {
-    const ax = s * (0.08 + rng.float() * 0.84), ay = s * (0.08 + rng.float() * 0.84);
-    const bx = s * (0.08 + rng.float() * 0.84), by = s * (0.08 + rng.float() * 0.84);
-    const color: RGB = [65 + rng.jitter(20), 140 + rng.jitter(30), 195 + rng.jitter(20)];
-    pushCapsule(parts, MATERIALS.gem(color), ax, ay, bx, by, Math.max(1, s * 0.014), 0.5);
+    const ax = s * (0.15 + rng.float() * 0.7), ay = s * (0.15 + rng.float() * 0.7);
+    const ang = rng.float() * Math.PI * 2;
+    const len = s * (0.14 + rng.float() * 0.14);
+    const bx = ax + Math.cos(ang) * len, by = ay + Math.sin(ang) * len;
+    const color: RGB = [60 + rng.jitter(15), 130 + rng.jitter(25), 180 + rng.jitter(18)];
+    pushCapsule(parts, MATERIALS.gem(color), ax, ay, bx, by, Math.max(1, s * 0.012), 0.45);
   }
-  // Bright crystal nodes at vein intersections
-  for (let i = 0; i < 2; i++) {
+  // Bright crystal node — an occasional glowing point, not guaranteed on
+  // every tile (a whole room of them reads as scattered gems, not a grid).
+  if (rng.float() > 0.4) {
     const nx = s * (0.2 + rng.float() * 0.6), ny = s * (0.2 + rng.float() * 0.6);
     pushCircle(parts, MATERIALS.gem([120 + rng.jitter(20), 200 + rng.jitter(20), 240]),
       nx, ny, s * (0.02 + rng.float() * 0.015), 0.7);
