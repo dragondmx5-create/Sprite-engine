@@ -20,8 +20,9 @@ import {
 } from './animation';
 
 export { generateSprite, generateEnemy, generateItem, generateTile };
-export type { SpriteBuffer, SpriteConfig, Material, RGB, Vec3 } from './types';
+export type { SpriteBuffer, SpriteConfig, Material, RGB, Vec3, TextureLayer } from './types';
 export { MATERIALS } from './materials';
+export { valueNoise2D, fbm2D } from './noise';
 
 // ---- Enemy / loot API (UNDRAL) ---------------------------------------------
 export { buildCreature, CREATURE_KINDS } from './creatures';
@@ -33,19 +34,66 @@ export type { ItemConfig, ItemKind } from './items';
 export { buildTile, TILE_KINDS } from './tiles';
 export type { TileConfig, TileKind } from './tiles';
 
+// ---- Autotiling (grid-level terrain edge blending) --------------------------
+export { autotileMask, autotileEdges, gridMatcher } from './autotile';
+export type { EdgeFlags, CellMatcher } from './autotile';
+
 // ---- Effects (combat / status) ---------------------------------------------
 export {
   generateShadow, generateSlashEffect, generateImpactEffect,
   generateProjectile, generateSparkle,
   flashSprite, tintSprite, applyStatusEffect,
   buildSlashEffect, buildImpactEffect, buildSparkleEffect,
-  buildFireballEffect, buildMagicBoltEffect, buildEffect,
+  buildFireballEffect, buildMagicBoltEffect,
+  buildWaterRippleEffect, buildSmokeEffect, buildDripEffect,
+  buildEffect,
 } from './effects';
 export type { StatusEffect, VFXConfig, ProjectileKind, ProjectileConfig, EffectKind, EffectConfig } from './effects';
+
+// ---- Loot / death markers (UNDRAL) -----------------------------------------
+export { generateLootMarker, buildLootMarker, LOOT_MARKER_KINDS } from './loot';
+export type { LootMarkerConfig, LootMarkerKind } from './loot';
 
 // ---- Minimap ---------------------------------------------------------------
 export { generateMinimapIcon, MINIMAP_ICONS } from './minimap';
 export type { MinimapConfig, MinimapIcon } from './minimap';
+
+// ---- Scene composition + z-sorting -----------------------------------------
+export { renderScene, blitOver, createBuffer, isVisible } from './scene';
+export type { SceneEntity, SceneLayer } from './scene';
+
+// ---- Darkness / lighting system (UNDRAL) -----------------------------------
+export { generateDarknessOverlay, generateLightGlow, isInDarkness, torchFlicker, lanternLight } from './darkness';
+export type { LightSource, LanternLightOptions } from './darkness';
+
+// ---- Pixel font / text rendering ----------------------------------------
+export { renderText, renderNumber, measureText } from './font';
+export type { TextConfig } from './font';
+
+// ---- UI / HUD elements -----------------------------------------------
+export {
+  generateHealthBar, generateManaBar, generateXPBar,
+  generateInventorySlot, generateDialogBox, generateDamageNumber, generateButton,
+} from './ui';
+export type { HealthBarConfig, ManaBarConfig, XPBarConfig, InventorySlotConfig, DialogBoxConfig, DamageNumberConfig, ButtonConfig } from './ui';
+
+// ---- GPU accelerated rendering (WebGPU) ------------------------------------
+export { GPURenderer, getGPURenderer, renderPartsGPU, renderBatchGPU } from './gpu';
+
+// ---- SDF descriptors (for GPU pipeline) ------------------------------------
+export { SDF_CIRCLE, SDF_ELLIPSE, SDF_CAPSULE, SDF_ROUNDED_BOX, extractSDFDesc } from './shapes';
+export type { SDFDesc } from './shapes';
+
+// ---- World map rendering (Telegram territory game) -------------------------
+export { generateWorldMap, generateTerritoryCard } from './worldmap';
+export type { WorldMapConfig, TerritoryData, BiomeTileSet } from './worldmap';
+
+// ---- Sprite caching --------------------------------------------------------
+export {
+  SpriteCache, globalCache,
+  cachedSprite, cachedEnemy, cachedItem, cachedTile,
+  cachedAnimation, cachedEnemyAnimation, cachedItemAnimation, cachedEffectAnimation,
+} from './cache';
 
 // ---- Animation API ---------------------------------------------------------
 export { generateAnimation, packSpriteSheet, listAnimations };

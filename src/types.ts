@@ -31,6 +31,56 @@ export interface Material {
   metallic: boolean;
   /** How far shadows shift toward cool/blue (0..1). Gives painterly depth. */
   shadowCoolShift: number;
+  /**
+   * Optional per-pixel surface texture layered over the shading — the
+   * hand-dithered grain that makes terrain/foliage read detailed instead of
+   * airbrushed. Deterministic (position-hash), so it never boils between
+   * frames of the same sprite.
+   *
+   * Accepts a single layer or a STACK of layers applied in order — combine
+   * scales like paint passes: a broad mottle (scale 4-6) for patchiness, a
+   * mid speckle for clumps, a fine grain (scale 1) for tooth.
+   *   'grain'   — luminance noise per cell (dirt, stone, wood)
+   *   'speckle' — sparse strong light/dark dots (grass, foliage)
+   *   'bump'    — perturbs the shading NORMAL (via noise.ts's smooth fbm),
+   *               not just color, so light/shadow actually roll across the
+   *               relief instead of a flat-lit pixel getting tinted. This is
+   *               what makes turf/rough stone/cloth folds read as real
+   *               surface relief rather than a flat plane with dots painted
+   *               on. `amount` ~0.15..0.5; lower scale (2-3) + higher amount
+   *               reads as soft creases/wrinkles, higher scale (6+) reads as
+   *               fine roughness.
+   *   'bitmap'  — tiles a small embedded RGBA source (see textures.ts) over
+   *               the shape and blends it into the ALREADY-SHADED pixel at
+   *               `amount` opacity. Unlike the others this carries real hue
+   *               variation, not just luminance — hand-authored/photographed
+   *               texture has irregularity procedural noise can't fake. It's
+   *               a blend, not a paste: the SDF bevel's own light/shadow
+   *               still shows through underneath, so it doesn't look stamped
+   *               flat onto a rounded shape. Opt-in and tiny (one 16-32px
+   *               source tile) — everything else on this page stays pure
+   *               math with zero external assets; only parts that explicitly
+   *               reach for a bitmap layer pull one in.
+   */
+  texture?: TextureLayer | TextureLayer[];
+}
+
+/** One octave of the material texture stack. */
+export interface TextureLayer {
+  kind: 'grain' | 'speckle' | 'bump' | 'bitmap';
+  /** Strength of the perturbation: luminance for grain/speckle (~0.03..0.15), normal displacement for bump (~0.15..0.5), blend opacity for bitmap (~0.5..0.9). */
+  amount: number;
+  /** Pixel cell size of the pattern (1 = every output pixel). Default 1. Unused for 'bitmap' (uses the source's own native size). */
+  scale?: number;
+  /**
+   * Anisotropic cell overrides — stretch the pattern along one axis.
+   * sx: 6, sy: 1 → horizontal streaks (water drift, wood boards);
+   * sx: 1, sy: 6 → vertical streaks (bark, plank walls). Default = scale.
+   */
+  sx?: number;
+  sy?: number;
+  /** Only for kind: 'bitmap' — a small tileable RGBA source, sampled 1:1 (one source pixel per output pixel) and wrapped at its own width/height. */
+  bitmap?: { width: number; height: number; data: Uint8ClampedArray };
 }
 
 /** A light, expressed as the direction FROM the surface TOWARD the light. */
@@ -44,8 +94,10 @@ export interface Light {
 export interface SpriteConfig {
   /** Same seed + same config => byte-identical sprite, always. */
   seed?: number | string;
-  /** Logical output size in px (square). Default 64. */
+  /** Logical output width in px. Default 48. */
   size?: number;
+  /** Logical output height in px. Defaults to size (square). */
+  height?: number;
   /** Internal supersample factor for AA + smoother gradients. Default 2. */
   supersample?: number;
 
@@ -86,24 +138,28 @@ export interface SpriteConfig {
     hat?: RGB;
     cape?: RGB;
     pants?: RGB;
+    accent?: RGB;
   };
 
   /** Outfit composition. */
   outfit?: {
-    torso?: 'cloth' | 'leather'; // default 'cloth'
+    torso?: 'cloth' | 'leather' | 'robe' | 'chainmail' | 'vest'; // default 'cloth'
     armor?: boolean;             // metal chestplate + pauldrons. default false
     belt?: boolean;              // leather belt. default true
-    hat?: 'none' | 'cap' | 'hat' | 'hood'; // headwear. default 'none'
+    hat?: 'none' | 'cap' | 'hat' | 'hood' | 'wizard' | 'crown' | 'helmet' | 'bandana'; // headwear
     cape?: boolean;              // flowing cloak behind the body. default false
     coat?: boolean;              // long coat extending past waist. default false
     boots?: boolean;             // tall boots on legs. default false
+    gloves?: boolean;            // gauntlets / gloves on hands. default false
+    scarf?: boolean;             // neck scarf / muffler. default false
+    shoulderpad?: boolean;       // decorative shoulder pads (non-armor). default false
   };
 
   /** Hairstyle. Default 'short' (the original look). 'bald' draws no hair. */
   hairStyle?: 'short' | 'long' | 'spiky' | 'bun' | 'bald' | 'flowing' | 'ponytail';
 
   /** Weapon held in the right hand. Follows arm rotation during animations. */
-  weapon?: 'none' | 'dagger' | 'sword' | 'axe' | 'staff';
+  weapon?: 'none' | 'dagger' | 'sword' | 'axe' | 'staff' | 'bow' | 'mace' | 'wand' | 'hammer' | 'fishing_rod';
 
   /** Round buckler shield on the left arm. */
   shield?: boolean;
@@ -112,13 +168,18 @@ export interface SpriteConfig {
   face?: boolean;
 
   /**
-   * Which way the character looks (for top-down movement).
+   * Which way the character looks (for top-down movement). 8-way compass:
    *   'front' (default) — faces the viewer, both eyes centered
-   *   'back'            — seen from behind; face hidden by hair
-   *   'left' | 'right'  — 3/4 profile; eyes shifted to that side
-   * Geometry-only (no buffer flipping), so it also works in animation frames.
+   *   'back'             — seen from behind; face hidden by hair
+   *   'left' | 'right'   — full profile lean; eyes shifted to that side
+   *   'front-left' | 'front-right' | 'back-left' | 'back-right' — diagonals,
+   *     a lighter lean between the cardinal and the profile
+   * Geometry-only (a torso-lean bias + eye shift, no buffer flipping), so it
+   * also works in animation frames. The lean is shared by every part that
+   * rotates with the upper body — torso, arms, head, cape, shield, weapon —
+   * so equipment turns together with the character in all 8 directions.
    */
-  facing?: 'front' | 'back' | 'left' | 'right';
+  facing?: 'front' | 'back' | 'left' | 'right' | 'front-left' | 'front-right' | 'back-left' | 'back-right';
 }
 
 /** RGBA pixel buffer — the engine's native, DOM-free output. */

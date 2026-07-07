@@ -22,7 +22,7 @@ import { Part, circle, ellipse, capsule } from './shapes';
 import { solveTwoBone, type Pt } from './anim/ik';
 import { wave, lag, squash } from './anim/spring';
 
-export type CreatureKind = 'insect' | 'worm' | 'crawler';
+export type CreatureKind = 'insect' | 'worm' | 'crawler' | 'fire_elemental' | 'shadow' | 'burrower' | 'bat' | 'slime' | 'undead' | 'golem' | 'ghost';
 
 export interface CreatureConfig {
   seed?: number | string;
@@ -99,10 +99,18 @@ function defaultColor(rng: RNG, kind: CreatureKind): RGB {
     c[0] * (1 + rng.jitter(amt)), c[1] * (1 + rng.jitter(amt)), c[2] * (1 + rng.jitter(amt)),
   ];
   switch (kind) {
-    case 'insect':  return j([44, 50, 40], 0.18);
-    case 'worm':    return j([122, 138, 70], 0.16);
-    case 'crawler': return j([138, 46, 44], 0.16);
-    default:        return j([80, 80, 80], 0.15);
+    case 'insect':        return j([44, 50, 40], 0.18);
+    case 'worm':          return j([122, 138, 70], 0.16);
+    case 'crawler':       return j([138, 46, 44], 0.16);
+    case 'fire_elemental': return j([255, 120, 40], 0.12);
+    case 'shadow':        return j([30, 25, 45], 0.10);
+    case 'burrower':      return j([95, 75, 50], 0.14);
+    case 'bat':           return j([60, 50, 70], 0.16);
+    case 'slime':         return j([70, 180, 80], 0.20);
+    case 'undead':        return j([200, 190, 175], 0.10);
+    case 'golem':         return j([100, 95, 88], 0.12);
+    case 'ghost':         return j([180, 200, 220], 0.10);
+    default:              return j([80, 80, 80], 0.15);
   }
 }
 
@@ -269,6 +277,324 @@ function buildCrawler(rng: RNG, s: number, color: RGB, alerted: boolean, phase: 
   return parts;
 }
 
+/** FIRE ELEMENTAL (Emberscar layer 4) — pulsing flame body, ember corona. */
+function buildFireElemental(rng: RNG, s: number, color: RGB, alerted: boolean, phase: number, amp: number): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5;
+  const flame = MATERIALS.ember(color);
+  const core = MATERIALS.ember([255, 240, 160]);
+  const eye = eyeMaterial(alerted);
+
+  const breathe = 1 + wave(phase, 2) * 0.08 * amp;
+  const flick = wave(phase, 3.7) * s * 0.02 * amp;
+  const bob = wave(phase, 1.5) * s * 0.015 * amp;
+
+  const bodyCy = s * 0.52 + bob;
+  const bodyRx = s * 0.18 * breathe;
+  const bodyRy = s * 0.22 * breathe;
+
+  pushEllipse(parts, flame, cx + flick * 0.5, bodyCy + s * 0.08, bodyRx * 1.1, bodyRy * 0.6, 1.0);
+  pushEllipse(parts, flame, cx + flick, bodyCy, bodyRx, bodyRy, 1.0);
+  pushEllipse(parts, core, cx + flick * 0.3, bodyCy + s * 0.02, bodyRx * 0.5, bodyRy * 0.55, 1.0);
+
+  const topY = bodyCy - bodyRy * 0.7;
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2 + phase * Math.PI * 2;
+    const wr = s * (0.04 + 0.015 * wave(phase, 4, i * 0.33));
+    const wx = cx + Math.cos(a) * bodyRx * 0.8 + flick;
+    const wy = topY + Math.sin(a) * bodyRy * 0.3;
+    pushCircle(parts, flame, wx, wy, Math.max(1.5, wr * amp + wr * 0.5), 1.0);
+  }
+
+  const eyeDx = bodyRx * 0.35;
+  const eyeR = s * 0.03;
+  for (const dir of [-1, 1]) pushCircle(parts, eye, cx + dir * eyeDx + flick, bodyCy - bodyRy * 0.1, eyeR, 0.7);
+
+  return parts;
+}
+
+/** SHADOW (The Hollow layer 5) — amorphous dark form, glowing eyes, wisps. */
+function buildShadow(rng: RNG, s: number, color: RGB, alerted: boolean, phase: number, amp: number): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5;
+  const dark = MATERIALS.cloth(color);
+  const wisp = MATERIALS.gem([80, 60, 140]);
+  const eye = alerted ? MATERIALS.ember([255, 40, 40]) : MATERIALS.gem([140, 100, 255]);
+
+  const drift = wave(phase, 0.7) * s * 0.02 * amp;
+  const pulse = 1 + wave(phase, 1.3) * 0.06 * amp;
+  const bodyCy = s * 0.5 + drift;
+
+  pushEllipse(parts, dark, cx, bodyCy + s * 0.1, s * 0.24 * pulse, s * 0.12, 0.8);
+  pushEllipse(parts, dark, cx, bodyCy, s * 0.2 * pulse, s * 0.25 * pulse, 1.0);
+  pushEllipse(parts, { ...dark, base: [color[0] * 0.6, color[1] * 0.6, color[2] * 0.7] as RGB },
+    cx, bodyCy - s * 0.05, s * 0.14 * pulse, s * 0.18 * pulse, 1.0);
+
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2 + phase * Math.PI;
+    const wr = s * 0.025;
+    const wx = cx + Math.cos(a) * s * 0.22;
+    const wy = bodyCy + Math.sin(a) * s * 0.15;
+    const wampPhase = (phase + i * 0.33) % 1;
+    const wamp = 0.3 + 0.7 * (0.5 + 0.5 * wave(wampPhase, 1));
+    pushCircle(parts, wisp, wx, wy, Math.max(1, wr * wamp * amp), 0.9);
+  }
+
+  const eyeDx = s * 0.06;
+  const eyeR = s * 0.025;
+  for (const dir of [-1, 1]) pushCircle(parts, eye, cx + dir * eyeDx, bodyCy - s * 0.06, eyeR, 0.8);
+
+  return parts;
+}
+
+/** BURROWER — emerges from the ground, armored segments. Ground ambush creature. */
+function buildBurrower(rng: RNG, s: number, color: RGB, alerted: boolean, phase: number, amp: number): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5;
+  const shell = MATERIALS.chitin(color);
+  const dirt = MATERIALS.bone([color[0] * 0.6, color[1] * 0.55, color[2] * 0.5]);
+  const eye = eyeMaterial(alerted);
+
+  const emerge = 0.3 + 0.7 * (0.5 + 0.5 * wave(phase, 0.5)) * amp;
+  const segs = 4;
+  const baseY = s * 0.85;
+  const topY = baseY - s * 0.55 * emerge;
+
+  pushEllipse(parts, dirt, cx, baseY, s * 0.22, s * 0.06, 0.3);
+
+  for (let i = 0; i < segs; i++) {
+    const t = i / (segs - 1);
+    const segY = baseY + (topY - baseY) * t;
+    if (segY > baseY - s * 0.02) continue;
+    const segR = s * (0.14 - t * 0.04);
+    const sway = wave(phase, 1.5) * s * 0.01 * amp * t;
+    pushEllipse(parts, shell, cx + sway, segY, segR, segR * 0.8, 1.0);
+  }
+
+  if (emerge > 0.5) {
+    const headY = topY;
+    const headR = s * 0.12;
+    pushCircle(parts, shell, cx, headY, headR, 1.0);
+    const jawOpen = (0.5 + 0.5 * wave(phase, 2)) * s * 0.02 * amp;
+    for (const dir of [-1, 1]) {
+      pushCapsule(parts, shell, cx + dir * headR * 0.5, headY + headR * 0.6,
+        cx + dir * (headR * 0.9 + jawOpen), headY + headR * 0.9, Math.max(1, s * 0.02), 0.85);
+    }
+    for (const dir of [-1, 1]) pushCircle(parts, eye, cx + dir * headR * 0.35, headY - headR * 0.15, s * 0.02, 0.7);
+  }
+
+  return parts;
+}
+
+/** BAT — ceiling ambush, flapping wings. */
+function buildBat(rng: RNG, s: number, color: RGB, alerted: boolean, phase: number, amp: number): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5;
+  const skin = MATERIALS.flesh(color);
+  const eye = eyeMaterial(alerted);
+
+  const flapAngle = wave(phase, 3) * 0.6 * amp;
+  const bob = wave(phase, 3) * s * 0.02 * amp;
+  const bodyCy = s * 0.5 + bob;
+  const bodyR = s * 0.08;
+
+  for (const dir of [-1, 1]) {
+    const wingTip = flapAngle * dir;
+    const wx = cx + dir * s * 0.28;
+    const wy = bodyCy - s * 0.05 + Math.abs(wingTip) * s * 0.15;
+    pushCapsule(parts, skin, cx + dir * bodyR * 0.6, bodyCy - s * 0.02, wx, wy, Math.max(1.5, s * 0.03), 0.7);
+    pushCapsule(parts, skin, wx, wy, wx + dir * s * 0.08, wy + s * 0.1 + wingTip * s * 0.08,
+      Math.max(1, s * 0.018), 0.6);
+  }
+
+  pushEllipse(parts, skin, cx, bodyCy, bodyR, bodyR * 1.1, 1.0);
+
+  const earR = s * 0.03;
+  for (const dir of [-1, 1]) {
+    pushCapsule(parts, skin, cx + dir * bodyR * 0.5, bodyCy - bodyR, cx + dir * bodyR * 0.7,
+      bodyCy - bodyR - s * 0.06, Math.max(1, earR), 0.8);
+  }
+
+  for (const dir of [-1, 1]) pushCircle(parts, eye, cx + dir * bodyR * 0.4, bodyCy - bodyR * 0.15, s * 0.015, 0.7);
+
+  return parts;
+}
+
+/** SLIME — blobby, bouncing, corrosive. */
+function buildSlime(rng: RNG, s: number, color: RGB, alerted: boolean, phase: number, amp: number): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5;
+  const gel = MATERIALS.glass(color);
+  const gelDark = MATERIALS.glass([color[0] * 0.6, color[1] * 0.65, color[2] * 0.6]);
+  const eye = eyeMaterial(alerted);
+
+  const bounce = Math.abs(wave(phase, 2)) * amp;
+  const sq = squash(bounce * -0.3);
+  const bodyCy = s * 0.58 - bounce * s * 0.06;
+  const bodyRx = s * 0.22 * sq.sx;
+  const bodyRy = s * 0.18 * sq.sy;
+
+  pushEllipse(parts, gelDark, cx, bodyCy + bodyRy * 0.3, bodyRx * 0.9, bodyRy * 0.4, 0.8);
+  pushEllipse(parts, gel, cx, bodyCy, bodyRx, bodyRy, 1.0);
+
+  const highlightR = s * 0.04;
+  pushCircle(parts, MATERIALS.glass([Math.min(255, color[0] + 80), Math.min(255, color[1] + 80),
+    Math.min(255, color[2] + 60)] as RGB), cx - bodyRx * 0.3, bodyCy - bodyRy * 0.4, highlightR, 0.9);
+
+  const eyeDx = bodyRx * 0.3;
+  const eyeR = s * 0.022;
+  for (const dir of [-1, 1]) pushCircle(parts, eye, cx + dir * eyeDx, bodyCy - bodyRy * 0.15, eyeR, 0.7);
+
+  return parts;
+}
+
+/** UNDEAD — skeletal warrior, shambling walk, arms raise when alerted. */
+function buildUndead(rng: RNG, s: number, color: RGB, alerted: boolean, phase: number, amp: number): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5;
+  const bone = MATERIALS.bone(color);
+  const boneDark = MATERIALS.bone([color[0] * 0.7, color[1] * 0.7, color[2] * 0.65] as RGB);
+  const eye = eyeMaterial(alerted);
+
+  // shambling body sway
+  const sway = wave(phase, 1) * s * 0.02 * amp;
+  const bob = wave(phase, 2) * s * 0.008 * amp;
+
+  const headCy = s * 0.22 + bob;
+  const torsoCy = s * 0.42 + bob;
+  const hipCy = s * 0.58 + bob;
+
+  // legs — bony limbs
+  for (const dir of [-1, 1]) {
+    const legPhase = dir < 0 ? phase : (phase + 0.5) % 1;
+    const legSway = wave(legPhase, 1) * s * 0.03 * amp;
+    pushCapsule(parts, bone, cx + dir * s * 0.06 + sway, hipCy,
+      cx + dir * s * 0.08 + sway + legSway, s * 0.72 + bob, Math.max(1, s * 0.025), 0.8);
+    pushCapsule(parts, bone, cx + dir * s * 0.08 + sway + legSway, s * 0.72 + bob,
+      cx + dir * s * 0.10 + sway + legSway * 0.5, s * 0.88, Math.max(1, s * 0.02), 0.75);
+  }
+
+  // ribcage — vertical capsules
+  for (let i = 0; i < 3; i++) {
+    const ribY = torsoCy - s * 0.06 + i * s * 0.05;
+    pushCapsule(parts, boneDark, cx - s * 0.09 + sway, ribY,
+      cx + s * 0.09 + sway, ribY, Math.max(1, s * 0.012), 0.6);
+  }
+
+  // torso spine
+  pushCapsule(parts, bone, cx + sway, torsoCy - s * 0.10, cx + sway, hipCy, Math.max(1, s * 0.03), 0.7);
+
+  // arms — dangle loosely, raise when alerted
+  const armRaise = alerted ? -s * 0.12 : 0;
+  for (const dir of [-1, 1]) {
+    const armDangle = wave(phase, 1, dir < 0 ? 0 : 0.5) * s * 0.015 * amp;
+    pushCapsule(parts, bone, cx + dir * s * 0.12 + sway, torsoCy - s * 0.06,
+      cx + dir * s * 0.18 + sway + armDangle, torsoCy + s * 0.10 + armRaise, Math.max(1, s * 0.02), 0.75);
+    pushCapsule(parts, bone, cx + dir * s * 0.18 + sway + armDangle, torsoCy + s * 0.10 + armRaise,
+      cx + dir * s * 0.20 + sway + armDangle, torsoCy + s * 0.22 + armRaise, Math.max(1, s * 0.015), 0.7);
+  }
+
+  // skull
+  const headR = s * 0.10;
+  pushCircle(parts, bone, cx + sway, headCy, headR, 0.9);
+
+  // dark eye sockets
+  const eyeDx = headR * 0.4;
+  const eyeR = s * 0.022;
+  for (const dir of [-1, 1]) pushCircle(parts, eye, cx + dir * eyeDx + sway, headCy - headR * 0.1, eyeR, 0.7);
+
+  // jaw
+  pushCapsule(parts, boneDark, cx - headR * 0.3 + sway, headCy + headR * 0.6,
+    cx + headR * 0.3 + sway, headCy + headR * 0.6, Math.max(1, s * 0.015), 0.6);
+
+  return parts;
+}
+
+/** GOLEM — heavy rock construct, slow stomp, glowing ember eyes. */
+function buildGolem(rng: RNG, s: number, color: RGB, alerted: boolean, phase: number, amp: number): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5;
+  const stone = MATERIALS.bone(color);
+  const stoneDark = MATERIALS.bone([color[0] * 0.75, color[1] * 0.75, color[2] * 0.72] as RGB);
+  const eye = MATERIALS.ember(alerted ? [255, 100, 30] as RGB : [220, 140, 40] as RGB);
+
+  // slow heavy stomp — low-frequency bob
+  const bob = wave(phase, 0.5) * s * 0.02 * amp;
+  const bodyCy = s * 0.44 + bob;
+
+  // thick legs
+  for (const dir of [-1, 1]) {
+    const legPhase = dir < 0 ? phase : (phase + 0.5) % 1;
+    const legLift = Math.max(0, wave(legPhase, 0.5)) * s * 0.02 * amp;
+    pushCapsule(parts, stoneDark, cx + dir * s * 0.10, s * 0.62 + bob,
+      cx + dir * s * 0.12, s * 0.82 - legLift, Math.max(1.5, s * 0.055), 0.6);
+    // feet
+    pushEllipse(parts, stoneDark, cx + dir * s * 0.12, s * 0.84 - legLift, s * 0.07, s * 0.03, 0.5);
+  }
+
+  // big bulky torso
+  pushEllipse(parts, stone, cx, bodyCy, s * 0.22, s * 0.20, 0.7);
+  // chest plate
+  pushEllipse(parts, stoneDark, cx, bodyCy - s * 0.02, s * 0.16, s * 0.14, 0.6);
+
+  // thick arms
+  for (const dir of [-1, 1]) {
+    const armSwing = wave(phase, 0.5, dir < 0 ? 0 : 0.5) * s * 0.015 * amp;
+    pushCapsule(parts, stone, cx + dir * s * 0.22, bodyCy - s * 0.06,
+      cx + dir * s * 0.28 + armSwing, bodyCy + s * 0.16, Math.max(1.5, s * 0.045), 0.65);
+    // fists
+    pushCircle(parts, stoneDark, cx + dir * s * 0.28 + armSwing, bodyCy + s * 0.18, s * 0.04, 0.5);
+  }
+
+  // head — smaller rounded block on top
+  const headCy = bodyCy - s * 0.24 + bob;
+  pushEllipse(parts, stone, cx, headCy, s * 0.12, s * 0.10, 0.65);
+
+  // small glowing eyes
+  const eyeDx = s * 0.05;
+  const eyeR = s * 0.02;
+  for (const dir of [-1, 1]) pushCircle(parts, eye, cx + dir * eyeDx, headCy, eyeR, 0.8);
+
+  return parts;
+}
+
+/** GHOST — translucent spirit, floats, wispy bottom, glowing eyes. */
+function buildGhost(rng: RNG, s: number, color: RGB, alerted: boolean, phase: number, amp: number): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5;
+  const ether = MATERIALS.glass(color);
+  const etherDark = MATERIALS.glass([color[0] * 0.8, color[1] * 0.82, color[2] * 0.85] as RGB);
+  const eye = MATERIALS.ember(alerted ? [255, 60, 40] as RGB : [160, 220, 255] as RGB);
+
+  // float up/down
+  const float = wave(phase, 1) * s * 0.03 * amp;
+  const bodyCy = s * 0.42 + float;
+
+  // wisps at bottom — thin capsules that wave
+  for (let i = 0; i < 3; i++) {
+    const wispX = cx + (i - 1) * s * 0.08;
+    const wispWave = wave(phase, 2, i * 0.33) * s * 0.03 * amp;
+    pushCapsule(parts, etherDark, wispX, bodyCy + s * 0.18,
+      wispX + wispWave, bodyCy + s * 0.36 + i * s * 0.02,
+      Math.max(1, s * 0.018), 0.7);
+  }
+
+  // main body — tapered ellipse (wider at top, narrower at bottom)
+  pushEllipse(parts, ether, cx, bodyCy, s * 0.18, s * 0.22, 0.9);
+  // lower taper
+  pushEllipse(parts, ether, cx, bodyCy + s * 0.14, s * 0.12, s * 0.10, 0.85);
+
+  // head region — slight bulge at top
+  pushEllipse(parts, ether, cx, bodyCy - s * 0.12, s * 0.14, s * 0.12, 0.95);
+
+  // glowing eyes
+  const eyeDx = s * 0.055;
+  const eyeR = s * 0.022;
+  for (const dir of [-1, 1]) pushCircle(parts, eye, cx + dir * eyeDx, bodyCy - s * 0.12, eyeR, 0.8);
+
+  return parts;
+}
+
 /**
  * Build a creature's part list. `s` = working px; `phase` ∈ [0,1) (default rest);
  * `amp` ∈ [0,1] scales all motion (0 = frozen, 0.4 = idle, 1 = full move).
@@ -278,13 +604,40 @@ export function buildCreature(config: CreatureConfig, s: number, phase = 0, amp 
   const kind = config.kind ?? 'insect';
   const color = config.color ?? defaultColor(rng, kind);
   const alerted = config.alerted ?? false;
-  switch (kind) {
-    case 'worm':    return buildWorm(rng, s, color, alerted, phase, amp);
-    case 'crawler': return buildCrawler(rng, s, color, alerted, phase, amp);
-    case 'insect':
-    default:        return buildInsect(rng, s, color, alerted, phase, amp);
+
+  const bodyParts = ((): Part[] => {
+    switch (kind) {
+      case 'worm':           return buildWorm(rng, s, color, alerted, phase, amp);
+      case 'crawler':        return buildCrawler(rng, s, color, alerted, phase, amp);
+      case 'fire_elemental': return buildFireElemental(rng, s, color, alerted, phase, amp);
+      case 'shadow':         return buildShadow(rng, s, color, alerted, phase, amp);
+      case 'burrower':       return buildBurrower(rng, s, color, alerted, phase, amp);
+      case 'bat':            return buildBat(rng, s, color, alerted, phase, amp);
+      case 'slime':          return buildSlime(rng, s, color, alerted, phase, amp);
+      case 'undead':         return buildUndead(rng, s, color, alerted, phase, amp);
+      case 'golem':          return buildGolem(rng, s, color, alerted, phase, amp);
+      case 'ghost':          return buildGhost(rng, s, color, alerted, phase, amp);
+      case 'insect':
+      default:               return buildInsect(rng, s, color, alerted, phase, amp);
+    }
+  })();
+
+  // Add ground shadow for grounded creatures (3/4 perspective feel)
+  const grounded = kind === 'insect' || kind === 'crawler' || kind === 'slime' || kind === 'undead' || kind === 'golem';
+  if (grounded) {
+    const shadowMat = MATERIALS.bone([28, 26, 22]);
+    const shadow: Part = {
+      material: shadowMat,
+      roundness: 0.05,
+      sdf: ellipse(s * 0.5, s * 0.88, s * 0.16, s * 0.04),
+      bbox: [Math.floor(s * 0.5 - s * 0.16 - 2), Math.floor(s * 0.88 - s * 0.04 - 2),
+             Math.ceil(s * 0.5 + s * 0.16 + 2), Math.ceil(s * 0.88 + s * 0.04 + 2)],
+    };
+    return [shadow, ...bodyParts];
   }
+
+  return bodyParts;
 }
 
 /** Names of the built-in creature kinds. */
-export const CREATURE_KINDS: CreatureKind[] = ['insect', 'worm', 'crawler'];
+export const CREATURE_KINDS: CreatureKind[] = ['insect', 'worm', 'crawler', 'fire_elemental', 'shadow', 'burrower', 'bat', 'slime', 'undead', 'golem', 'ghost'];
