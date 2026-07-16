@@ -18,7 +18,8 @@ import { buildItem, type ItemConfig } from './items';
 import { buildTile, type TileConfig } from './tiles';
 import { distanceField, fieldToNormals } from './field';
 import { makeShadeContext, shade } from './lighting';
-import { clamp255, quantizeChannel } from './color';
+import { clamp255, quantizeColor } from './color';
+import { fbm2D } from './noise';
 import type { Part } from './shapes';
 
 const DEFAULT_LIGHT: Light = {
@@ -30,6 +31,7 @@ const DEFAULT_LIGHT: Light = {
 /** Everything the render loop needs, resolved from a SpriteConfig once. */
 export interface RenderOpts {
   size: number;
+  outH: number;
   ss: number;
   W: number;
   H: number;
@@ -46,7 +48,15 @@ export interface RenderOpts {
  * look never changes between frames.
  */
 export function resolveRenderOpts(config: SpriteConfig = {}): RenderOpts {
-  const size = config.size ?? 48;
+  // Rounded defensively: every pixel-index computation downstream (the
+  // shading loop, the downsample box filter, blitOver) assumes W = size*ss
+  // is a whole number. A fractional `size` (easy to get from a computed
+  // value, e.g. `sizeMin + t * (sizeMax - sizeMin)`) makes most of those
+  // indices land on non-integer array positions, which silently write/read
+  // nowhere instead of throwing — the sprite renders fully transparent
+  // with no error. Rounding here closes that off for every caller at once.
+  const size = Math.round(config.size ?? 48);
+  const outH = Math.round(config.height ?? size);
   const ss = Math.max(1, Math.floor(config.supersample ?? 1));
   const light: Light = {
     dir: { ...DEFAULT_LIGHT.dir, ...(config.light ?? {}) },
@@ -55,7 +65,18 @@ export function resolveRenderOpts(config: SpriteConfig = {}): RenderOpts {
   const outlineColor: RGB | null =
     config.outline === false ? null : ((config.outline && config.outline.color) || [22, 18, 28]);
   const quantize = config.quantize === false ? 0 : (config.quantize ?? 5);
-  return { size, ss, W: size * ss, H: size * ss, roundness: config.roundness ?? 0.55, light, outlineColor, quantize };
+  return { size, outH, ss, W: size * ss, H: outH * ss, roundness: config.roundness ?? 0.55, light, outlineColor, quantize };
+}
+
+/**
+ * Deterministic 2D position hash → [0,1). Used for the material texture layer;
+ * depends only on pixel position, so the same sprite renders byte-identically
+ * every time and textures never boil between animation frames.
+ */
+function hash2(x: number, y: number): number {
+  let h = (x * 374761393 + y * 668265263) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
 /**
@@ -64,7 +85,7 @@ export function resolveRenderOpts(config: SpriteConfig = {}): RenderOpts {
  * both call it.
  */
 export function renderParts(parts: Part[], opts: RenderOpts): SpriteBuffer {
-  const { size, ss, W, H, roundness, light } = opts;
+  const { size, outH, ss, W, H, roundness, light } = opts;
   const acc = new Float32Array(W * H * 4);
   const out: RGB = [0, 0, 0];
 
@@ -99,11 +120,57 @@ export function renderParts(parts: Part[], opts: RenderOpts): SpriteBuffer {
     // shading for the same part in every frame.
     const ctx = makeShadeContext(part.material, light);
 
+    // Texture stack: one or more grain/speckle octaves hashed on the OUTPUT
+    // pixel grid (supersamples within one output pixel share a value,
+    // otherwise the box-filter downsample would average the noise away).
+    // Each layer hashes with its own salt so octaves don't correlate.
+    const texRaw = part.material.texture;
+    const texLayers = texRaw ? (Array.isArray(texRaw) ? texRaw : [texRaw]) : null;
+    const texCellsX = texLayers ? texLayers.map((t) => ss * Math.max(1, t.sx ?? t.scale ?? 1)) : null;
+    const texCellsY = texLayers ? texLayers.map((t) => ss * Math.max(1, t.sy ?? t.scale ?? 1)) : null;
+
     for (let y = 0; y < ch; y++) {
       for (let x = 0; x < cw; x++) {
         const li = y * cw + x;
         if (!mask[li]) continue;
-        shade(ctx, nx[li], ny[li], nz[li], out);
+
+        // 'bump' layers perturb the NORMAL before shading, so light/shadow
+        // actually roll across the noise-driven relief — this is what a
+        // pure color-dither pass (grain/speckle) can never fake, and what
+        // makes a surface read as bumpy/creased instead of flat-lit-then-
+        // tinted. Applied first, then renormalized, then shaded once.
+        let pnx = nx[li], pny = ny[li], pnz = nz[li];
+        if (texLayers) {
+          for (let ti = 0; ti < texLayers.length; ti++) {
+            const t = texLayers[ti];
+            if (t.kind !== 'bump') continue;
+            const cellX = texCellsX![ti], cellY = texCellsY![ti];
+            const px = (cx0 + x) / cellX, py = (cy0 + y) / cellY;
+            const salt = ti * 131;
+            // Two decorrelated fbm samples perturb the normal's x/y independently.
+            const dx = fbm2D(px, py, 3, salt) - 0.5;
+            const dy = fbm2D(px + 43.7, py + 91.3, 3, salt) - 0.5;
+            pnx += dx * t.amount;
+            pny += dy * t.amount;
+          }
+          const len = Math.hypot(pnx, pny, pnz) || 1;
+          pnx /= len; pny /= len; pnz /= len;
+        }
+        shade(ctx, pnx, pny, pnz, out);
+
+        if (texLayers) {
+          for (let ti = 0; ti < texLayers.length; ti++) {
+            const t = texLayers[ti];
+            if (t.kind === 'bump') continue;
+            const salt = ti * 7919;
+            const n = hash2((((cx0 + x) / texCellsX![ti]) | 0) + salt, (((cy0 + y) / texCellsY![ti]) | 0) + salt);
+            // speckle: sparse strong dots; grain: dense gentle noise
+            const f = t.kind === 'speckle'
+              ? (n > 0.82 ? 1 + t.amount * 2 : n < 0.16 ? 1 - t.amount * 2 : 1)
+              : 1 + t.amount * (n * 2 - 1);
+            out[0] *= f; out[1] *= f; out[2] *= f;
+          }
+        }
         const j = ((cy0 + y) * W + (cx0 + x)) * 4;
         acc[j] = out[0];
         acc[j + 1] = out[1];
@@ -114,9 +181,9 @@ export function renderParts(parts: Part[], opts: RenderOpts): SpriteBuffer {
   }
 
   // ---- Downsample (box filter) → output resolution. Free AA. ------------
-  const data = new Uint8ClampedArray(size * size * 4);
+  const data = new Uint8ClampedArray(size * outH * 4);
   const area = ss * ss;
-  for (let y = 0; y < size; y++) {
+  for (let y = 0; y < outH; y++) {
     for (let x = 0; x < size; x++) {
       let r = 0, g = 0, b = 0, a = 0;
       for (let sy = 0; sy < ss; sy++) {
@@ -137,26 +204,27 @@ export function renderParts(parts: Part[], opts: RenderOpts): SpriteBuffer {
   }
 
   // ---- Optional exterior outline ---------------------------------------
-  if (opts.outlineColor) applyOutline(data, size, size, opts.outlineColor);
+  if (opts.outlineColor) applyOutline(data, size, outH, opts.outlineColor);
 
   // ---- Optional posterize (deterministic => no temporal "boiling") ------
+  // Luma-only quantize: crunches shading into bands but preserves each
+  // material's hue (per-channel quantize merged e.g. dirt browns into grass
+  // greens at the default 5 levels).
   if (opts.quantize > 1) {
-    const levels = opts.quantize;
+    const levels = opts.quantize * 2; // finer luma steps ≈ old per-channel crunch
     for (let i = 0; i < data.length; i += 4) {
       if (data[i + 3] < 8) continue;
-      data[i] = quantizeChannel(data[i], levels);
-      data[i + 1] = quantizeChannel(data[i + 1], levels);
-      data[i + 2] = quantizeChannel(data[i + 2], levels);
+      quantizeColor(data, i, levels);
     }
   }
 
-  return { width: size, height: size, data };
+  return { width: size, height: outH, data };
 }
 
 /** Static sprite: build the (optionally posed) skeleton, then render it. */
 export function generateSprite(config: SpriteConfig = {}, pose?: Pose): SpriteBuffer {
   const opts = resolveRenderOpts(config);
-  const parts = buildSkeleton(config, opts.W, pose);
+  const parts = buildSkeleton(config, opts.W, pose, opts.ss);
   return renderParts(parts, opts);
 }
 
@@ -181,16 +249,18 @@ export function generateItem(config: SpriteConfig & ItemConfig = {}): SpriteBuff
 /** Dungeon tile: build a tile's parts, then run the shared shading pass. */
 export function generateTile(config: SpriteConfig & TileConfig = {}): SpriteBuffer {
   const opts = resolveRenderOpts(config);
-  const parts = buildTile(config, opts.W);
+  const parts = buildTile(config, opts.W, opts.H);
   return renderParts(parts, opts);
 }
 
 /** Paint a dark border on transparent pixels that touch the silhouette. */
 function applyOutline(data: Uint8ClampedArray, w: number, h: number, color: RGB): void {
-  const isSolid = (x: number, y: number): boolean =>
-    x >= 0 && x < w && y >= 0 && y < h && data[(y * w + x) * 4 + 3] > 128;
+  // isSolid must read the pre-outline snapshot, not the live buffer: painted
+  // outline pixels would otherwise count as solid and flood-fill the canvas.
   const snapshotAlpha = new Uint8Array(w * h);
   for (let i = 0; i < w * h; i++) snapshotAlpha[i] = data[i * 4 + 3] > 128 ? 1 : 0;
+  const isSolid = (x: number, y: number): boolean =>
+    x >= 0 && x < w && y >= 0 && y < h && snapshotAlpha[y * w + x] === 1;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const i = y * w + x;

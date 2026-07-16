@@ -12,7 +12,7 @@
 
 import type { RGB, SpriteBuffer } from './types';
 import type { Part } from './shapes';
-import { circle, capsule } from './shapes';
+import { circle, capsule, ellipse } from './shapes';
 import { MATERIALS } from './materials';
 import { resolveRenderOpts, renderParts } from './engine';
 import { clamp255 } from './color';
@@ -219,7 +219,7 @@ export function generateSparkle(config: VFXConfig = {}): SpriteBuffer {
 // Same contract as creatures/items: pure function of (config, s, phase, amp).
 // =============================================================================
 
-export type EffectKind = 'slash' | 'impact' | 'sparkle' | 'fireball' | 'magic_bolt';
+export type EffectKind = 'slash' | 'impact' | 'sparkle' | 'fireball' | 'magic_bolt' | 'water_ripple' | 'smoke' | 'drip';
 
 export interface EffectConfig {
   kind?: EffectKind;
@@ -354,14 +354,100 @@ export function buildMagicBoltEffect(s: number, color: RGB, phase: number, amp: 
   return parts;
 }
 
+/** Build water ripple parts — expanding concentric rings from center. */
+export function buildWaterRippleEffect(s: number, color: RGB, phase: number, amp: number): Part[] {
+  const parts: Part[] = [];
+  const mat = MATERIALS.glass([150, 200, 220]);
+  const cx = s * 0.5, cy = s * 0.5;
+  const maxR = s * 0.4;
+  for (let i = 0; i < 3; i++) {
+    const ringPhase = ((phase * amp + i * 0.33) % 1);
+    const radius = ringPhase * maxR;
+    const thickness = Math.max(1, s * 0.02 * (1 - ringPhase));
+    if (radius < 1) continue;
+    // Draw ring as 8 capsule segments tracing a circle
+    const segs = 8;
+    for (let j = 0; j < segs; j++) {
+      const a0 = (j / segs) * Math.PI * 2;
+      const a1 = ((j + 1) / segs) * Math.PI * 2;
+      const ax = cx + Math.cos(a0) * radius, ay = cy + Math.sin(a0) * radius;
+      const bx = cx + Math.cos(a1) * radius, by = cy + Math.sin(a1) * radius;
+      parts.push({
+        material: mat, roundness: 0.9, sdf: capsule(ax, ay, bx, by, thickness),
+        bbox: [Math.floor(Math.min(ax, bx) - thickness - 2), Math.floor(Math.min(ay, by) - thickness - 2),
+               Math.ceil(Math.max(ax, bx) + thickness + 2), Math.ceil(Math.max(ay, by) + thickness + 2)],
+      });
+    }
+  }
+  return parts;
+}
+
+/** Build smoke parts — rising gray puff cloud. */
+export function buildSmokeEffect(s: number, color: RGB, phase: number, amp: number): Part[] {
+  const parts: Part[] = [];
+  const mat = MATERIALS.bone([120, 115, 110]);
+  const cx = s * 0.5, baseY = s * 0.7;
+  const rise = phase * amp * s * 0.4;
+  const expand = 1 + phase * amp * 0.8;
+  for (let i = 0; i < 4; i++) {
+    const spread = (i - 1.5) * s * 0.06 * expand;
+    const puffCy = baseY - rise - i * s * 0.04;
+    const r = Math.max(1.2, s * (0.04 + i * 0.015) * expand);
+    parts.push({
+      material: mat, roundness: 0.8, sdf: circle(cx + spread, puffCy, r),
+      bbox: [Math.floor(cx + spread - r - 2), Math.floor(puffCy - r - 2),
+             Math.ceil(cx + spread + r + 2), Math.ceil(puffCy + r + 2)],
+    });
+  }
+  return parts;
+}
+
+/** Build drip parts — a water droplet falling with splash at bottom. */
+export function buildDripEffect(s: number, color: RGB, phase: number, amp: number): Part[] {
+  const parts: Part[] = [];
+  const mat = MATERIALS.glass([140, 180, 210]);
+  const cx = s * 0.5;
+  const topY = s * 0.15;
+  const botY = s * 0.8;
+  const dropY = topY + (botY - topY) * phase * amp;
+  const rx = Math.max(1.2, s * 0.025);
+  const ry = Math.max(1.5, s * 0.04);
+  // Falling droplet
+  if (phase * amp < 0.85) {
+    parts.push({
+      material: mat, roundness: 0.9, sdf: ellipse(cx, dropY, rx, ry),
+      bbox: [Math.floor(cx - rx - 2), Math.floor(dropY - ry - 2),
+             Math.ceil(cx + rx + 2), Math.ceil(dropY + ry + 2)],
+    });
+  }
+  // Splash circles at bottom of fall
+  if (phase * amp > 0.8) {
+    const splashPhase = (phase * amp - 0.8) / 0.2; // 0..1 within splash
+    for (let i = -1; i <= 1; i++) {
+      const sr = Math.max(1, s * 0.015 * (1 - splashPhase * 0.5));
+      const sx = cx + i * s * 0.05 * splashPhase;
+      const sy = botY - s * 0.02 * splashPhase;
+      parts.push({
+        material: mat, roundness: 0.9, sdf: circle(sx, sy, sr),
+        bbox: [Math.floor(sx - sr - 2), Math.floor(sy - sr - 2),
+               Math.ceil(sx + sr + 2), Math.ceil(sy + sr + 2)],
+      });
+    }
+  }
+  return parts;
+}
+
 /** Build effect parts by kind. */
 export function buildEffect(kind: EffectKind, s: number, color: RGB, phase: number, amp: number): Part[] {
   switch (kind) {
-    case 'slash':      return buildSlashEffect(s, color, phase, amp);
-    case 'impact':     return buildImpactEffect(s, color, phase, amp);
-    case 'sparkle':    return buildSparkleEffect(s, color, phase, amp);
-    case 'fireball':   return buildFireballEffect(s, color, phase, amp);
-    case 'magic_bolt': return buildMagicBoltEffect(s, color, phase, amp);
+    case 'slash':        return buildSlashEffect(s, color, phase, amp);
+    case 'impact':       return buildImpactEffect(s, color, phase, amp);
+    case 'sparkle':      return buildSparkleEffect(s, color, phase, amp);
+    case 'fireball':     return buildFireballEffect(s, color, phase, amp);
+    case 'magic_bolt':   return buildMagicBoltEffect(s, color, phase, amp);
+    case 'water_ripple': return buildWaterRippleEffect(s, color, phase, amp);
+    case 'smoke':        return buildSmokeEffect(s, color, phase, amp);
+    case 'drip':         return buildDripEffect(s, color, phase, amp);
   }
 }
 

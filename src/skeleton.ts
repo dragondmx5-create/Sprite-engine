@@ -17,10 +17,10 @@
 // deterministic pose numbers differ. Pose application performs no RNG calls.
 // =============================================================================
 
-import type { RGB, SpriteConfig } from './types';
+import type { RGB, SpriteConfig, TextureLayer } from './types';
 import { RNG } from './rng';
 import { MATERIALS } from './materials';
-import { Part, SDF, roundedBox, capsule, circle, union, rotatedAround, translated } from './shapes';
+import { Part, SDF, roundedBox, capsule, circle, ellipse, union, rotatedAround, translated } from './shapes';
 import { Pose, NEUTRAL_POSE } from './pose';
 
 /** Pick a deterministic default color (HSV-ish) when the user didn't specify one. */
@@ -48,6 +48,24 @@ function defaultColor(rng: RNG, kind: string): RGB {
   }
 }
 
+/**
+ * Per-facing static lean bias + eye-look direction + front/back family, for
+ * the 8-way compass. `lean` feeds the SAME `pelvisRot` channel torso lean
+ * animation already uses, so every part that rotates with the upper body
+ * (torso, arms, head, cape, shield, weapon) turns together automatically —
+ * no separate rotation math needed per equipment piece.
+ */
+const FACING_INFO: Record<string, { lean: number; look: -1 | 0 | 1; back: boolean }> = {
+  front:          { lean: 0,     look: 0,  back: false },
+  'front-right':  { lean: 0.06,  look: 1,  back: false },
+  right:          { lean: 0.11,  look: 1,  back: false },
+  'back-right':   { lean: 0.06,  look: 1,  back: true },
+  back:           { lean: 0,     look: 0,  back: true },
+  'back-left':    { lean: -0.06, look: -1, back: true },
+  left:           { lean: -0.11, look: -1, back: false },
+  'front-left':   { lean: -0.06, look: -1, back: false },
+};
+
 /** Transform spec for a part: joint rotation, then pelvis rotation, then translate. */
 interface Xform {
   jointAngle?: number; jx?: number; jy?: number;
@@ -71,7 +89,7 @@ function fwd(x: number, y: number, xf: Xform): [number, number] {
 }
 
 /** Build the ordered part list. `s` = working px. `pose` defaults to neutral. */
-export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUTRAL_POSE): Part[] {
+export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUTRAL_POSE, ss = 1): Part[] {
   const rng = new RNG(config.seed ?? 0);
   const body = config.body ?? {};
   const ipose = body.pose ?? {};
@@ -83,19 +101,22 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
   const hasCoat = outfit.coat ?? false;
   const hasBoots = outfit.boots ?? false;
 
+  const hasGloves = outfit.gloves ?? false;
+  const hasScarf = outfit.scarf ?? false;
+  const hasShoulderpads = outfit.shoulderpad ?? false;
+
   const headScale = (body.headScale ?? 1) * (1 + rng.jitter(0.04));
   const bodyWidth = (body.bodyWidth ?? 1) * (1 + rng.jitter(0.05));
   const limbLen = (body.limbLength ?? 1) * (1 + rng.jitter(0.05));
   const stanceBase = ipose.stance ?? 1;
   const facing = config.facing ?? 'front';
+  const facingInfo = FACING_INFO[facing] ?? FACING_INFO.front;
+  const isBackFacing = facingInfo.back;
 
   const hairStyle = config.hairStyle ?? 'short';
   const hasCape = outfit.cape ?? false;
 
   const pal = config.palette ?? {};
-  // Keep this defaultColor() call order unchanged — it fixes the seed→color
-  // mapping. `cape`/`pants` derive from existing colors (no extra RNG draws)
-  // so adding them doesn't shift any existing sprite.
   const col = {
     skin: pal.skin ?? defaultColor(rng, 'skin'),
     hair: pal.hair ?? defaultColor(rng, 'hair'),
@@ -105,16 +126,30 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
     hat: pal.hat ?? defaultColor(rng, 'hat'),
   };
   const capeCol = pal.cape ?? col.cloth;
-  const pantsCol = pal.pants ?? col.leather; // default legs unchanged
+  const pantsCol = pal.pants ?? col.leather;
+  const accentCol = pal.accent ?? [Math.min(255, col.cloth[0] + 50), Math.min(255, col.cloth[1] + 40), Math.min(255, col.cloth[2] + 30)] as RGB;
+
+  const torsoMatName = (torsoMat === 'leather' || torsoMat === 'vest') ? 'leather'
+    : torsoMat === 'chainmail' ? 'metal' : 'cloth';
+  const torsoColor = torsoMatName === 'leather' ? col.leather
+    : torsoMatName === 'metal' ? col.metal : col.cloth;
+  const hatMatName = (hat === 'hat' || hat === 'helmet') ? 'leather'
+    : hat === 'crown' ? 'metal' : 'cloth';
+
   const M = {
     skin: MATERIALS.skin(col.skin),
     hair: MATERIALS.hair(col.hair),
-    torso: MATERIALS[torsoMat](torsoMat === 'leather' ? col.leather : col.cloth),
+    torso: MATERIALS[torsoMatName](torsoColor),
     legs: MATERIALS.cloth(pantsCol),
     leather: MATERIALS.leather(col.leather),
     metal: MATERIALS.metal(col.metal),
-    hat: MATERIALS[hat === 'hat' ? 'leather' : 'cloth'](col.hat),
-    cape: MATERIALS.cloth(capeCol),
+    hat: MATERIALS[hatMatName](hat === 'crown' ? col.metal : col.hat),
+    // Bump layer gives the cape actual cloth-fold relief (light rolls across
+    // the wrinkles) instead of a flat plane of solid color.
+    cape: { ...MATERIALS.cloth(capeCol), texture: [{ kind: 'bump', amount: 0.3, scale: 2.2 }] as TextureLayer[] },
+    accent: MATERIALS.cloth(accentCol),
+    gold: MATERIALS.gold([220, 195, 80]),
+    gem: MATERIALS.gem([150, 70, 210]),
   };
 
   // --- Base layout (neutral pose), in working px. -------------------------
@@ -144,10 +179,14 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
 
   // --- Pose channels scaled to the working buffer. ------------------------
   const unit = s / 48;                    // offsets are authored at size 48
-  const rootX = pose.rootX * unit;
-  const rootY = pose.rootY * unit;
-  const headBob = pose.headBob * unit;
-  const lean = pose.torsoLean;
+  // Snap translations to whole output pixels (multiples of ss in the working
+  // buffer): sub-pixel drift + downsample makes 2px features like eyes fade
+  // out on some frames, which reads as the face "flickering" during walks.
+  const snap = (v: number) => Math.round(v / ss) * ss;
+  const rootX = snap(pose.rootX * unit);
+  const rootY = snap(pose.rootY * unit);
+  const headBob = snap(pose.headBob * unit);
+  const lean = pose.torsoLean + facingInfo.lean;
   const neckY = headCy + headHh;          // neck pivot (for head tilt)
   const pelX = cx, pelY = torsoBot;       // pelvis pivot (for torso lean)
 
@@ -178,10 +217,20 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
   const box = (mat: Part['material'], bx: number, by: number, hw: number, hh: number, r: number, roundness: number, xf: Xform) =>
     place(mat, roundedBox(bx, by, hw, hh, r), bx - hw, by - hh, bx + hw, by + hh, roundness, xf);
 
+  /** Convenience: place an ellipse centered at (ex,ey). */
+  const placeEllipse = (mat: Part['material'], ex: number, ey: number, rx: number, ry: number, roundness: number, xf: Xform) =>
+    place(mat, ellipse(ex, ey, rx, ry), ex - rx, ey - ry, ex + rx, ey + ry, roundness, xf);
+
+  // -1) GROUND SHADOW — dark ellipse under the character's feet, gives 3/4 depth.
+  const shadowY = legCy + legHh + s * 0.03;
+  const shadowMat = MATERIALS.bone([30, 28, 24]);
+  placeEllipse(shadowMat, cx, shadowY, s * 0.15, s * 0.04, 0.05,
+    { tx: rootX, ty: rootY });
+
   // 0) CAPE — a flowing cloak behind the whole body. Drawn first so everything
   // overlaps it; leans with the torso. Flares slightly toward the hem.
-  // Exception: facing='back' → the cape is nearest the viewer, drawn after the body.
-  const drawCapeEarly = hasCape && facing !== 'back';
+  // Exception: back-facing family → the cape is nearest the viewer, drawn after the body.
+  const drawCapeEarly = hasCape && !isBackFacing;
   const placeCape = () => {
     const capeTop = shoulderY + s * 0.01;
     const capeBot = legCy + legHh * 0.4;
@@ -195,6 +244,16 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
     const isLong = hairStyle === 'long' || hairStyle === 'flowing';
     const back = isLong ? headHh * 1.35 : headHh * 0.95;
     box(M.hair, cx, headCy - headHh * 0.18 + (isLong ? headHh * 0.2 : 0), headHw * 1.06, back, headCorner * 0.9, 0.45, xHead());
+    // Long-style masses that fall BEHIND the head/body — drawn here (back
+    // layer) so they never cover the face.
+    if (hairStyle === 'flowing') {
+      // wide curtain flowing past the shoulders
+      box(M.hair, cx, headCy + headHh * 0.6, headHw * 1.12, headHh * 1.6, headHw * 0.3, 0.5, xHead());
+    } else if (hairStyle === 'ponytail') {
+      // the tail swings out past the side of the head and falls to the shoulder
+      place(M.hair, capsule(cx + headHw * 0.45, headCy - headHh * 0.75, cx + headHw * 1.05, headCy + headHh * 0.95, headHw * 0.18),
+        cx + headHw * 0.2, headCy - headHh * 1.0, cx + headHw * 1.3, headCy + headHh * 1.2, 0.5, xHead());
+    }
   }
 
   // 2) LEGS / trousers + boots — swing about the hip.
@@ -203,15 +262,15 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
     const ang = dir < 0 ? pose.legL : pose.legR;
     box(M.legs, lx, legCy, legHw, legHh, legHw * 0.45, 0.4, xLeg(ang, lx, hipY));
     if (hasBoots) {
-      // tall boots cover the lower 60% of the leg
       const bootTop = legCy + legHh * 0.15;
       const bootBot = legCy + legHh + s * 0.018;
       const bootHh = (bootBot - bootTop) / 2;
       box(M.leather, lx, (bootTop + bootBot) / 2, legHw * 1.08, bootHh, legHw * 0.4, 0.45, xLeg(ang, lx, hipY));
-      // boot sole
-      box(M.leather, lx, bootBot, legHw * 1.12, s * 0.01, s * 0.006, 0.35, xLeg(ang, lx, hipY));
+      // boot sole — wider & flatter for 3/4 footprint
+      placeEllipse(M.leather, lx, bootBot + s * 0.005, legHw * 1.22, s * 0.014, 0.3, xLeg(ang, lx, hipY));
     } else {
-      box(M.leather, lx + dir * legHw * 0.15, legCy + legHh + s * 0.012, legHw * 1.05, s * 0.022, s * 0.012, 0.45, xLeg(ang, lx, hipY));
+      // shoe — wider ellipse for 3/4 footprint look
+      placeEllipse(M.leather, lx + dir * legHw * 0.1, legCy + legHh + s * 0.012, legHw * 1.15, s * 0.022, 0.35, xLeg(ang, lx, hipY));
     }
   }
 
@@ -219,15 +278,71 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
   for (const dir of [-1, 1]) {
     const ax = cx + dir * armX;
     const ang = dir < 0 ? pose.armL : pose.armR;
-    box(M.torso, ax, armCy, armHw, armHh, armHw * 0.5, 0.4, xArm(ang, ax, shoulderY));
-    box(M.skin, ax, armCy + armHh + armHw * 0.2, armHw * 0.95, armHw * 0.9, armHw * 0.6, 0.5, xArm(ang, ax, shoulderY));
+    const armMat = torsoMat === 'vest' ? M.skin : M.torso;
+    box(armMat, ax, armCy, armHw, armHh, armHw * 0.5, 0.4, xArm(ang, ax, shoulderY));
+    // hands (or gloves)
+    if (hasGloves) {
+      box(M.leather, ax, armCy + armHh + armHw * 0.2, armHw * 1.02, armHw * 1.0, armHw * 0.55, 0.5, xArm(ang, ax, shoulderY));
+    } else {
+      box(M.skin, ax, armCy + armHh + armHw * 0.2, armHw * 0.95, armHw * 0.9, armHw * 0.6, 0.5, xArm(ang, ax, shoulderY));
+    }
   }
 
   // 4) TORSO (upper-body: leans about the pelvis).
   box(M.torso, cx, torsoCy, torsoHw, torsoHh, s * 0.028, 0.4, xUpper);
+  // accent trim — neckline stripe
+  box(M.accent, cx, torsoTop + s * 0.02, torsoHw * 0.7, s * 0.008, s * 0.005, 0.35, xUpper);
+
+  // 4b) ROBE — full-length cloth garment for casters.
+  if (torsoMat === 'robe') {
+    const robeBot = legCy + legHh * 0.8;
+    const robeHh = (robeBot - torsoTop) / 2;
+    const robeCy = (torsoTop + robeBot) / 2;
+    box(M.torso, cx, robeCy, torsoHw * 1.2, robeHh, s * 0.03, 0.4, xUpper);
+    // robe hem accent
+    box(M.accent, cx, robeBot - s * 0.005, torsoHw * 1.25, s * 0.01, s * 0.006, 0.35, xUpper);
+    // center seam
+    box(M.accent, cx, robeCy + robeHh * 0.3, s * 0.008, robeHh * 0.5, s * 0.004, 0.3, xUpper);
+    // wide sleeves (drawn over arms)
+    for (const dir of [-1, 1]) {
+      const ax = cx + dir * armX;
+      const ang = dir < 0 ? pose.armL : pose.armR;
+      box(M.torso, ax, armCy + armHh * 0.3, armHw * 1.5, armHh * 0.7, armHw * 0.4, 0.45, xArm(ang, ax, shoulderY));
+    }
+  }
+
+  // 4c) CHAINMAIL texture — metal links over torso.
+  if (torsoMat === 'chainmail') {
+    const chainCol: RGB = [col.metal[0] * 0.8, col.metal[1] * 0.8, col.metal[2] * 0.85];
+    const chainMat = MATERIALS.metal(chainCol);
+    box(chainMat, cx, torsoCy + torsoHh * 0.1, torsoHw * 0.85, torsoHh * 0.7, s * 0.02, 0.5, xUpper);
+  }
+
+  // 4d) VEST — sleeveless, shorter, open front.
+  if (torsoMat === 'vest') {
+    box(M.accent, cx, torsoTop + torsoHh * 0.2, s * 0.01, torsoHh * 0.6, s * 0.004, 0.3, xUpper);
+  }
+
+  // 4e) SHOULDER TOPS — bright ellipse on top of each shoulder for 3/4 depth.
+  {
+    const shoulderTopCol: RGB = [
+      Math.min(255, torsoColor[0] * 1.15),
+      Math.min(255, torsoColor[1] * 1.15),
+      Math.min(255, torsoColor[2] * 1.12),
+    ];
+    const shoulderTopMat = MATERIALS[torsoMatName](shoulderTopCol);
+    for (const dir of [-1, 1]) {
+      const ax = cx + dir * armX;
+      placeEllipse(shoulderTopMat, ax, shoulderY - s * 0.005, armHw * 1.2, armHw * 0.45, 0.35, xUpper);
+    }
+  }
 
   // 5) BELT.
-  if (hasBelt) box(M.leather, cx, torsoBot - s * 0.03, torsoHw * 1.02, s * 0.02, s * 0.01, 0.4, xUpper);
+  if (hasBelt) {
+    box(M.leather, cx, torsoBot - s * 0.03, torsoHw * 1.02, s * 0.02, s * 0.01, 0.4, xUpper);
+    // belt buckle
+    box(M.gold, cx, torsoBot - s * 0.03, s * 0.015, s * 0.015, s * 0.006, 0.55, xUpper);
+  }
 
   // 5b) COAT — extends the torso down over the upper legs, flared at the hem.
   if (hasCoat) {
@@ -238,8 +353,23 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
     box(M.torso, cx, coatCy, torsoHw * 1.15, coatHh, s * 0.03, 0.4, xUpper);
     // collar
     box(M.torso, cx, torsoTop + s * 0.01, torsoHw * 0.65, s * 0.025, s * 0.015, 0.5, xUpper);
-    // coat hem flare
-    box(M.torso, cx, coatBot - s * 0.01, torsoHw * 1.28, s * 0.014, s * 0.008, 0.35, xUpper);
+    // coat hem flare + accent trim
+    box(M.accent, cx, coatBot - s * 0.01, torsoHw * 1.28, s * 0.014, s * 0.008, 0.35, xUpper);
+  }
+
+  // 5c) SCARF — wrapped around the neck.
+  if (hasScarf) {
+    box(M.accent, cx, torsoTop - s * 0.01, torsoHw * 0.72, s * 0.028, s * 0.015, 0.55, xUpper);
+    // dangling end
+    box(M.accent, cx + torsoHw * 0.35, torsoTop + s * 0.03, s * 0.018, s * 0.04, s * 0.008, 0.45, xUpper);
+  }
+
+  // 5d) SHOULDER PADS — decorative pads (non-armor).
+  if (hasShoulderpads && !hasArmor) {
+    for (const dir of [-1, 1]) {
+      const ax = cx + dir * armX;
+      box(M.accent, ax, shoulderY + armHw * 0.2, armHw * 1.3, armHw * 0.65, armHw * 0.5, 0.5, xUpper);
+    }
   }
 
   // 6) CHESTPLATE + pauldrons (optional). Pauldrons stay on the shoulders.
@@ -254,34 +384,49 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
   // 7) HEAD.
   box(M.skin, cx, headCy, headHw, headHh, headCorner, 0.52, xHead());
 
+  // 7b) HEAD TOP — bright ellipse on the crown for 3/4 top-down feel.
+  {
+    const headTopCol: RGB = [
+      Math.min(255, col.skin[0] * 1.12),
+      Math.min(255, col.skin[1] * 1.10),
+      Math.min(255, col.skin[2] * 1.08),
+    ];
+    placeEllipse(MATERIALS.skin(headTopCol), cx, headCy - headHh * 0.55, headHw * 0.75, headHh * 0.25, 0.35, xHead());
+  }
+
   // 8) EYES — small dark blocks, low on the face. Skipped when facing away;
   // shifted toward the look direction for a 3/4 profile (geometry only, so
-  // animation frames inherit the facing for free).
-  if (config.face !== false && facing !== 'back') {
-    const eyeY = headCy + headHh * 0.2;
-    const lookSign = facing === 'left' ? -1 : facing === 'right' ? 1 : 0;
+  // animation frames inherit the facing for free). Kept as a closure so the
+  // hood can re-draw them after it paints over the face.
+  const drawEyes = () => {
+    const eyeY = headCy + headHh * 0.30;
+    const lookSign = facingInfo.look;
     const eyeDx = lookSign === 0 ? headHw * 0.42 : headHw * 0.26; // closer together in profile
     const shift = lookSign * headHw * 0.3;                        // whole pair leans that way
     const ew = headHw * 0.13, eh = headHh * 0.2;
     const eyeMat = { ...M.skin, name: 'eye', base: [40, 34, 44] as RGB, specStrength: 0.7, roughness: 0.3 };
     for (const dir of [-1, 1]) box(eyeMat, cx + shift + dir * eyeDx, eyeY, ew, eh, ew * 0.5, 0.4, xHead());
-  }
+  };
+  if (config.face !== false && !isBackFacing) drawEyes();
 
   // 9) HAIR FRONT — chunky fringe across the forehead. When facing away, the
   // back of the head reads as a full hair mass covering the (hidden) face.
   const showHair = hairStyle !== 'bald' && !hairHidden;
-  if (showHair && facing === 'back') {
+  if (showHair && isBackFacing) {
     box(M.hair, cx, headCy + headHh * 0.04, headHw * 0.96, headHh * 0.9, headCorner * 0.85, 0.42, xHead());
   } else if (showHair) {
-    const fy = headCy - headHh * 0.52;
+    // 3/4 view: wider cap covers the crown visible from above, sideburns frame face
+    const fy = headCy - headHh * 0.48;
     const fr: SDF = union(
-      roundedBox(cx, fy, headHw * 0.98, headHh * 0.34, headHw * 0.2),
+      roundedBox(cx, fy, headHw * 1.04, headHh * 0.40, headHw * 0.22),
       union(
-        roundedBox(cx - headHw * 0.74, headCy - headHh * 0.12, headHw * 0.28, headHh * 0.5, headHw * 0.18),
-        roundedBox(cx + headHw * 0.74, headCy - headHh * 0.12, headHw * 0.28, headHh * 0.5, headHw * 0.18),
+        // sideburns hug the skull and extend up under the fringe/cap so they
+        // never read as detached blobs when headwear hides the top band
+        roundedBox(cx - headHw * 0.70, headCy - headHh * 0.20, headHw * 0.26, headHh * 0.58, headHw * 0.16),
+        roundedBox(cx + headHw * 0.70, headCy - headHh * 0.20, headHw * 0.26, headHh * 0.58, headHw * 0.16),
       ),
     );
-    place(M.hair, fr, cx - headHw * 1.05, headCy - headHh * 1.0, cx + headHw * 1.05, headCy + headHh * 0.45, 0.4, xHead());
+    place(M.hair, fr, cx - headHw * 1.10, headCy - headHh * 1.0, cx + headHw * 1.10, headCy + headHh * 0.50, 0.4, xHead());
 
     // Style extras (layered over the fringe).
     if (hairStyle === 'spiky') {
@@ -300,18 +445,15 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
         box(M.hair, cx + dir * headHw * 0.92, headCy + headHh * 0.55, headHw * 0.22, headHh * 0.95, headHw * 0.18, 0.45, xHead());
       }
     } else if (hairStyle === 'flowing') {
-      // long feminine hair — wide curtain flowing past the shoulders
-      box(M.hair, cx, headCy + headHh * 0.6, headHw * 1.12, headHh * 1.6, headHw * 0.3, 0.5, xHead());
-      // soft side locks framing the face
+      // long feminine hair — the wide curtain is drawn in the back layer
+      // (step 1); here only the soft side locks framing the face
       for (const dir of [-1, 1]) {
         box(M.hair, cx + dir * headHw * 0.85, headCy + headHh * 0.3, headHw * 0.26, headHh * 1.1, headHw * 0.2, 0.5, xHead());
       }
     } else if (hairStyle === 'ponytail') {
-      // high ponytail — a tied knot at the crown, tail falling behind
+      // high ponytail — a tied knot at the crown; the tail itself is drawn in
+      // the back layer (step 1) so it never sweeps across the face
       box(M.hair, cx, headCy - headHh * 0.85, headHw * 0.34, headHh * 0.32, headHw * 0.3, 0.7, xHead());
-      // the tail sweeping down-right
-      place(M.hair, capsule(cx + headHw * 0.1, headCy - headHh * 0.7, cx + headHw * 0.5, headCy + headHh * 0.6, headHw * 0.18),
-        cx - headHw * 0.2, headCy - headHh * 1.0, cx + headHw * 0.8, headCy + headHh * 0.9, 0.5, xHead());
     }
   }
 
@@ -323,16 +465,63 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
     box(M.hat, cx, headCy - headHh * 0.78, headHw * 0.72, headHh * 0.5, headHw * 0.3, 0.45, xHead());
     box(M.hat, cx, headCy - headHh * 0.42, headHw * 1.55, headHh * 0.16, headHh * 0.12, 0.4, xHead());
   } else if (hat === 'hood') {
-    // a soft hood wrapping over the head and draping past the ears
     box(M.cape, cx, headCy - headHh * 0.3, headHw * 1.18, headHh * 0.9, headHw * 0.7, 0.6, xHead());
-    // hood drape sides
     for (const dir of [-1, 1]) {
       box(M.cape, cx + dir * headHw * 0.85, headCy + headHh * 0.2, headHw * 0.28, headHh * 0.65, headHw * 0.2, 0.5, xHead());
     }
+    // face opening — the hood is opaque and covers the face drawn in steps 7-8,
+    // so re-expose a skin window and the eyes inside the hood rim.
+    if (!isBackFacing) {
+      box(M.skin, cx, headCy + headHh * 0.18, headHw * 0.7, headHh * 0.52, headHw * 0.32, 0.52, xHead());
+      if (config.face !== false) drawEyes();
+    }
+  } else if (hat === 'wizard') {
+    // tall pointed wizard/mage hat with a bent tip
+    box(M.hat, cx, headCy - headHh * 0.5, headHw * 1.06, headHh * 0.35, headHw * 0.4, 0.45, xHead());
+    // cone
+    place(M.hat, capsule(cx, headCy - headHh * 0.75, cx + headHw * 0.3, headCy - headHh * 2.0, headHw * 0.45),
+      cx - headHw * 0.6, headCy - headHh * 2.3, cx + headHw * 0.9, headCy - headHh * 0.5, 0.55, xHead());
+    // brim
+    box(M.hat, cx, headCy - headHh * 0.3, headHw * 1.45, headHh * 0.1, headHh * 0.08, 0.4, xHead());
+    // accent band
+    box(M.accent, cx, headCy - headHh * 0.62, headHw * 0.9, s * 0.01, s * 0.005, 0.4, xHead());
+    // star/gem on front
+    place(M.gem, circle(cx, headCy - headHh * 0.75, s * 0.018),
+      cx - s * 0.03, headCy - headHh * 0.8, cx + s * 0.03, headCy - headHh * 0.65, 0.9, xHead());
+  } else if (hat === 'crown') {
+    // royal crown with points and gems
+    box(M.hat, cx, headCy - headHh * 0.55, headHw * 1.0, headHh * 0.25, headHw * 0.2, 0.4, xHead());
+    // crown points
+    for (let k = -1; k <= 1; k++) {
+      const px = cx + k * headHw * 0.5;
+      place(M.hat, capsule(px, headCy - headHh * 0.7, px, headCy - headHh * 1.1, headHw * 0.14),
+        px - headHw * 0.2, headCy - headHh * 1.3, px + headHw * 0.2, headCy - headHh * 0.6, 0.55, xHead());
+    }
+    // gem in center point
+    place(M.gem, circle(cx, headCy - headHh * 0.75, s * 0.015),
+      cx - s * 0.025, headCy - headHh * 0.8, cx + s * 0.025, headCy - headHh * 0.68, 0.9, xHead());
+  } else if (hat === 'helmet') {
+    // full metal helmet (warrior)
+    box(M.metal, cx, headCy - headHh * 0.15, headHw * 1.12, headHh * 0.95, headHw * 0.6, 0.55, xHead());
+    // visor slit
+    const visorMat = { ...M.metal, base: [30, 28, 25] as RGB };
+    box(visorMat, cx, headCy + headHh * 0.15, headHw * 0.75, headHh * 0.1, s * 0.008, 0.3, xHead());
+    // nose guard
+    box(M.metal, cx, headCy + headHh * 0.05, s * 0.012, headHh * 0.3, s * 0.006, 0.4, xHead());
+    // crest ridge
+    box(M.metal, cx, headCy - headHh * 0.6, headHw * 0.15, headHh * 0.35, headHw * 0.12, 0.5, xHead());
+  } else if (hat === 'bandana') {
+    // rogue-style bandana tied at the back
+    box(M.hat, cx, headCy - headHh * 0.45, headHw * 1.08, headHh * 0.35, headHw * 0.45, 0.5, xHead());
+    // tied knot tails at back
+    place(M.hat, capsule(cx + headHw * 0.7, headCy - headHh * 0.3, cx + headHw * 1.2, headCy + headHh * 0.1, headHw * 0.12),
+      cx + headHw * 0.5, headCy - headHh * 0.5, cx + headHw * 1.4, headCy + headHh * 0.3, 0.5, xHead());
+    place(M.hat, capsule(cx + headHw * 0.7, headCy - headHh * 0.25, cx + headHw * 1.1, headCy + headHh * 0.3, headHw * 0.1),
+      cx + headHw * 0.5, headCy - headHh * 0.4, cx + headHw * 1.3, headCy + headHh * 0.5, 0.45, xHead());
   }
 
-  // 10b) CAPE for back-facing — drawn after hair/hat so it covers the body.
-  if (hasCape && facing === 'back') placeCape();
+  // 10b) CAPE for back-facing family — drawn after hair/hat so it covers the body.
+  if (hasCape && isBackFacing) placeCape();
 
   // 11) HELD WEAPON — drawn last (on top) so it stays visible during attack
   // swings. Uses the same shoulder rotation transform as the right arm, so the
@@ -370,6 +559,72 @@ export function buildSkeleton(config: SpriteConfig, s: number, pose: Pose = NEUT
       const orbY = handY - staffLen * 0.45 - orbR;
       place(MATERIALS.gem([150, 70, 210]), circle(ax, orbY, orbR),
         ax - orbR - 2, orbY - orbR - 2, ax + orbR + 2, orbY + orbR + 2, 0.9, xf);
+
+    } else if (weapon === 'bow') {
+      const bowH = s * 0.22;
+      const bowCx = ax + s * 0.02;
+      place(M.leather, capsule(bowCx, handY - bowH * 0.5, bowCx + s * 0.04, handY - bowH * 0.15, s * 0.010),
+        bowCx - s * 0.02, handY - bowH * 0.55, bowCx + s * 0.07, handY - bowH * 0.1, 0.7, xf);
+      place(M.leather, capsule(bowCx, handY + bowH * 0.5, bowCx + s * 0.04, handY + bowH * 0.15, s * 0.010),
+        bowCx - s * 0.02, handY + bowH * 0.1, bowCx + s * 0.07, handY + bowH * 0.55, 0.7, xf);
+      place(M.leather, capsule(bowCx + s * 0.04, handY - bowH * 0.15, bowCx + s * 0.05, handY + bowH * 0.15, s * 0.008),
+        bowCx + s * 0.02, handY - bowH * 0.2, bowCx + s * 0.07, handY + bowH * 0.2, 0.7, xf);
+      place(MATERIALS.cloth([220, 220, 210]), capsule(bowCx, handY - bowH * 0.48, bowCx, handY + bowH * 0.48, Math.max(1, s * 0.003)),
+        bowCx - s * 0.01, handY - bowH * 0.52, bowCx + s * 0.01, handY + bowH * 0.52, 0.4, xf);
+
+    } else if (weapon === 'mace') {
+      const shaftLen = s * 0.16;
+      place(M.leather, capsule(ax, handY - s * 0.01, ax, handY + shaftLen, s * 0.013),
+        ax - s * 0.025, handY - s * 0.03, ax + s * 0.025, handY + shaftLen + s * 0.02, 0.7, xf);
+      const headY = handY + shaftLen;
+      const headR = s * 0.038;
+      place(M.metal, circle(ax, headY, headR),
+        ax - headR - 2, headY - headR - 2, ax + headR + 2, headY + headR + 2, 0.5, xf);
+      const spikeLen = s * 0.018;
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * Math.PI * 2;
+        const sx = ax + Math.cos(a) * (headR + spikeLen * 0.3);
+        const sy = headY + Math.sin(a) * (headR + spikeLen * 0.3);
+        place(M.metal, circle(sx, sy, Math.max(1.2, spikeLen * 0.6)),
+          sx - spikeLen, sy - spikeLen, sx + spikeLen, sy + spikeLen, 0.4, xf);
+      }
+
+    } else if (weapon === 'wand') {
+      const wandLen = s * 0.16;
+      place(M.leather, capsule(ax, handY - s * 0.01, ax, handY + wandLen, s * 0.009),
+        ax - s * 0.02, handY - s * 0.03, ax + s * 0.02, handY + wandLen + s * 0.01, 0.7, xf);
+      const tipR = s * 0.018;
+      const tipY = handY + wandLen;
+      place(MATERIALS.gem([100, 200, 255]), circle(ax, tipY, tipR),
+        ax - tipR - 2, tipY - tipR - 2, ax + tipR + 2, tipY + tipR + 2, 0.85, xf);
+      const starR = tipR * 0.5;
+      place(MATERIALS.gem([200, 240, 255]), circle(ax, tipY, starR),
+        ax - starR - 1, tipY - starR - 1, ax + starR + 1, tipY + starR + 1, 0.95, xf);
+
+    } else if (weapon === 'hammer') {
+      const shaftLen = s * 0.20;
+      place(M.leather, capsule(ax, handY - s * 0.02, ax, handY + shaftLen, s * 0.014),
+        ax - s * 0.03, handY - s * 0.04, ax + s * 0.03, handY + shaftLen + s * 0.02, 0.7, xf);
+      const headW = s * 0.065;
+      const headH = s * 0.040;
+      const headY = handY + shaftLen * 0.05;
+      box(M.metal, ax, headY, headW, headH, s * 0.012, 0.45, xf);
+
+    } else if (weapon === 'fishing_rod') {
+      // Long thin rod (longer than staff)
+      const rodLen = s * 0.30;
+      place(M.leather, capsule(ax, handY - rodLen * 0.35, ax, handY + rodLen * 0.65, s * 0.010),
+        ax - s * 0.02, handY - rodLen * 0.4, ax + s * 0.02, handY + rodLen * 0.7, 0.8, xf);
+      // Thin fishing line dangling from the tip
+      const tipY = handY - rodLen * 0.35;
+      const lineBot = tipY + s * 0.18;
+      const lineMat = MATERIALS.cloth([200, 200, 190]);
+      place(lineMat, capsule(ax, tipY, ax + s * 0.02, lineBot, Math.max(1, s * 0.003)),
+        ax - s * 0.01, tipY - s * 0.01, ax + s * 0.04, lineBot + s * 0.01, 0.4, xf);
+      // Small hook at end of line
+      const hookR = Math.max(1.2, s * 0.008);
+      place(M.metal, circle(ax + s * 0.02, lineBot, hookR),
+        ax + s * 0.02 - hookR - 2, lineBot - hookR - 2, ax + s * 0.02 + hookR + 2, lineBot + hookR + 2, 0.6, xf);
     }
   }
 

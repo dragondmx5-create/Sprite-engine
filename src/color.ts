@@ -82,3 +82,20 @@ export function quantizeChannel(v: number, levels: number): number {
   const step = 255 / (levels - 1);
   return Math.round(v / step) * step;
 }
+
+/**
+ * Hue-preserving posterize: quantize the LUMINANCE to `levels` steps and
+ * rescale RGB uniformly. Per-channel quantization collapses distinct hues
+ * into the same posterized color at coarse levels (e.g. warm dirt browns and
+ * olive grass greens both snap to [128,128,64] at 5 levels); scaling all
+ * channels by the same factor keeps the hue and only crunches the shading.
+ */
+export function quantizeColor(data: Uint8ClampedArray, i: number, levels: number): void {
+  const r = data[i], g = data[i + 1], b = data[i + 2];
+  const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+  if (luma <= 0) return;
+  const k = quantizeChannel(luma, levels) / luma;
+  data[i] = clamp255(r * k);
+  data[i + 1] = clamp255(g * k);
+  data[i + 2] = clamp255(b * k);
+}
