@@ -14,9 +14,9 @@
 import type { RGB } from './types';
 import { RNG } from './rng';
 import { MATERIALS } from './materials';
-import { Part, roundedBox, circle, capsule } from './shapes';
+import { Part, roundedBox, circle, capsule, ellipse } from './shapes';
 
-export type TileKind = 'stone_floor' | 'dirt_floor' | 'stone_wall' | 'crystal_floor' | 'wood_door' | 'lava_floor' | 'ice_floor' | 'moss_floor';
+export type TileKind = 'stone_floor' | 'dirt_floor' | 'stone_wall' | 'crystal_floor' | 'wood_door' | 'lava_floor' | 'ice_floor' | 'moss_floor' | 'spike_trap' | 'stairs_down' | 'stairs_up' | 'cracked_wall' | 'pit' | 'water_pool' | 'underground_river' | 'stalagmite' | 'cobweb' | 'barrel' | 'chain' | 'bone_pile' | 'shop_counter' | 'iron_gate' | 'torch_bracket' | 'altar' | 'anvil' | 'bed' | 'table' | 'bookshelf' | 'pillar' | 'fountain';
 
 export interface TileConfig {
   kind?: TileKind;
@@ -42,6 +42,12 @@ function pushCapsule(parts: Part[], mat: Part['material'], ax: number, ay: numbe
     material: mat, roundness, sdf: capsule(ax, ay, bx, by, r),
     bbox: [Math.floor(Math.min(ax, bx) - r - 2), Math.floor(Math.min(ay, by) - r - 2),
            Math.ceil(Math.max(ax, bx) + r + 2), Math.ceil(Math.max(ay, by) + r + 2)],
+  });
+}
+function pushEllipse(parts: Part[], mat: Part['material'], cx: number, cy: number, rx: number, ry: number, roundness: number) {
+  parts.push({
+    material: mat, roundness, sdf: ellipse(cx, cy, rx, ry),
+    bbox: [Math.floor(cx - rx - 2), Math.floor(cy - ry - 2), Math.ceil(cx + rx + 2), Math.ceil(cy + ry + 2)],
   });
 }
 
@@ -171,6 +177,454 @@ function buildMossFloor(rng: RNG, s: number): Part[] {
   return parts;
 }
 
+function buildSpikeTrap(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const base: RGB = [78 + rng.jitter(6), 72 + rng.jitter(5), 68 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(base), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.12);
+  const spikeMat = MATERIALS.metal([140, 135, 128]);
+  const cols = 3, rows = 3;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const sx = s * (0.22 + c * 0.28) + rng.jitter(s * 0.02);
+      const sy = s * (0.22 + r * 0.28) + rng.jitter(s * 0.02);
+      const h = s * 0.08 + rng.float() * s * 0.04;
+      pushCapsule(parts, spikeMat, sx, sy + h * 0.5, sx, sy - h * 0.5, Math.max(1, s * 0.016), 0.6);
+    }
+  }
+  return parts;
+}
+
+function buildStairsDown(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const base: RGB = [72 + rng.jitter(6), 68 + rng.jitter(5), 64 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(base), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.15);
+  const step = MATERIALS.bone([base[0] * 0.8, base[1] * 0.8, base[2] * 0.8] as RGB);
+  const dark = MATERIALS.bone([20, 18, 16]);
+  const steps = 4;
+  for (let i = 0; i < steps; i++) {
+    const sy = s * (0.20 + i * 0.16);
+    const sw = s * (0.38 - i * 0.03);
+    pushBox(parts, step, s * 0.5, sy, sw / 2, s * 0.05, s * 0.01, 0.2);
+  }
+  pushBox(parts, dark, s * 0.5, s * 0.82, s * 0.14, s * 0.08, s * 0.02, 0.1);
+  return parts;
+}
+
+function buildStairsUp(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const base: RGB = [72 + rng.jitter(6), 68 + rng.jitter(5), 64 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(base), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.15);
+  const step = MATERIALS.bone([base[0] * 1.1, base[1] * 1.1, base[2] * 1.1] as RGB);
+  const light = MATERIALS.ember([200, 190, 140]);
+  const steps = 4;
+  for (let i = 0; i < steps; i++) {
+    const sy = s * (0.75 - i * 0.16);
+    const sw = s * (0.38 - i * 0.03);
+    pushBox(parts, step, s * 0.5, sy, sw / 2, s * 0.05, s * 0.01, 0.2);
+  }
+  pushCircle(parts, light, s * 0.5, s * 0.14, s * 0.06, 0.8);
+  return parts;
+}
+
+function buildCrackedWall(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const base: RGB = [58 + rng.jitter(8), 54 + rng.jitter(6), 52 + rng.jitter(6)];
+  pushBox(parts, MATERIALS.bone(base), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.28);
+  const crackCol = MATERIALS.bone([base[0] * 0.4, base[1] * 0.4, base[2] * 0.4] as RGB);
+  const cracks = 3 + Math.floor(rng.float() * 3);
+  for (let i = 0; i < cracks; i++) {
+    const ax = s * (0.2 + rng.float() * 0.6), ay = s * (0.15 + rng.float() * 0.7);
+    const bx = ax + rng.jitter(s * 0.2), by = ay + rng.jitter(s * 0.25);
+    pushCapsule(parts, crackCol, ax, ay, bx, by, Math.max(1, s * 0.01), 0.1);
+  }
+  // mortar lines
+  const my = s * (0.35 + rng.jitter(0.05));
+  pushBox(parts, MATERIALS.bone([base[0] * 0.55, base[1] * 0.55, base[2] * 0.55] as RGB), s * 0.5, my, s * 0.44, s * 0.01, s * 0.004, 0.08);
+  return parts;
+}
+
+function buildPit(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const edge: RGB = [68 + rng.jitter(6), 62 + rng.jitter(5), 58 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(edge), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.12);
+  pushCircle(parts, MATERIALS.bone([15, 12, 10]), s * 0.5, s * 0.5, s * 0.30, 0.1);
+  pushCircle(parts, MATERIALS.bone([edge[0] * 0.7, edge[1] * 0.7, edge[2] * 0.7] as RGB), s * 0.5, s * 0.5, s * 0.32, 0.15);
+  return parts;
+}
+
+function buildWaterPool(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  const j = rng.jitter(6);
+  const base: RGB = [30 + j, 55 + j, 70 + j];
+  // dark reflective water surface
+  pushBox(parts, MATERIALS.glass(base), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.04, 0.15);
+  // 2-3 ripple rings
+  const ripples = 2 + (rng.float() > 0.5 ? 1 : 0);
+  for (let i = 0; i < ripples; i++) {
+    const cx = s * (0.3 + rng.float() * 0.4);
+    const cy = s * (0.3 + rng.float() * 0.4);
+    const r = s * (0.08 + rng.float() * 0.06);
+    const rippleCol: RGB = [base[0] + 35, base[1] + 40, base[2] + 35];
+    // draw ripple as a ring of capsule arcs (top, bottom, left, right)
+    const thickness = Math.max(1.2, s * 0.012);
+    pushCapsule(parts, MATERIALS.glass(rippleCol), cx - r, cy, cx, cy - r, thickness, 0.2);
+    pushCapsule(parts, MATERIALS.glass(rippleCol), cx, cy - r, cx + r, cy, thickness, 0.2);
+    pushCapsule(parts, MATERIALS.glass(rippleCol), cx + r, cy, cx, cy + r, thickness, 0.2);
+    pushCapsule(parts, MATERIALS.glass(rippleCol), cx, cy + r, cx - r, cy, thickness, 0.2);
+  }
+  return parts;
+}
+
+function buildUndergroundRiver(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  // stone banks on top and bottom edges
+  const bankCol: RGB = [78 + rng.jitter(6), 72 + rng.jitter(5), 68 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(bankCol), s * 0.5, s * 0.12, s * 0.46, s * 0.12, s * 0.02, 0.2);
+  pushBox(parts, MATERIALS.bone(bankCol), s * 0.5, s * 0.88, s * 0.46, s * 0.12, s * 0.02, 0.2);
+  // flowing water in center
+  const j = rng.jitter(6);
+  const waterCol: RGB = [25 + j, 50 + j, 65 + j];
+  pushBox(parts, MATERIALS.glass(waterCol), s * 0.5, s * 0.5, s * 0.46, s * 0.28, s * 0.02, 0.12);
+  // directional ripple lines (horizontal, following flow)
+  const ripples = 3 + Math.floor(rng.float() * 2);
+  for (let i = 0; i < ripples; i++) {
+    const ry = s * (0.32 + rng.float() * 0.36);
+    const ax = s * (0.08 + rng.float() * 0.15);
+    const bx = s * (0.72 + rng.float() * 0.2);
+    const rippleCol: RGB = [waterCol[0] + 30, waterCol[1] + 35, waterCol[2] + 30];
+    pushCapsule(parts, MATERIALS.glass(rippleCol), ax, ry, bx, ry + rng.jitter(s * 0.02), Math.max(1.2, s * 0.01), 0.18);
+  }
+  return parts;
+}
+
+function buildStalagmite(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  // stone floor base
+  const baseCol: RGB = [78 + rng.jitter(6), 72 + rng.jitter(5), 68 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(baseCol), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.12);
+  // 2-3 pointed stone pillars rising up
+  const pillars = 2 + (rng.float() > 0.5 ? 1 : 0);
+  for (let i = 0; i < pillars; i++) {
+    const j = rng.jitter(10);
+    const col: RGB = [95 + j, 85 + j, 75 + j];
+    const cx = s * (0.25 + i * 0.25) + rng.jitter(s * 0.06);
+    const baseY = s * 0.82;
+    const tipY = s * (0.15 + rng.float() * 0.2);
+    const thickness = Math.max(1.2, s * (0.04 + rng.float() * 0.025));
+    pushCapsule(parts, MATERIALS.bone(col), cx, baseY, cx + rng.jitter(s * 0.03), tipY, thickness, 0.25);
+  }
+  return parts;
+}
+
+function buildCobweb(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  // stone floor base
+  const baseCol: RGB = [78 + rng.jitter(6), 72 + rng.jitter(5), 68 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(baseCol), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.12);
+  // web strands radiating from top-left corner
+  const webCol: RGB = [180, 180, 175];
+  const originX = s * 0.05;
+  const originY = s * 0.05;
+  const strands = 5 + Math.floor(rng.float() * 3);
+  for (let i = 0; i < strands; i++) {
+    const angle = (i / strands) * (Math.PI * 0.5); // spread across 90 degrees
+    const len = s * (0.4 + rng.float() * 0.35);
+    const ex = originX + Math.cos(angle) * len;
+    const ey = originY + Math.sin(angle) * len;
+    const thickness = Math.max(1.2, s * 0.008);
+    pushCapsule(parts, MATERIALS.bone(webCol), originX, originY, ex, ey, thickness, 0.08);
+  }
+  // cross strands connecting radial strands
+  for (let i = 0; i < 2; i++) {
+    const dist = s * (0.18 + i * 0.2);
+    const a1 = 0.1 + rng.float() * 0.2;
+    const a2 = 1.1 + rng.float() * 0.3;
+    const ax = originX + Math.cos(a1) * dist;
+    const ay = originY + Math.sin(a1) * dist;
+    const bx = originX + Math.cos(a2) * dist;
+    const by = originY + Math.sin(a2) * dist;
+    pushCapsule(parts, MATERIALS.bone(webCol), ax, ay, bx, by, Math.max(1.2, s * 0.006), 0.06);
+  }
+  return parts;
+}
+
+function buildBarrel(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  // stone floor base
+  const floorCol: RGB = [78 + rng.jitter(6), 72 + rng.jitter(5), 68 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(floorCol), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.12);
+  // barrel body (oval, wooden)
+  const woodCol: RGB = [118 + rng.jitter(10), 78 + rng.jitter(8), 48 + rng.jitter(6)];
+  pushBox(parts, MATERIALS.leather(woodCol), s * 0.5, s * 0.5, s * 0.22, s * 0.32, s * 0.12, 0.3);
+  // metal bands (2 horizontal)
+  const bandMat = MATERIALS.metal([140, 135, 128]);
+  pushBox(parts, bandMat, s * 0.5, s * 0.3, s * 0.24, s * 0.018, s * 0.008, 0.4);
+  pushBox(parts, bandMat, s * 0.5, s * 0.7, s * 0.24, s * 0.018, s * 0.008, 0.4);
+  return parts;
+}
+
+function buildChain(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  // dark background
+  pushBox(parts, MATERIALS.bone([22, 20, 18]), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.08);
+  // chain links descending from top center
+  const chainMat = MATERIALS.metal([160 + rng.jitter(10), 155 + rng.jitter(8), 148 + rng.jitter(8)]);
+  const links = 4 + Math.floor(rng.float() * 2);
+  const cx = s * 0.5 + rng.jitter(s * 0.05);
+  for (let i = 0; i < links; i++) {
+    const ly = s * (0.12 + i * 0.17);
+    const linkR = Math.max(1.2, s * 0.035);
+    if (i % 2 === 0) {
+      // vertical link: circle
+      pushCircle(parts, chainMat, cx, ly, linkR, 0.5);
+    } else {
+      // connecting piece: small capsule
+      pushCapsule(parts, chainMat, cx, ly - linkR * 0.6, cx, ly + linkR * 0.6, Math.max(1.2, s * 0.018), 0.45);
+    }
+  }
+  return parts;
+}
+
+function buildBonePile(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  // stone floor base
+  const baseCol: RGB = [78 + rng.jitter(6), 72 + rng.jitter(5), 68 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(baseCol), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.12);
+  // scattered bones at various angles
+  const boneMat = MATERIALS.bone([200, 192, 175]);
+  const bones = 5 + Math.floor(rng.float() * 3);
+  for (let i = 0; i < bones; i++) {
+    const cx = s * (0.2 + rng.float() * 0.6);
+    const cy = s * (0.3 + rng.float() * 0.5);
+    const angle = rng.float() * Math.PI;
+    const len = s * (0.06 + rng.float() * 0.08);
+    const ax = cx - Math.cos(angle) * len;
+    const ay = cy - Math.sin(angle) * len;
+    const bx = cx + Math.cos(angle) * len;
+    const by = cy + Math.sin(angle) * len;
+    const thickness = Math.max(1.2, s * (0.014 + rng.float() * 0.01));
+    pushCapsule(parts, boneMat, ax, ay, bx, by, thickness, 0.3);
+  }
+  // a skull-like circle for detail
+  pushCircle(parts, boneMat, s * (0.45 + rng.jitter(0.08)), s * (0.45 + rng.jitter(0.06)), s * 0.04, 0.35);
+  return parts;
+}
+
+// ---- interior / building tile builders --------------------------------------
+
+function buildShopCounter(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  // stone floor base
+  const floorCol: RGB = [78 + rng.jitter(6), 72 + rng.jitter(5), 68 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(floorCol), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.12);
+  // shelf behind counter (back wall)
+  const woodCol: RGB = [105 + rng.jitter(8), 68 + rng.jitter(6), 42 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.leather(woodCol), s * 0.5, s * 0.2, s * 0.38, s * 0.14, s * 0.02, 0.22);
+  // shelf dividers
+  pushBox(parts, MATERIALS.leather([woodCol[0] * 0.8, woodCol[1] * 0.8, woodCol[2] * 0.8] as RGB), s * 0.35, s * 0.2, s * 0.012, s * 0.12, s * 0.005, 0.18);
+  pushBox(parts, MATERIALS.leather([woodCol[0] * 0.8, woodCol[1] * 0.8, woodCol[2] * 0.8] as RGB), s * 0.65, s * 0.2, s * 0.012, s * 0.12, s * 0.005, 0.18);
+  // wooden counter
+  pushBox(parts, MATERIALS.leather(woodCol), s * 0.5, s * 0.58, s * 0.40, s * 0.08, s * 0.03, 0.28);
+  // counter front panel
+  pushBox(parts, MATERIALS.leather([woodCol[0] * 0.85, woodCol[1] * 0.85, woodCol[2] * 0.85] as RGB), s * 0.5, s * 0.72, s * 0.38, s * 0.10, s * 0.02, 0.2);
+  // coin/bag detail on counter
+  pushCircle(parts, MATERIALS.gold([210, 185, 80]), s * 0.58, s * 0.55, s * 0.035, 0.5);
+  pushCircle(parts, MATERIALS.gold([195, 170, 70]), s * 0.54, s * 0.56, s * 0.025, 0.45);
+  return parts;
+}
+
+function buildIronGate(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  // dark stone frame background
+  const frameCol: RGB = [52 + rng.jitter(6), 48 + rng.jitter(5), 46 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(frameCol), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.25);
+  // dark void behind bars
+  pushBox(parts, MATERIALS.bone([18, 15, 12]), s * 0.5, s * 0.5, s * 0.34, s * 0.42, s * 0.01, 0.08);
+  // stone frame edges (top and bottom)
+  pushBox(parts, MATERIALS.bone(frameCol), s * 0.5, s * 0.06, s * 0.44, s * 0.06, s * 0.02, 0.3);
+  pushBox(parts, MATERIALS.bone(frameCol), s * 0.5, s * 0.94, s * 0.44, s * 0.06, s * 0.02, 0.3);
+  // vertical metal bars
+  const barMat = MATERIALS.metal([120 + rng.jitter(8), 118 + rng.jitter(6), 115 + rng.jitter(6)]);
+  const bars = 5;
+  for (let i = 0; i < bars; i++) {
+    const bx = s * (0.24 + i * 0.13);
+    pushCapsule(parts, barMat, bx, s * 0.12, bx, s * 0.88, Math.max(1.2, s * 0.02), 0.45);
+  }
+  // horizontal crossbar
+  pushCapsule(parts, barMat, s * 0.18, s * 0.5, s * 0.82, s * 0.5, Math.max(1.2, s * 0.016), 0.4);
+  return parts;
+}
+
+function buildTorchBracket(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  // stone wall background
+  const wallCol: RGB = [62 + rng.jitter(8), 58 + rng.jitter(6), 56 + rng.jitter(6)];
+  pushBox(parts, MATERIALS.bone(wallCol), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.28);
+  // mortar line for wall texture
+  const mortarCol: RGB = [wallCol[0] * 0.6, wallCol[1] * 0.6, wallCol[2] * 0.6] as RGB;
+  pushBox(parts, MATERIALS.bone(mortarCol), s * 0.5, s * 0.45, s * 0.44, s * 0.01, s * 0.004, 0.08);
+  // metal bracket — vertical part (mounted to wall)
+  const bracketMat = MATERIALS.metal([130, 125, 120]);
+  pushCapsule(parts, bracketMat, s * 0.5, s * 0.35, s * 0.5, s * 0.65, Math.max(1.2, s * 0.022), 0.4);
+  // metal bracket — horizontal arm extending out
+  pushCapsule(parts, bracketMat, s * 0.5, s * 0.38, s * 0.68, s * 0.38, Math.max(1.2, s * 0.02), 0.4);
+  // torch stick
+  const torchWood: RGB = [100, 62, 35];
+  pushCapsule(parts, MATERIALS.leather(torchWood), s * 0.68, s * 0.22, s * 0.68, s * 0.40, Math.max(1.2, s * 0.025), 0.25);
+  // flame on top
+  pushEllipse(parts, MATERIALS.ember([255, 180, 40]), s * 0.68, s * 0.15, s * 0.045, s * 0.07, 0.7);
+  pushEllipse(parts, MATERIALS.ember([255, 230, 120]), s * 0.68, s * 0.16, s * 0.025, s * 0.04, 0.8);
+  return parts;
+}
+
+function buildAltar(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  // stone floor base
+  const floorCol: RGB = [68 + rng.jitter(6), 62 + rng.jitter(5), 58 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(floorCol), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.12);
+  // altar pedestal (wide base)
+  const stoneCol: RGB = [78 + rng.jitter(5), 72 + rng.jitter(4), 82 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(stoneCol), s * 0.5, s * 0.72, s * 0.32, s * 0.06, s * 0.02, 0.2);
+  // altar table (raised body)
+  pushBox(parts, MATERIALS.bone(stoneCol), s * 0.5, s * 0.52, s * 0.28, s * 0.16, s * 0.03, 0.25);
+  // altar top surface (slightly lighter)
+  pushBox(parts, MATERIALS.bone([stoneCol[0] + 15, stoneCol[1] + 12, stoneCol[2] + 18] as RGB), s * 0.5, s * 0.38, s * 0.30, s * 0.03, s * 0.015, 0.2);
+  // glowing rune circle on top (mystical purple/blue)
+  const runeCol: RGB = [140 + rng.jitter(20), 80 + rng.jitter(15), 200 + rng.jitter(20)];
+  pushCircle(parts, MATERIALS.gem(runeCol), s * 0.5, s * 0.48, s * 0.1, 0.6);
+  // inner rune glow
+  pushCircle(parts, MATERIALS.ember([180, 120, 255]), s * 0.5, s * 0.48, s * 0.05, 0.8);
+  return parts;
+}
+
+function buildAnvil(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  // dark stone floor
+  const floorCol: RGB = [62 + rng.jitter(6), 56 + rng.jitter(5), 52 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(floorCol), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.12);
+  // anvil base (narrow pedestal)
+  const anvilCol: RGB = [55 + rng.jitter(6), 52 + rng.jitter(5), 50 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.metal(anvilCol), s * 0.45, s * 0.7, s * 0.12, s * 0.08, s * 0.02, 0.35);
+  // anvil waist (narrower middle)
+  pushBox(parts, MATERIALS.metal(anvilCol), s * 0.45, s * 0.58, s * 0.08, s * 0.06, s * 0.015, 0.3);
+  // anvil top (wider working surface)
+  pushBox(parts, MATERIALS.metal([anvilCol[0] + 15, anvilCol[1] + 12, anvilCol[2] + 10] as RGB), s * 0.45, s * 0.45, s * 0.18, s * 0.06, s * 0.025, 0.4);
+  // anvil horn (pointed extension to the left)
+  pushCapsule(parts, MATERIALS.metal(anvilCol), s * 0.25, s * 0.44, s * 0.15, s * 0.44, Math.max(1.2, s * 0.03), 0.38);
+  // small hammer nearby
+  const hammerHead: RGB = [100, 95, 90];
+  pushBox(parts, MATERIALS.metal(hammerHead), s * 0.72, s * 0.58, s * 0.04, s * 0.03, s * 0.01, 0.4);
+  pushCapsule(parts, MATERIALS.leather([90, 58, 35]), s * 0.72, s * 0.62, s * 0.72, s * 0.78, Math.max(1.2, s * 0.014), 0.22);
+  return parts;
+}
+
+function buildBed(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  // stone floor base
+  const floorCol: RGB = [78 + rng.jitter(6), 72 + rng.jitter(5), 68 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(floorCol), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.12);
+  // wooden bed frame
+  const frameCol: RGB = [95 + rng.jitter(8), 62 + rng.jitter(6), 38 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.leather(frameCol), s * 0.5, s * 0.55, s * 0.36, s * 0.22, s * 0.025, 0.2);
+  // headboard (raised back)
+  pushBox(parts, MATERIALS.leather([frameCol[0] * 0.9, frameCol[1] * 0.9, frameCol[2] * 0.9] as RGB), s * 0.5, s * 0.3, s * 0.36, s * 0.04, s * 0.02, 0.25);
+  // cloth blanket on top
+  const blanketCol: RGB = [65 + rng.jitter(15), 55 + rng.jitter(10), 80 + rng.jitter(15)];
+  pushBox(parts, MATERIALS.cloth(blanketCol), s * 0.5, s * 0.58, s * 0.32, s * 0.16, s * 0.03, 0.15);
+  // pillow (lighter, smaller, near headboard)
+  const pillowCol: RGB = [160 + rng.jitter(10), 155 + rng.jitter(8), 145 + rng.jitter(8)];
+  pushEllipse(parts, MATERIALS.cloth(pillowCol), s * 0.5, s * 0.38, s * 0.1, s * 0.04, 0.2);
+  return parts;
+}
+
+function buildTable(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  // stone floor base
+  const floorCol: RGB = [78 + rng.jitter(6), 72 + rng.jitter(5), 68 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(floorCol), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.12);
+  // table legs (two visible in front)
+  const legCol: RGB = [88 + rng.jitter(6), 58 + rng.jitter(5), 35 + rng.jitter(4)];
+  pushCapsule(parts, MATERIALS.leather(legCol), s * 0.28, s * 0.52, s * 0.28, s * 0.78, Math.max(1.2, s * 0.02), 0.2);
+  pushCapsule(parts, MATERIALS.leather(legCol), s * 0.72, s * 0.52, s * 0.72, s * 0.78, Math.max(1.2, s * 0.02), 0.2);
+  // wooden table top
+  const topCol: RGB = [110 + rng.jitter(8), 72 + rng.jitter(6), 45 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.leather(topCol), s * 0.5, s * 0.48, s * 0.34, s * 0.05, s * 0.025, 0.28);
+  // mug on table
+  pushBox(parts, MATERIALS.bone([140, 130, 115]), s * 0.58, s * 0.42, s * 0.03, s * 0.04, s * 0.015, 0.3);
+  pushCircle(parts, MATERIALS.bone([120, 108, 90]), s * 0.58, s * 0.39, s * 0.028, 0.2);
+  return parts;
+}
+
+function buildBookshelf(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  // stone wall background
+  const wallCol: RGB = [62 + rng.jitter(8), 58 + rng.jitter(6), 56 + rng.jitter(6)];
+  pushBox(parts, MATERIALS.bone(wallCol), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.28);
+  // wooden shelf frame (outer)
+  const shelfCol: RGB = [100 + rng.jitter(8), 65 + rng.jitter(6), 38 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.leather(shelfCol), s * 0.5, s * 0.5, s * 0.38, s * 0.42, s * 0.02, 0.22);
+  // inner back (darker)
+  pushBox(parts, MATERIALS.leather([shelfCol[0] * 0.65, shelfCol[1] * 0.65, shelfCol[2] * 0.65] as RGB), s * 0.5, s * 0.5, s * 0.34, s * 0.38, s * 0.01, 0.15);
+  // shelf dividers (horizontal)
+  pushBox(parts, MATERIALS.leather(shelfCol), s * 0.5, s * 0.35, s * 0.36, s * 0.015, s * 0.006, 0.2);
+  pushBox(parts, MATERIALS.leather(shelfCol), s * 0.5, s * 0.60, s * 0.36, s * 0.015, s * 0.006, 0.2);
+  // books — top shelf (3-4 colored rectangles)
+  const bookColors: RGB[] = [
+    [140 + rng.jitter(20), 45 + rng.jitter(15), 45 + rng.jitter(15)],
+    [45 + rng.jitter(15), 65 + rng.jitter(15), 130 + rng.jitter(20)],
+    [55 + rng.jitter(15), 110 + rng.jitter(20), 55 + rng.jitter(15)],
+    [130 + rng.jitter(20), 110 + rng.jitter(15), 42 + rng.jitter(10)],
+  ];
+  for (let i = 0; i < 4; i++) {
+    const bx = s * (0.22 + i * 0.15) + rng.jitter(s * 0.01);
+    const bh = s * (0.06 + rng.float() * 0.03);
+    pushBox(parts, MATERIALS.cloth(bookColors[i]), bx, s * 0.26 - bh * 0.3, s * 0.04, bh, s * 0.008, 0.15);
+  }
+  // books — bottom shelf
+  for (let i = 0; i < 3; i++) {
+    const bx = s * (0.25 + i * 0.16) + rng.jitter(s * 0.01);
+    const bh = s * (0.06 + rng.float() * 0.04);
+    const col: RGB = [80 + rng.jitter(40), 60 + rng.jitter(30), 50 + rng.jitter(30)];
+    pushBox(parts, MATERIALS.cloth(col), bx, s * 0.51 - bh * 0.3, s * 0.045, bh, s * 0.008, 0.15);
+  }
+  return parts;
+}
+
+function buildPillar(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  // stone floor base
+  const floorCol: RGB = [78 + rng.jitter(6), 72 + rng.jitter(5), 68 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(floorCol), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.12);
+  // pillar base cap (wider)
+  const pillarCol: RGB = [105 + rng.jitter(8), 98 + rng.jitter(6), 90 + rng.jitter(6)];
+  pushBox(parts, MATERIALS.bone([pillarCol[0] + 10, pillarCol[1] + 8, pillarCol[2] + 6] as RGB), s * 0.5, s * 0.85, s * 0.18, s * 0.05, s * 0.02, 0.2);
+  // main pillar shaft (tall capsule for cylindrical look)
+  pushCapsule(parts, MATERIALS.bone(pillarCol), s * 0.5, s * 0.18, s * 0.5, s * 0.80, Math.max(1.2, s * 0.12), 0.35);
+  // pillar top cap (wider, slightly lighter)
+  pushBox(parts, MATERIALS.bone([pillarCol[0] + 15, pillarCol[1] + 12, pillarCol[2] + 10] as RGB), s * 0.5, s * 0.14, s * 0.18, s * 0.05, s * 0.02, 0.22);
+  return parts;
+}
+
+function buildFountain(rng: RNG, s: number): Part[] {
+  const parts: Part[] = [];
+  // stone floor base
+  const floorCol: RGB = [78 + rng.jitter(6), 72 + rng.jitter(5), 68 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(floorCol), s * 0.5, s * 0.5, s * 0.46, s * 0.46, s * 0.02, 0.12);
+  // stone basin (outer bowl — wide rounded box)
+  const basinCol: RGB = [88 + rng.jitter(6), 82 + rng.jitter(5), 78 + rng.jitter(5)];
+  pushBox(parts, MATERIALS.bone(basinCol), s * 0.5, s * 0.55, s * 0.32, s * 0.22, s * 0.10, 0.22);
+  // basin inner (darker)
+  pushCircle(parts, MATERIALS.bone([basinCol[0] * 0.6, basinCol[1] * 0.6, basinCol[2] * 0.6] as RGB), s * 0.5, s * 0.55, s * 0.22, 0.15);
+  // water surface (blue-ish glass)
+  const waterCol: RGB = [40 + rng.jitter(8), 75 + rng.jitter(10), 110 + rng.jitter(10)];
+  pushCircle(parts, MATERIALS.glass(waterCol), s * 0.5, s * 0.55, s * 0.18, 0.2);
+  // center spout (thin stone column)
+  pushCapsule(parts, MATERIALS.bone([basinCol[0] + 8, basinCol[1] + 6, basinCol[2] + 5] as RGB), s * 0.5, s * 0.25, s * 0.5, s * 0.55, Math.max(1.2, s * 0.03), 0.25);
+  // water droplet at spout top
+  pushCircle(parts, MATERIALS.glass([waterCol[0] + 40, waterCol[1] + 50, waterCol[2] + 40] as RGB), s * 0.5, s * 0.22, s * 0.035, 0.3);
+  return parts;
+}
+
 // ---- public API -------------------------------------------------------------
 
 export function buildTile(config: TileConfig, s: number): Part[] {
@@ -183,9 +637,31 @@ export function buildTile(config: TileConfig, s: number): Part[] {
     case 'lava_floor':    return buildLavaFloor(rng, s);
     case 'ice_floor':     return buildIceFloor(rng, s);
     case 'moss_floor':    return buildMossFloor(rng, s);
+    case 'spike_trap':    return buildSpikeTrap(rng, s);
+    case 'stairs_down':   return buildStairsDown(rng, s);
+    case 'stairs_up':     return buildStairsUp(rng, s);
+    case 'cracked_wall':  return buildCrackedWall(rng, s);
+    case 'pit':              return buildPit(rng, s);
+    case 'water_pool':       return buildWaterPool(rng, s);
+    case 'underground_river': return buildUndergroundRiver(rng, s);
+    case 'stalagmite':       return buildStalagmite(rng, s);
+    case 'cobweb':           return buildCobweb(rng, s);
+    case 'barrel':           return buildBarrel(rng, s);
+    case 'chain':            return buildChain(rng, s);
+    case 'bone_pile':        return buildBonePile(rng, s);
+    case 'shop_counter':     return buildShopCounter(rng, s);
+    case 'iron_gate':        return buildIronGate(rng, s);
+    case 'torch_bracket':    return buildTorchBracket(rng, s);
+    case 'altar':            return buildAltar(rng, s);
+    case 'anvil':            return buildAnvil(rng, s);
+    case 'bed':              return buildBed(rng, s);
+    case 'table':            return buildTable(rng, s);
+    case 'bookshelf':        return buildBookshelf(rng, s);
+    case 'pillar':           return buildPillar(rng, s);
+    case 'fountain':         return buildFountain(rng, s);
     case 'stone_floor':
-    default:              return buildStoneFloor(rng, s);
+    default:                 return buildStoneFloor(rng, s);
   }
 }
 
-export const TILE_KINDS: TileKind[] = ['stone_floor', 'dirt_floor', 'stone_wall', 'crystal_floor', 'wood_door', 'lava_floor', 'ice_floor', 'moss_floor'];
+export const TILE_KINDS: TileKind[] = ['stone_floor', 'dirt_floor', 'stone_wall', 'crystal_floor', 'wood_door', 'lava_floor', 'ice_floor', 'moss_floor', 'spike_trap', 'stairs_down', 'stairs_up', 'cracked_wall', 'pit', 'water_pool', 'underground_river', 'stalagmite', 'cobweb', 'barrel', 'chain', 'bone_pile', 'shop_counter', 'iron_gate', 'torch_bracket', 'altar', 'anvil', 'bed', 'table', 'bookshelf', 'pillar', 'fountain'];

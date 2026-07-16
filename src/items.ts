@@ -20,7 +20,7 @@ import { wave } from './anim/spring';
 
 const PI = Math.PI;
 
-export type ItemKind = 'mushroom' | 'crystal' | 'dagger' | 'torch' | 'potion' | 'coin' | 'rune' | 'chest' | 'key' | 'scroll';
+export type ItemKind = 'mushroom' | 'crystal' | 'dagger' | 'torch' | 'potion' | 'coin' | 'rune' | 'chest' | 'key' | 'scroll' | 'meat' | 'lantern' | 'ore' | 'firestone' | 'bone_shard' | 'fish';
 
 export interface ItemConfig {
   seed?: number | string;
@@ -81,8 +81,14 @@ function defaultColor(rng: RNG, kind: ItemKind): RGB {
     case 'rune':     return j([150, 110, 230], 0.16);  // arcane glyph
     case 'chest':    return j([140, 95, 55], 0.12);   // wood
     case 'key':      return j([220, 190, 80], 0.08);  // gold
-    case 'scroll':   return j([230, 215, 180], 0.06); // parchment
-    default:         return j([180, 180, 180], 0.10);
+    case 'scroll':     return j([230, 215, 180], 0.06); // parchment
+    case 'meat':       return j([160, 60, 50], 0.14);  // raw meat
+    case 'lantern':    return j([220, 200, 120], 0.10); // warm light
+    case 'ore':        return j([140, 145, 155], 0.08); // iron ore
+    case 'firestone':  return j([255, 100, 30], 0.12);  // fire stone
+    case 'bone_shard': return j([200, 192, 175], 0.08); // bone fragment
+    case 'fish':       return j([210, 185, 175], 0.10); // pale cave fish
+    default:           return j([180, 180, 180], 0.10);
   }
 }
 
@@ -305,25 +311,162 @@ function buildScroll(rng: RNG, s: number, color: RGB, phase: number, amp: number
   return parts;
 }
 
+/** MEAT — raw flesh chunk, slight wobble. Food item for The Rot layer. */
+function buildMeat(rng: RNG, s: number, color: RGB, phase: number, amp: number): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5;
+  const flesh = MATERIALS.flesh(color);
+  const bone = MATERIALS.bone([210, 200, 180]);
+  const wobble = wave(phase, 1) * s * 0.008 * amp;
+
+  pushEllipse(parts, flesh, cx + wobble, s * 0.56, s * 0.20, s * 0.14, 0.9);
+  pushEllipse(parts, flesh, cx + wobble * 0.5, s * 0.48, s * 0.14, s * 0.10, 0.85);
+  // bone sticking out
+  pushCapsule(parts, bone, cx - s * 0.08 + wobble, s * 0.42, cx - s * 0.16, s * 0.32, Math.max(1, s * 0.02), 0.7);
+  pushCircle(parts, bone, cx - s * 0.16, s * 0.32, s * 0.028, 0.8);
+  return parts;
+}
+
+/** LANTERN — hanging light source, flame flickers inside. */
+function buildLantern(rng: RNG, s: number, color: RGB, phase: number, amp: number): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5;
+  const metal = MATERIALS.metal([120, 115, 105]);
+  const glass = MATERIALS.glass([200, 210, 220]);
+  const flame = MATERIALS.ember(color);
+
+  const sway = wave(phase, 0.8) * s * 0.01 * amp;
+  // hook
+  pushCapsule(parts, metal, cx + sway * 0.3, s * 0.20, cx + sway * 0.5, s * 0.28, Math.max(1, s * 0.012), 0.5);
+  // frame
+  pushBox(parts, metal, cx + sway, s * 0.50, s * 0.10, s * 0.18, s * 0.02, 0.4);
+  // glass body
+  pushBox(parts, glass, cx + sway, s * 0.50, s * 0.07, s * 0.14, s * 0.015, 0.6);
+  // flame inside
+  const flick = wave(phase, 3) * s * 0.008 * amp;
+  const breathe = 1 + wave(phase, 2) * 0.1 * amp;
+  pushEllipse(parts, flame, cx + sway + flick, s * 0.48, s * 0.03 * breathe, s * 0.06 * breathe, 1.0);
+  pushEllipse(parts, MATERIALS.ember([255, 240, 160]), cx + sway + flick * 0.3, s * 0.49, s * 0.015, s * 0.035 * breathe, 1.0);
+  // bottom cap
+  pushBox(parts, metal, cx + sway, s * 0.68, s * 0.09, s * 0.02, s * 0.008, 0.4);
+  return parts;
+}
+
+/** ORE — rough metallic rock chunk. Irondeep resource. */
+function buildOre(rng: RNG, s: number, color: RGB, phase: number, amp: number): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5;
+  const rock = MATERIALS.bone([80, 75, 70]);
+
+  pushEllipse(parts, rock, cx, s * 0.55, s * 0.22, s * 0.18, 0.6);
+  pushEllipse(parts, rock, cx - s * 0.06, s * 0.48, s * 0.14, s * 0.12, 0.5);
+  // metal veins
+  const glint = 0.5 + 0.5 * wave(phase, 1) * amp;
+  const veinColor: RGB = [
+    Math.min(255, color[0] + 30 * glint),
+    Math.min(255, color[1] + 30 * glint),
+    Math.min(255, color[2] + 30 * glint),
+  ];
+  pushCapsule(parts, MATERIALS.metal(veinColor), cx - s * 0.10, s * 0.46, cx + s * 0.08, s * 0.58,
+    Math.max(1, s * 0.018), 0.4);
+  pushCapsule(parts, MATERIALS.metal(veinColor), cx + s * 0.05, s * 0.42, cx + s * 0.12, s * 0.55,
+    Math.max(1, s * 0.012), 0.35);
+  return parts;
+}
+
+/** FIRESTONE — glowing ember rock from Emberscar. */
+function buildFirestone(rng: RNG, s: number, color: RGB, phase: number, amp: number): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5;
+  const rock = MATERIALS.bone([50, 35, 30]);
+
+  pushEllipse(parts, rock, cx, s * 0.56, s * 0.20, s * 0.17, 0.55);
+  // glowing cracks
+  const pulse = 0.5 + 0.5 * wave(phase, 1.5) * amp;
+  const glowColor: RGB = [
+    Math.min(255, color[0] * (0.6 + 0.6 * pulse)),
+    Math.min(255, color[1] * (0.4 + 0.4 * pulse)),
+    Math.min(255, color[2] * (0.3 + 0.3 * pulse)),
+  ];
+  for (let i = 0; i < 3; i++) {
+    const ax = cx + rng.jitter(s * 0.12), ay = s * 0.45 + rng.jitter(s * 0.10);
+    const bx = cx + rng.jitter(s * 0.12), by = s * 0.60 + rng.jitter(s * 0.08);
+    pushCapsule(parts, MATERIALS.ember(glowColor), ax, ay, bx, by, Math.max(1, s * 0.012), 0.35);
+  }
+  // glow halo
+  pushCircle(parts, MATERIALS.ember([...glowColor] as RGB), cx, s * 0.50, s * (0.06 + 0.015 * pulse), 0.9);
+  return parts;
+}
+
+/** BONE_SHARD — a bone fragment. Crafting resource (tool handles). */
+function buildBoneShard(rng: RNG, s: number, color: RGB, phase: number, amp: number): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5;
+  const bone = MATERIALS.bone(color);
+
+  const tilt = wave(phase, 0.5) * 0.04 * amp;
+  pushCapsule(parts, bone, cx - s * 0.12, s * 0.68 + tilt * s, cx + s * 0.08, s * 0.34 - tilt * s, s * 0.035, 0.7);
+  pushCircle(parts, bone, cx + s * 0.08, s * 0.32, s * 0.04, 0.8);
+  // crack detail
+  pushCapsule(parts, MATERIALS.bone([color[0] * 0.7, color[1] * 0.7, color[2] * 0.7] as RGB),
+    cx - s * 0.04, s * 0.55, cx + s * 0.02, s * 0.48, Math.max(1, s * 0.006), 0.3);
+  return parts;
+}
+
+/** FISH — blind cave fish, pale and floppy. Wobbles/flops on idle. */
+function buildFish(rng: RNG, s: number, color: RGB, phase: number, amp: number): Part[] {
+  const parts: Part[] = [];
+  const cx = s * 0.5;
+  const flesh = MATERIALS.flesh(color);
+  const fin = MATERIALS.flesh([color[0] * 0.85, color[1] * 0.8, color[2] * 0.8] as RGB);
+  const eyeColor = MATERIALS.bone([40, 35, 35]);
+
+  // whole fish wobbles/flops
+  const wobble = wave(phase, 1) * s * 0.01 * amp;
+
+  // body — horizontal ellipse
+  pushEllipse(parts, flesh, cx + wobble, s * 0.52, s * 0.22, s * 0.10, 0.9);
+
+  // tail — capsule that flaps with wave(phase, 2)
+  const tailFlap = wave(phase, 2) * s * 0.04 * amp;
+  pushCapsule(parts, flesh, cx - s * 0.18 + wobble, s * 0.52,
+    cx - s * 0.30 + wobble, s * 0.48 + tailFlap, s * 0.04, 0.8);
+
+  // dorsal fin on top — small capsule
+  pushCapsule(parts, fin, cx + s * 0.02 + wobble, s * 0.44,
+    cx + s * 0.08 + wobble, s * 0.38, Math.max(1, s * 0.02), 0.7);
+
+  // eye — small dark dot (blind, but still has a vestigial eye spot)
+  pushCircle(parts, eyeColor, cx + s * 0.14 + wobble, s * 0.50, Math.max(1, s * 0.018), 0.6);
+
+  return parts;
+}
+
 /** Build an item's part list. `s` = working px (size * supersample). */
 export function buildItem(config: ItemConfig, s: number, phase = 0, amp = 1): Part[] {
   const rng = new RNG(config.seed ?? 0);
   const kind = config.kind ?? 'mushroom';
   const color = config.color ?? defaultColor(rng, kind);
   switch (kind) {
-    case 'crystal': return buildCrystal(rng, s, color, phase, amp);
-    case 'dagger':  return buildDagger(rng, s, color, phase, amp);
-    case 'torch':   return buildTorch(rng, s, color, phase, amp);
-    case 'potion':  return buildPotion(rng, s, color, phase, amp);
-    case 'coin':    return buildCoin(rng, s, color, phase, amp);
-    case 'rune':    return buildRune(rng, s, color, phase, amp);
-    case 'chest':   return buildChest(rng, s, color, phase, amp);
-    case 'key':     return buildKey(rng, s, color, phase, amp);
-    case 'scroll':  return buildScroll(rng, s, color, phase, amp);
+    case 'crystal':    return buildCrystal(rng, s, color, phase, amp);
+    case 'dagger':     return buildDagger(rng, s, color, phase, amp);
+    case 'torch':      return buildTorch(rng, s, color, phase, amp);
+    case 'potion':     return buildPotion(rng, s, color, phase, amp);
+    case 'coin':       return buildCoin(rng, s, color, phase, amp);
+    case 'rune':       return buildRune(rng, s, color, phase, amp);
+    case 'chest':      return buildChest(rng, s, color, phase, amp);
+    case 'key':        return buildKey(rng, s, color, phase, amp);
+    case 'scroll':     return buildScroll(rng, s, color, phase, amp);
+    case 'meat':       return buildMeat(rng, s, color, phase, amp);
+    case 'lantern':    return buildLantern(rng, s, color, phase, amp);
+    case 'ore':        return buildOre(rng, s, color, phase, amp);
+    case 'firestone':  return buildFirestone(rng, s, color, phase, amp);
+    case 'bone_shard': return buildBoneShard(rng, s, color, phase, amp);
+    case 'fish':       return buildFish(rng, s, color, phase, amp);
     case 'mushroom':
-    default:        return buildMushroom(rng, s, color, phase, amp);
+    default:           return buildMushroom(rng, s, color, phase, amp);
   }
 }
 
 /** Names of the built-in item kinds. */
-export const ITEM_KINDS: ItemKind[] = ['mushroom', 'crystal', 'dagger', 'torch', 'potion', 'coin', 'rune', 'chest', 'key', 'scroll'];
+export const ITEM_KINDS: ItemKind[] = ['mushroom', 'crystal', 'dagger', 'torch', 'potion', 'coin', 'rune', 'chest', 'key', 'scroll', 'meat', 'lantern', 'ore', 'firestone', 'bone_shard', 'fish'];

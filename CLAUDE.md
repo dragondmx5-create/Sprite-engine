@@ -33,20 +33,27 @@ One pipeline for everything: characters, enemies, items, tiles, effects.
 src/
   types.ts      — SpriteConfig, SpriteBuffer, Material, RGB, Vec3, Light
   rng.ts        — deterministic PRNG (FNV-1a + mulberry32)
-  shapes.ts     — SDF primitives: circle, ellipse, capsule, roundedBox, union, transforms
+  shapes.ts     — SDF primitives: circle, ellipse, capsule, roundedBox, union, transforms + GPU SDF descriptors
   field.ts      — Felzenszwalb-Huttenlocher EDT -> inward distance -> fake normals
   color.ts      — tone ramp (5-stop warm/cool), quantize, smoothstep
   lighting.ts   — Blinn-Phong shading with painterly diffuse ramp
   materials.ts  — 12 preset materials: skin, cloth, leather, metal, hair, chitin, flesh, gem, bone, ember, gold, glass
   engine.ts     — resolveRenderOpts + renderParts + generateSprite/Enemy/Item/Tile
   skeleton.ts   — character body builder (head, torso, arms, legs, hair, outfit, weapons, shield)
-  creatures.ts  — enemy builders: insect (IK legs), worm (sine spine), crawler (IK + claws)
-  items.ts      — loot builders: 10 kinds, all phase-animated (mushroom, crystal, dagger, torch, potion, coin, rune, chest, key, scroll)
-  tiles.ts      — dungeon tile builders: 8 kinds covering 5 UNDRAL layers
-  effects.ts    — VFX: slash, impact, projectiles, sparkle, shadow, flash, tint, status effects + phase-driven builders
-  minimap.ts    — tiny colored icons (4-8px, direct pixel fill)
+  creatures.ts  — enemy builders: 11 kinds (insect, worm, crawler, fire_elemental, shadow, burrower, bat, slime, undead, golem, ghost)
+  items.ts      — loot builders: 16 kinds (+ fish)
+  tiles.ts      — dungeon tile builders: 30 kinds (+ shop_counter, iron_gate, torch_bracket, altar, anvil, bed, table, bookshelf, pillar, fountain)
+  effects.ts    — VFX: slash, impact, projectiles, sparkle, shadow, flash, tint, status effects, water_ripple, smoke, drip + phase-driven builders
+  ui.ts         — HUD generators: health/mana/XP bars, inventory slot, dialog box, damage number, button
+  font.ts       — 5x7 bitmap pixel font: renderText, renderNumber, measureText (ASCII 32-126, no external files)
+  loot.ts       — death markers: loot_bag, skull, gravestone, blood_stain
+  minimap.ts    — tiny colored icons (4-8px): player, enemy, item, door, stairs, loot, trap, boss
+  darkness.ts   — fog-of-war / lighting system: darkness overlay, light glow, torch flicker, darkness check
+  scene.ts      — scene composition: alpha blitting, z-sorted entity rendering, tile grid, camera viewport
+  gpu.ts        — WebGPU compute-shader renderer: JFA EDT, normals, Blinn-Phong, downsample (auto-fallback to CPU)
+  cache.ts      — LRU sprite cache: cached wrappers for all generate* functions
   pose.ts       — keyframe animation clips (idle, walk, attack, hit, death) + pose interpolation
-  animation.ts  — frame generation, enemy/item/effect procedural animation, spritesheet packing
+  animation.ts  — frame generation, enemy/item/effect procedural animation (+ enemy death/hit/emerge), spritesheet packing
   anim/ik.ts    — solveTwoBone (analytic) + FABRIK (iterative N-link)
   anim/spring.ts — secondary motion: damp, lag, squash, wave, pulse, smooth
   index.ts      — public API surface + DOM helpers (toCanvas, toImageData, etc.)
@@ -90,28 +97,78 @@ npx esbuild src/index.ts --bundle --format=iife --global-name=SpriteEngine --out
 ```ts
 // Character
 generateSprite({ seed, size, supersample, weapon, shield, facing, outfit, hairStyle, palette })
-//   outfit: { torso, armor, belt, hat:'none'|'cap'|'hat'|'hood', cape, coat, boots }
+//   outfit: { torso:'cloth'|'leather'|'robe'|'chainmail'|'vest', armor, belt,
+//             hat:'none'|'cap'|'hat'|'hood'|'wizard'|'crown'|'helmet'|'bandana',
+//             cape, coat, boots, gloves, scarf, shoulderpad }
+//   weapon: 'none'|'dagger'|'sword'|'axe'|'staff'|'bow'|'mace'|'wand'|'hammer'|'fishing_rod'
 //   hairStyle: 'short'|'long'|'spiky'|'bun'|'bald'|'flowing'|'ponytail'
-generateAnimation(config, 'walk'|'idle'|'attack'|'hit'|'death')
+//   palette: { skin, hair, cloth, leather, metal, hat, cape, pants, accent }
+generateAnimation(config, 'walk'|'idle'|'attack'|'hit'|'death'|'cast'|'dodge')
 
-// Enemies
-generateEnemy({ seed, size, kind: 'insect'|'worm'|'crawler', alerted })
-generateEnemyAnimation(config, 'move'|'idle')
+// Enemies (11 kinds — UNDRAL layer creatures + ambush types + undead)
+generateEnemy({ seed, size, kind: 'insect'|'worm'|'crawler'|'fire_elemental'|'shadow'|'burrower'|'bat'|'slime'|'undead'|'golem'|'ghost', alerted })
+generateEnemyAnimation(config, 'move'|'idle'|'death'|'hit'|'emerge')
 
-// Items (all phase-animated: sway, spin, glow, flicker, etc.)
-generateItem({ seed, size, kind: 'mushroom'|'crystal'|'dagger'|'torch'|'potion'|'coin'|'rune'|'chest'|'key'|'scroll' })
+// Items (16 kinds — all phase-animated: sway, spin, glow, flicker, etc.)
+generateItem({ seed, size, kind: 'mushroom'|'crystal'|'dagger'|'torch'|'potion'|'coin'|'rune'|'chest'|'key'|'scroll'|'meat'|'lantern'|'ore'|'firestone'|'bone_shard'|'fish' })
 generateItemAnimation(config, 'idle'|'active'|'pickup')
 
-// Tiles
-generateTile({ seed, size, kind: 'stone_floor'|'dirt_floor'|'stone_wall'|'crystal_floor'|'wood_door'|'lava_floor'|'ice_floor'|'moss_floor' })
+// Tiles (30 kinds — dungeon floors, walls, doors, traps, props, interiors)
+generateTile({ seed, size, kind: 'stone_floor'|'dirt_floor'|'stone_wall'|'crystal_floor'|'wood_door'
+  |'lava_floor'|'ice_floor'|'moss_floor'|'spike_trap'|'stairs_down'|'stairs_up'|'cracked_wall'|'pit'
+  |'water_pool'|'underground_river'|'stalagmite'|'cobweb'|'barrel'|'chain'|'bone_pile'
+  |'shop_counter'|'iron_gate'|'torch_bracket'|'altar'|'anvil'|'bed'|'table'|'bookshelf'|'pillar'|'fountain' })
+
+// Loot / death markers (UNDRAL permadeath drops)
+generateLootMarker({ kind: 'loot_bag'|'skull'|'gravestone'|'blood_stain', seed, size, color })
 
 // Effects (static one-shot + animated)
 generateSlashEffect({ size, color }), generateImpactEffect(), generateProjectile({ kind }), generateSparkle()
 generateShadow(size, opacity), flashSprite(buf), tintSprite(buf, color, amount), applyStatusEffect(buf, effect, phase)
-generateEffectAnimation({ kind: 'slash'|'impact'|'sparkle'|'fireball'|'magic_bolt', size, color })
+generateEffectAnimation({ kind: 'slash'|'impact'|'sparkle'|'fireball'|'magic_bolt'|'water_ripple'|'smoke'|'drip', size, color })
 
-// Minimap
-generateMinimapIcon({ icon: 'player'|'enemy'|'item'|'door'|'stairs', size })
+// UI / HUD elements
+generateHealthBar({ width, height, fill, color, bgColor, borderColor })
+generateManaBar({ width, height, fill, color, bgColor, borderColor })
+generateXPBar({ width, height, fill, color, bgColor, borderColor })
+generateInventorySlot({ size, empty, highlight, bgColor, borderColor })
+generateDialogBox({ width, height, bgColor, borderColor })
+generateDamageNumber({ size, color, crit })
+generateButton({ width, height, color, pressed })
+
+// Pixel font / text rendering (5x7 bitmap, ASCII 32-126, no external files)
+renderText('Hello World', { color, scale, spacing, shadow, shadowColor })
+renderNumber(42, { color, scale })
+measureText('text', config)  // => { width, height }
+
+// Minimap (8 icon types)
+generateMinimapIcon({ icon: 'player'|'enemy'|'item'|'door'|'stairs'|'loot'|'trap'|'boss', size })
+
+// Scene composition + z-sorting
+renderScene(width, height, { tiles?, entities?, shadows?, effects?, darkness? }, cameraX, cameraY)
+blitOver(dst, src, offsetX, offsetY)   // alpha composite
+createBuffer(width, height)            // empty transparent SpriteBuffer
+isVisible(entity, cameraX, cameraY, viewW, viewH)  // viewport culling
+
+// Darkness / fog-of-war (UNDRAL "darkness = death" mechanic)
+generateDarknessOverlay(width, height, lights, ambientLight)  // black overlay with light holes
+generateLightGlow(width, height, lights)                      // colored light tint layer
+isInDarkness(x, y, lights, ambientLight, threshold)           // point-in-darkness check
+torchFlicker(phase, seed)                                     // deterministic radius wobble
+
+// Sprite caching (LRU, default 512 entries)
+cachedSprite(config), cachedEnemy(config), cachedItem(config), cachedTile(config)
+cachedAnimation(config, name), cachedEnemyAnimation(config, name)
+cachedItemAnimation(config, name), cachedEffectAnimation(config, name)
+globalCache.clear(), globalCache.size
+
+// GPU accelerated rendering (WebGPU, auto-fallback to CPU)
+const gpu = new GPURenderer(); await gpu.init();  // returns false if WebGPU unavailable
+await gpu.renderParts(parts, opts)                 // single sprite on GPU
+await gpu.renderBatch(partSets, opts)              // N sprites in parallel
+await renderPartsGPU(parts, opts)                  // convenience (auto-init singleton)
+await renderBatchGPU(partSets, opts)               // convenience batch
+gpu.dispose()                                      // release GPU resources
 
 // Helpers
 toCanvas(buf), toImageData(buf), packSpriteSheet(frames), generateSpriteSheetCanvas(config, animName)

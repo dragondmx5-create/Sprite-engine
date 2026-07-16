@@ -86,24 +86,28 @@ export interface SpriteConfig {
     hat?: RGB;
     cape?: RGB;
     pants?: RGB;
+    accent?: RGB;
   };
 
   /** Outfit composition. */
   outfit?: {
-    torso?: 'cloth' | 'leather'; // default 'cloth'
+    torso?: 'cloth' | 'leather' | 'robe' | 'chainmail' | 'vest'; // default 'cloth'
     armor?: boolean;             // metal chestplate + pauldrons. default false
     belt?: boolean;              // leather belt. default true
-    hat?: 'none' | 'cap' | 'hat' | 'hood'; // headwear. default 'none'
+    hat?: 'none' | 'cap' | 'hat' | 'hood' | 'wizard' | 'crown' | 'helmet' | 'bandana'; // headwear
     cape?: boolean;              // flowing cloak behind the body. default false
     coat?: boolean;              // long coat extending past waist. default false
     boots?: boolean;             // tall boots on legs. default false
+    gloves?: boolean;            // gauntlets / gloves on hands. default false
+    scarf?: boolean;             // neck scarf / muffler. default false
+    shoulderpad?: boolean;       // decorative shoulder pads (non-armor). default false
   };
 
   /** Hairstyle. Default 'short' (the original look). 'bald' draws no hair. */
   hairStyle?: 'short' | 'long' | 'spiky' | 'bun' | 'bald' | 'flowing' | 'ponytail';
 
   /** Weapon held in the right hand. Follows arm rotation during animations. */
-  weapon?: 'none' | 'dagger' | 'sword' | 'axe' | 'staff';
+  weapon?: 'none' | 'dagger' | 'sword' | 'axe' | 'staff' | 'bow' | 'mace' | 'wand' | 'hammer' | 'fishing_rod';
 
   /** Round buckler shield on the left arm. */
   shield?: boolean;
